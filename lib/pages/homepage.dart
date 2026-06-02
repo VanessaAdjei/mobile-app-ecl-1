@@ -2441,7 +2441,7 @@ class HomePageState extends State<HomePage>
               itemBuilder: (context, index) {
                 final category = _categories[index];
                 final categoryName = category['name'] ?? '';
-                final hasSubcategories = category['has_subcategories'] ?? false;
+                final hasSubcategories = _categoryHasSubcategories(category);
                 return Container(
                   margin: const EdgeInsets.only(right: 8),
                   child: Material(
@@ -2497,6 +2497,21 @@ class HomePageState extends State<HomePage>
     ]);
   }
 
+  bool _categoryHasSubcategories(dynamic category) {
+    if (category is! Map) return false;
+
+    final id = int.tryParse('${category['id']}');
+    // Keep homepage category navigation aligned with Categories page behavior.
+    const forcedSubcategoryIds = {1, 2, 3, 4, 6, 7, 8, 9, 11};
+    if (id != null && forcedSubcategoryIds.contains(id)) return true;
+
+    final raw = category['has_subcategories'];
+    if (raw is bool) return raw;
+    if (raw is num) return raw != 0;
+    final text = '${raw ?? ''}'.toLowerCase().trim();
+    return text == '1' || text == 'true' || text == 'yes';
+  }
+
   // ─── Special offers ────────────────────────────────────────────────────────
   Widget _buildSpecialOffers() {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2525,20 +2540,20 @@ class HomePageState extends State<HomePage>
                     BorderRadius.vertical(bottom: Radius.circular(12))),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('GET DEAL 10% OFF ON FIRST PURCHASE',
+              Text('SPECIAL OFFER: FREE DELIVERY + 5% OFF',
                       style: GoogleFonts.poppins(
                         color: Colors.green[700],
                         fontWeight: FontWeight.bold,
                       fontSize: 14)),
               const SizedBox(height: 4),
-              Text('Orders above GH₵100.',
+              Text('Free delivery on GHS 150+ · 5% off on GHS 500+',
                       style: TextStyle(
                         color: Colors.grey[800],
                         fontSize: 12,
                       fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
                     Text(
-                      'Make purchase through the Ernest Chemists Limited e-commerce platform and get a 10% discount of your first purchase.',
+                      'Enjoy free delivery for orders of GHS 150 and above, plus 5% off all orders of GHS 500 and above.',
                       style: TextStyle(
                       color: Colors.grey[600], fontSize: 11, height: 1.3)),
             ]),

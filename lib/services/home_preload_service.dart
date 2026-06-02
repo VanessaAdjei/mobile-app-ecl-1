@@ -119,7 +119,11 @@ class HomePreloadService {
     );
   }
 
-  /// **Hard gate:** home must not open until catalog + grid images are ready.
+  /// Gate for onboarding completion.
+  ///
+  /// We require catalog data to be ready, while image warming is best-effort.
+  /// This avoids blocking "Get Started" when products are available but
+  /// thumbnail preloading is still in progress on slower networks/devices.
   static Future<bool> ensureReadyForHome({
     Duration maxWait = const Duration(seconds: 60),
   }) async {
@@ -176,14 +180,15 @@ class HomePreloadService {
 
     _preloadComplete = true;
 
+    final imagesWarm = ProductImagePreloadService.isHomeGridWarm;
     debugPrint(
       'HomePreloadService: ready=$catalogOk '
       '(get-all-products=${ProductCache.cachedProducts.length}, '
-      'images=${ProductImagePreloadService.downloadedCount}, '
+      'imagesWarm=$imagesWarm, images=${ProductImagePreloadService.downloadedCount}, '
       'categories=${_categories.cachedCategories.length}, '
       'banners=${_banners.cachedBanners.length})',
     );
-    return catalogOk && ProductImagePreloadService.isHomeGridWarm;
+    return catalogOk;
   }
 
   static Future<bool> ensureCategoriesReady({

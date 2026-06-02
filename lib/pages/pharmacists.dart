@@ -2201,6 +2201,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   void _showSuccessDialog() {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => Dialog(
         backgroundColor: Colors.transparent,
         child: Container(
@@ -2266,8 +2267,10 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
                     onTap: () {
-                      Navigator.pop(context); // Close success dialog
-                      Navigator.pop(context); // Close booking form
+                      final navigator =
+                          Navigator.of(context, rootNavigator: true);
+                      // Close booking overlays and return to the page underneath.
+                      navigator.popUntil((route) => route is! PopupRoute);
                       // Clear form
                       _nameController.clear();
                       _phoneController.clear();
@@ -2324,13 +2327,13 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       child: DecoratedBox(
       decoration: BoxDecoration(
           color: isDark ? shellBg : const Color(0xFFF0FAF4),
-          borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
             color: isDark
                 ? Colors.grey.shade800
                 : AppColors.primary.withValues(alpha: 0.22),
         ),
-      ),
+          ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
       child: Column(
@@ -2432,9 +2435,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         width: double.infinity,
         padding: EdgeInsets.fromLTRB(10, top + 6, 14, 24),
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
             colors: [
               Color(0xFF062A12),
               Color(0xFF0D3D18),
@@ -2443,39 +2446,39 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
             ],
             stops: [0.0, 0.3, 0.65, 1.0],
           ),
-        ),
-        child: Row(
+      ),
+      child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        children: [
             BackButtonUtils.simple(
               backgroundColor: Colors.white.withValues(alpha: 0.18),
             ),
             const SizedBox(width: 6),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
                     'Pharmacist care',
-                    style: GoogleFonts.poppins(
+                  style: GoogleFonts.poppins(
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                  color: Colors.white,
                       height: 1.2,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                    Text(
                     'Licensed guidance, private consultations',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
                       color: Colors.white.withValues(alpha: 0.9),
                       height: 1.35,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             Material(
               color: Colors.white.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(10),
@@ -2484,9 +2487,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 iconSize: 20,
                 backgroundColor: Colors.transparent,
               ),
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
       ),
     );
   }
@@ -2516,7 +2519,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
+                  colors: [
               Color(0xFFE3F2E6),
               Color(0xFFF5F7F6),
             ],
@@ -2539,9 +2542,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 const SizedBox(height: 16),
                 _buildRedesignedHealthTipsSection(),
               ]),
-            ),
-          ),
-        ],
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -2571,9 +2574,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         children: [
           AspectRatio(
             aspectRatio: 2.25,
-            child: Stack(
+                    child: Stack(
               fit: StackFit.expand,
-              children: [
+                      children: [
                 Image.asset(
                   'assets/images/banner2.jpg',
                   fit: BoxFit.cover,
@@ -2595,32 +2598,32 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                   left: 12,
                   right: 12,
                   bottom: 10,
-                  child: Text(
+                                child: Text(
                     'Expert medication guidance',
-                    style: GoogleFonts.poppins(
+                                  style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                        color: Colors.white,
                       shadows: [
                         Shadow(
                           color: Colors.black.withValues(alpha: 0.35),
                           blurRadius: 6,
                         ),
                       ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ),
-              ],
-            ),
-          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-            child: Column(
+          child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+            children: [
                 Row(
-                  children: [
-                    Expanded(
+            children: [
+                Expanded(
                       child: _PharmacistActionTile(
                         icon: Icons.calendar_month_rounded,
                         label: 'Book appointment',
@@ -2651,43 +2654,43 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                Container(
-                  padding:
+                      Container(
+                        padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
+                        decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [Color(0xFFE8F5E9), Color(0xFFF4FBF6)],
                     ),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
+                          border: Border.all(
                       color: AppColors.primary.withValues(alpha: 0.2),
                     ),
-                  ),
-                  child: Row(
-                    children: [
+      ),
+      child: Row(
+        children: [
                       Icon(Icons.verified_user_rounded,
                           size: 18, color: AppColors.primaryDark),
                       const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
+          Expanded(
+            child: Text(
                           'Licensed pharmacists · Confidential · Flexible times',
-                          style: GoogleFonts.poppins(
+              style: GoogleFonts.poppins(
                             fontSize: 11,
                             color: const Color(0xFF4B5563),
                             height: 1.35,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ],
       ),
-    );
-  }
+                    ),
+                  ],
+                ),
+          ),
+        ],
+        ),
+      );
+    }
 
   ({IconData icon, Color primary, Color accent}) _categoryVisualsForTip(
       HealthTip tip) {
@@ -3183,11 +3186,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
             padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -3198,7 +3201,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
+        decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.85),
                     shape: BoxShape.circle,
                   ),
@@ -3207,20 +3210,20 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Column(
+        child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
+          children: [
+            Text(
                         'Wellness insights',
-                        style: GoogleFonts.poppins(
+              style: GoogleFonts.poppins(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                           color: const Color(0xFF111827),
                         ),
                       ),
-                      Text(
+            Text(
                         'Short reads from trusted health guidance.',
-                        style: GoogleFonts.poppins(
+              style: GoogleFonts.poppins(
                           fontSize: 11,
                           color: AppColors.primaryDark.withValues(alpha: 0.8),
                           height: 1.35,
@@ -3300,8 +3303,8 @@ class _PharmacistActionTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             gradient: filled
                 ? const LinearGradient(
@@ -3319,40 +3322,40 @@ class _PharmacistActionTile extends StatelessWidget {
                   ),
             boxShadow: filled
                 ? [
-                    BoxShadow(
+                        BoxShadow(
                       color: AppColors.primary.withValues(alpha: 0.25),
-                      blurRadius: 8,
+                          blurRadius: 8,
                       offset: const Offset(0, 3),
                     ),
                   ]
                 : null,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
               Icon(icon, color: fg, size: 22),
               const SizedBox(height: 10),
-              Text(
+          Text(
                 label,
                 style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
                   color: fg,
                   height: 1.2,
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
+                    Text(
                 subtitle,
-                style: GoogleFonts.poppins(
+                      style: GoogleFonts.poppins(
                   fontSize: 10,
                   color: subColor,
                   height: 1.3,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
       ),
     );
   }

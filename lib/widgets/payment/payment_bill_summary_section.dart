@@ -12,6 +12,9 @@ class PaymentBillSummarySection extends StatelessWidget {
   final bool showDeliveryFee;
   final double emergencyOrderFee;
   final double discountAmount;
+  final bool useRawDeliveryFee;
+  final bool forceFreeDelivery;
+  final bool lockPromoEditing;
   final String? appliedPromoCode;
   final String? promoError;
   final bool isApplyingPromo;
@@ -26,6 +29,9 @@ class PaymentBillSummarySection extends StatelessWidget {
     required this.showDeliveryFee,
     required this.emergencyOrderFee,
     required this.discountAmount,
+    this.useRawDeliveryFee = false,
+    this.forceFreeDelivery = false,
+    this.lockPromoEditing = false,
     required this.appliedPromoCode,
     required this.promoError,
     required this.isApplyingPromo,
@@ -34,8 +40,11 @@ class PaymentBillSummarySection extends StatelessWidget {
     required this.onRemovePromo,
   });
 
-  double get _displayDeliveryFee =>
-      OrderThresholdPromoBanner.displayDeliveryFee(subtotal, deliveryFee);
+  double get _displayDeliveryFee {
+    if (forceFreeDelivery) return 0.0;
+    if (useRawDeliveryFee) return deliveryFee;
+    return OrderThresholdPromoBanner.displayDeliveryFee(subtotal, deliveryFee);
+  }
 
   double get _total =>
       subtotal + _displayDeliveryFee + emergencyOrderFee - discountAmount;
@@ -74,6 +83,7 @@ class PaymentBillSummarySection extends StatelessWidget {
           OrderThresholdPromoBanner(compact: true, subtotal: subtotal),
           const SizedBox(height: 6),
           _PromoCodeBlock(
+            lockPromoEditing: lockPromoEditing,
             appliedPromoCode: appliedPromoCode,
             promoError: promoError,
             isApplyingPromo: isApplyingPromo,
@@ -140,6 +150,7 @@ class PaymentBillSummarySection extends StatelessWidget {
 }
 
 class _PromoCodeBlock extends StatelessWidget {
+  final bool lockPromoEditing;
   final String? appliedPromoCode;
   final String? promoError;
   final bool isApplyingPromo;
@@ -149,6 +160,7 @@ class _PromoCodeBlock extends StatelessWidget {
   final VoidCallback onRemovePromo;
 
   const _PromoCodeBlock({
+    required this.lockPromoEditing,
     required this.appliedPromoCode,
     required this.promoError,
     required this.isApplyingPromo,
@@ -160,7 +172,8 @@ class _PromoCodeBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasApplied = appliedPromoCode != null;
+    final hasApplied = appliedPromoCode != null || (lockPromoEditing && discountAmount > 0);
+    final lockedLabel = appliedPromoCode ?? 'Server pricing';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -185,7 +198,7 @@ class _PromoCodeBlock extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              appliedPromoCode!,
+                              lockPromoEditing ? lockedLabel : appliedPromoCode!,
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
@@ -203,6 +216,7 @@ class _PromoCodeBlock extends StatelessWidget {
                         ],
                       )
                     : TextField(
+                        enabled: !lockPromoEditing,
                         controller: promoCodeController,
                         decoration: InputDecoration(
                           isDense: true,
@@ -239,14 +253,24 @@ class _PromoCodeBlock extends StatelessWidget {
               SizedBox(
                 height: 26,
                 child: TextButton(
-                  onPressed: hasApplied
-                      ? onRemovePromo
-                      : (isApplyingPromo ? null : onApplyPromo),
+                  onPressed: lockPromoEditing
+                      ? null
+                      : hasApplied
+                          ? onRemovePromo
+                          : (isApplyingPromo ? null : onApplyPromo),
                   style: TextButton.styleFrom(
                     backgroundColor:
-                        hasApplied ? Colors.red[50] : AppColors.primary,
+                        lockPromoEditing
+                            ? Colors.grey.shade200
+                            : hasApplied
+                                ? Colors.red[50]
+                                : AppColors.primary,
                     foregroundColor:
-                        hasApplied ? Colors.red[700] : Colors.white,
+                        lockPromoEditing
+                            ? Colors.grey.shade700
+                            : hasApplied
+                                ? Colors.red[700]
+                                : Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -264,7 +288,11 @@ class _PromoCodeBlock extends StatelessWidget {
                           ),
                         )
                       : Text(
-                          hasApplied ? 'Remove' : 'Apply',
+                          lockPromoEditing
+                              ? 'Locked'
+                              : hasApplied
+                                  ? 'Remove'
+                                  : 'Apply',
                           style: const TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w600,
@@ -274,7 +302,17 @@ class _PromoCodeBlock extends StatelessWidget {
               ),
             ],
           ),
-          if (promoError != null) ...[
+          if (lockPromoEditing) ...[
+            const SizedBox(height: 2),
+            Text(
+              'Pricing is set from delivery quote.',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 9,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ] else if (promoError != null) ...[
             const SizedBox(height: 3),
             Text(
               promoError!,

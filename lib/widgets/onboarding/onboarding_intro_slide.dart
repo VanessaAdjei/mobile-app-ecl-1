@@ -130,15 +130,15 @@ class _OnboardingIntroSlideState extends State<OnboardingIntroSlide> {
                 ),
               ),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(28, 20, 28, 0),
+                padding: const EdgeInsets.fromLTRB(28, 12, 28, 0),
                 child: Column(
                   children: [
                     Text(
                       'Welcome to Ernest Chemists Limited',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
                         height: 1.25,
                         color: const Color(0xFF111827),
                       ),
@@ -148,19 +148,22 @@ class _OnboardingIntroSlideState extends State<OnboardingIntroSlide> {
                       'Your trusted partner for health and wellness.',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        height: 1.5,
-                        color: const Color(0xFF6B7280),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        height: 1.45,
+                        color: const Color(0xFF4B5563),
                       ),
                     ),
-                    const SizedBox(height: 24),
-                    Expanded(
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      height: 188,
                       child: PageView.builder(
                         controller: _heroController,
                         onPageChanged: (i) => setState(() => _heroIndex = i),
                         itemCount: _features.length,
                         itemBuilder: (context, index) {
-                          return Center(
+                          return Align(
+                            alignment: Alignment.topCenter,
                             child: _IntroIllustrationView(
                               feature: _features[index],
                             ),
@@ -168,7 +171,7 @@ class _OnboardingIntroSlideState extends State<OnboardingIntroSlide> {
                         },
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 58),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: List.generate(
@@ -187,7 +190,7 @@ class _OnboardingIntroSlideState extends State<OnboardingIntroSlide> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 10),
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 280),
                       switchInCurve: Curves.easeOut,
@@ -199,10 +202,10 @@ class _OnboardingIntroSlideState extends State<OnboardingIntroSlide> {
                             feature.title,
                             textAlign: TextAlign.center,
                             style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              height: 1.3,
-                              color: const Color(0xFF1F2937),
+                              fontSize: 19,
+                              fontWeight: FontWeight.w700,
+                              height: 1.25,
+                              color: const Color(0xFF111827),
                             ),
                           ),
                           const SizedBox(height: 6),
@@ -211,15 +214,16 @@ class _OnboardingIntroSlideState extends State<OnboardingIntroSlide> {
                             textAlign: TextAlign.center,
                             maxLines: 2,
                             style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              height: 1.45,
-                              color: const Color(0xFF6B7280),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              height: 1.4,
+                              color: const Color(0xFF4B5563),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                   ],
                 ),
               ),
@@ -290,10 +294,10 @@ class _IntroIllustrationView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const maxIllustrationHeight = 140.0;
+    const maxIllustrationHeight = 176.0;
 
     if (feature.illustration == _IntroIllustration.delivery) {
-      return const _DeliveryIllustration(size: 96);
+      return const _DeliveryIllustration(size: 120);
     }
 
     if (feature.svgAsset != null) {

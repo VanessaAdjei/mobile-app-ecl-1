@@ -3183,7 +3183,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FA),
+      backgroundColor: const Color(0xFFF3F7F4),
       appBar: null,
       body: Column(
         children: [
@@ -3192,28 +3192,28 @@ class SubcategoryPageState extends State<SubcategoryPage> {
             padding:
                 EdgeInsets.only(top: MediaQuery.of(context).padding.top * 0.4),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  const Color(0xFF1B5E20),
-                  const Color(0xFF2E7D32),
-                  const Color(0xFF43A047),
+                  Color(0xFF0B3016),
+                  Color(0xFF1B5E20),
+                  Color(0xFF2E7D32),
                 ],
                 stops: [0.0, 0.5, 1.0],
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
+                  color: Colors.black.withValues(alpha: 0.14),
+                  blurRadius: 14,
+                  offset: const Offset(0, 3),
                 ),
               ],
             ),
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0, vertical: 10.0),
+                    horizontal: 14.0, vertical: 10.0),
                 child: Row(
                   children: [
                     AppBackButton(
@@ -3232,9 +3232,18 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                                 .headlineSmall
                                 ?.copyWith(
                                   color: Colors.white,
-                                  fontSize: 22,
+                                  fontSize: 20,
                                   fontWeight: FontWeight.w700,
                                 ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Browse by subcategory',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.9),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ],
                       ),
@@ -3313,7 +3322,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
         final sideNavWidth = isTablet ? 210.0 : 128.0;
 
         return Container(
-          color: const Color(0xFFF6F8FA),
+          color: const Color(0xFFF3F7F4),
           child: Row(
             children: [
               AnimatedContainer(
@@ -3323,14 +3332,14 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                     ? sideNavWidth
                     : _kSubcategoryRailCollapsedWidth,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
+                  color: const Color(0xFFF8FBF8),
                   border: const Border(
-                    right: BorderSide(color: Color(0xFFE2E8F0)),
+                    right: BorderSide(color: Color(0xFFDDE7DE)),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 12,
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 10,
                       offset: const Offset(2, 0),
                     ),
                   ],
@@ -3345,10 +3354,10 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                   children: [
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: const Color(0xFFFAFCFB),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
+                            color: Colors.black.withValues(alpha: 0.04),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -3548,9 +3557,9 @@ class SubcategoryPageState extends State<SubcategoryPage> {
         Container(
           padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
           decoration: const BoxDecoration(
-            color: Color(0xFFF8FAFC),
+            color: Color(0xFFF2F8F2),
             border: Border(
-              bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+              bottom: BorderSide(color: Color(0xFFDDE7DE), width: 1),
             ),
           ),
           child: Row(
@@ -3562,9 +3571,9 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                   child: const Text(
                     'Subcategory',
                     style: TextStyle(
-                      fontSize: 14,
+                    fontSize: 13,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF0F172A),
+                    color: Color(0xFF1F2937),
                       letterSpacing: 0.3,
                     ),
                   ),
@@ -3573,7 +3582,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
               Tooltip(
                 message: 'Collapse list — more space for products',
                 child: Material(
-                  color: const Color(0xFFEFF6FF),
+                  color: const Color(0xFFE9F5EA),
                   borderRadius: BorderRadius.circular(10),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(10),
@@ -3584,7 +3593,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                       child: Icon(
                         Icons.keyboard_double_arrow_left_rounded,
                         size: 20,
-                        color: Colors.blue.shade800,
+                        color: const Color(0xFF166534),
                       ),
                     ),
                   ),
@@ -3618,7 +3627,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                         border: Border.all(
                           color: isSelected
                               ? const Color(0xFFBBF7D0)
-                              : const Color(0xFFE2E8F0),
+                              : const Color(0xFFDDE7DE),
                           width: 1,
                         ),
                       ),
@@ -3692,11 +3701,15 @@ class SubcategoryPageState extends State<SubcategoryPage> {
             : {'name': 'All Products', 'id': null};
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: const LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [Color(0xFFF7FBF7), Color(0xFFFBFCFB)],
+        ),
         border: Border(
-          bottom: BorderSide(color: const Color(0xFFE5E7EB)),
+          bottom: BorderSide(color: const Color(0xFFDDE7DE)),
         ),
       ),
       child: Row(
@@ -3704,7 +3717,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFFE8F5E9),
+              color: const Color(0xFFE6F4E9),
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(

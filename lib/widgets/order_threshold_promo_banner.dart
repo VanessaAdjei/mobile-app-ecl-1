@@ -59,7 +59,7 @@ class OrderThresholdPromoBanner extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'You unlocked 5% off & free delivery',
+                'Free delivery on orders GHS 150+ and 5% off orders GHS 500+',
                 style: GoogleFonts.poppins(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w600,
@@ -115,7 +115,7 @@ class OrderThresholdPromoBanner extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'You qualify for extra savings!',
+                      'Special offer unlocked',
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -125,7 +125,7 @@ class OrderThresholdPromoBanner extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '5% off and free delivery on this order',
+                      'Free delivery for orders GHS 150 and above. 5% off all orders GHS 500 and above.',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -144,17 +144,17 @@ class OrderThresholdPromoBanner extends StatelessWidget {
             children: const [
               _PromoChip(
                 icon: Icons.percent_rounded,
-                label: '5% off',
+                label: '5% off @ GHS 500+',
               ),
               _PromoChip(
                 icon: Icons.local_shipping_rounded,
-                label: 'Free delivery',
+                label: 'Free delivery @ GHS 150+',
               ),
             ],
           ),
           const SizedBox(height: 10),
           Text(
-            'Your order qualifies for 5% off and free delivery at checkout.',
+            'Free delivery applies on orders GHS 150+, and 5% off applies on all orders GHS 500+.',
             style: GoogleFonts.poppins(
               fontSize: 10.5,
               fontWeight: FontWeight.w500,

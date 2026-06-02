@@ -15,7 +15,6 @@ import '../utils/payment_redirect_url.dart';
 import '../widgets/payment/payment_bill_summary_section.dart';
 import '../widgets/payment/payment_delivery_details_card.dart';
 import '../widgets/payment/payment_order_items_section.dart';
-import '../widgets/order_threshold_promo_banner.dart';
 import '../widgets/checkout_progress_stepper.dart';
 import '../config/app_colors.dart';
 
@@ -37,6 +36,9 @@ class PaymentPage extends StatefulWidget {
   final double deliveryFee;
   final bool isOrderUrgent;
   final double? emergencyOrderFee;
+  final double? apiSubtotal;
+  final double? apiDiscountAmount;
+  final bool? apiShippingFree;
 
   const PaymentPage({
     Key? key,
@@ -51,6 +53,9 @@ class PaymentPage extends StatefulWidget {
     this.deliveryFee = 0,
     this.isOrderUrgent = false,
     this.emergencyOrderFee,
+    this.apiSubtotal,
+    this.apiDiscountAmount,
+    this.apiShippingFree,
   }) : super(key: key);
 
   bool get _isDelivery => deliveryOption.toLowerCase().trim() == 'delivery';
@@ -83,6 +88,19 @@ class PaymentPageState extends State<PaymentPage> {
   // Slide to pay variables
   double _slidePosition = 0.0;
   bool _isSliding = false;
+
+  double get _effectiveSubtotalFromApiOrCart {
+    final apiSubtotal = widget.apiSubtotal;
+    if (apiSubtotal != null && apiSubtotal >= 0) return apiSubtotal;
+    final cart = Provider.of<CartProvider>(context, listen: false);
+    return cart.calculateSubtotal();
+  }
+
+  double get _effectiveDiscountFromApiOrPromo {
+    final apiDiscount = widget.apiDiscountAmount;
+    if (apiDiscount != null && apiDiscount >= 0) return apiDiscount;
+    return _discountAmount;
+  }
 
   @override
   void initState() {
@@ -165,7 +183,7 @@ class PaymentPageState extends State<PaymentPage> {
             'Please select at least one item to proceed with payment.');
       }
 
-      final subtotal = cart.calculateSubtotal();
+      final subtotal = _effectiveSubtotalFromApiOrCart;
       if (subtotal <= 0) {
         throw Exception(
             'Invalid order amount. Please check your selected items.');
@@ -190,12 +208,12 @@ class PaymentPageState extends State<PaymentPage> {
       }
 
       final emergencyOrderFee = widget.emergencyOrderFee ?? 0.00;
-      final deliveryFeeCharged = OrderThresholdPromoBanner.displayDeliveryFee(
-        subtotal,
-        widget._effectiveDeliveryFee,
-      );
+      final deliveryFeeCharged = widget._isDelivery
+          ? (widget.apiShippingFree == true ? 0.0 : widget._effectiveDeliveryFee)
+          : 0.0;
+      final effectiveDiscount = _effectiveDiscountFromApiOrPromo;
       final total =
-          subtotal + deliveryFeeCharged + emergencyOrderFee - _discountAmount;
+          subtotal + deliveryFeeCharged + emergencyOrderFee - effectiveDiscount;
 
       String orderDesc = selectedItems
           .map((item) => '${item.quantity}x ${item.name}')
@@ -237,6 +255,9 @@ class PaymentPageState extends State<PaymentPage> {
         if (widget.lng != null) 'longitude': widget.lng,
         'delivery_fee': deliveryFeeCharged,
         'deliveryFee': deliveryFeeCharged,
+        if (widget.apiSubtotal != null) 'subtotal': widget.apiSubtotal,
+        if (widget.apiDiscountAmount != null)
+          'discount_amount': widget.apiDiscountAmount,
       };
 
       final purchasedItems = List<CartItem>.from(selectedItems);
@@ -275,7 +296,7 @@ class PaymentPageState extends State<PaymentPage> {
             estimatedDeliveryTime:
                 widget.estimatedDeliveryTime ?? 'Calculating ETA',
             deliveryFee: deliveryFeeCharged,
-            discount: _discountAmount,
+            discount: effectiveDiscount,
             onPaymentComplete: (success, token) async {
               if (success && token != null) {
                 try {
@@ -509,12 +530,15 @@ class PaymentPageState extends State<PaymentPage> {
                                   end: Offset(0, 0))
                             ],
                             child: PaymentBillSummarySection(
-                              subtotal: cart.calculateSubtotal(),
+                              subtotal: _effectiveSubtotalFromApiOrCart,
                               deliveryFee: widget._effectiveDeliveryFee,
                               showDeliveryFee: widget._isDelivery,
                               emergencyOrderFee:
                                   widget.emergencyOrderFee ?? 0.0,
-                              discountAmount: _discountAmount,
+                              discountAmount: _effectiveDiscountFromApiOrPromo,
+                              useRawDeliveryFee: true,
+                              forceFreeDelivery: widget.apiShippingFree == true,
+                              lockPromoEditing: false,
                               appliedPromoCode: _appliedPromoCode,
                               promoError: _promoError,
                               isApplyingPromo: _isApplyingPromo,
