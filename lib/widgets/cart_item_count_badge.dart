@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/app_colors.dart';
 import '../providers/cart_provider.dart';
 
 /// Cart icon + count badge that rebuilds only when [CartProvider.totalItems] changes.
@@ -36,7 +37,7 @@ class CartItemCountBadge extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(2),
                   decoration: const BoxDecoration(
-                    color: Colors.red,
+                    color: AppColors.cartBadge,
                     shape: BoxShape.circle,
                   ),
                   constraints: const BoxConstraints(

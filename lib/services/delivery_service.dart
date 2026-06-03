@@ -351,6 +351,10 @@ class DeliveryService {
           'status': responseMap['status'] ?? 'success',
           'closest_store': resolvedStore,
           'selected_store_description': selectedStoreDescription,
+          'delivery_fee': responseMap['delivery_fee'] ??
+              responseMap['data']?['delivery_fee'],
+          'promo_details': responseMap['promo_details'] ??
+              responseMap['data']?['promo_details'],
           'data': responseMap,
         };
       } else {
@@ -491,6 +495,8 @@ class DeliveryService {
           'pickup_location': billingAddr['pickup_location'] ??
               billingAddr['pickup_site'] ??
               '',
+          'lat': _parseBillingCoordinate(billingAddr['lat']),
+          'lng': _parseBillingCoordinate(billingAddr['lng']),
         };
 
         return {
@@ -536,6 +542,11 @@ class DeliveryService {
         'message': 'Network error. Please check your connection and try again.',
       };
     }
+  }
+
+  static double? _parseBillingCoordinate(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse('${value ?? ''}');
   }
 
   /// Google-style distance label for [calculate-delivery-fee].

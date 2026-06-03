@@ -23,6 +23,20 @@ class HomePreloadService {
   static bool _preloadComplete = false;
   static Future<bool>? _ensureReadyForHomeFuture;
 
+  /// Set before navigating home so permission prompts are not blocked on prefs fsync.
+  static bool _pendingPermissionsAfterOnboarding = false;
+
+  static void markPermissionsRequestedAfterOnboarding() {
+    _pendingPermissionsAfterOnboarding = true;
+  }
+
+  /// One-shot signal for HomePage to show OS permission prompts after first paint.
+  static bool takePendingPermissionsAfterOnboarding() {
+    if (!_pendingPermissionsAfterOnboarding) return false;
+    _pendingPermissionsAfterOnboarding = false;
+    return true;
+  }
+
   static bool get isCatalogReady => ProductCache.hasProductsInMemory;
 
   static bool get isPreloadComplete => _preloadComplete;
@@ -30,8 +44,7 @@ class HomePreloadService {
   static bool get isFullyReadyForHome => ProductCache.hasHomeRenderableCatalog;
 
   static void startOnboardingPreload() {
-    unawaited(ProductCache.prefetchPriorityFromNetwork());
-    unawaited(ProductCache.prefetchFromNetwork());
+    unawaited(_prefetchCatalogIfStale());
     if (_preloadFuture != null) return;
     debugPrint(
       'HomePreloadService: preload started — priority first, full catalog background',
@@ -92,6 +105,22 @@ class HomePreloadService {
       );
       _startDeferredOnboardingPreload();
     }
+  }
+
+  static Future<void> _prefetchCatalogIfStale() async {
+    try {
+      await ProductCache.loadFromStorage().timeout(
+        const Duration(seconds: 2),
+      );
+    } on TimeoutException {
+      debugPrint('HomePreloadService: disk catalog still loading');
+    }
+    if (!ProductCache.shouldRefreshFromNetwork) {
+      debugPrint('HomePreloadService: catalog fresh — skip onboarding prefetch');
+      return;
+    }
+    unawaited(ProductCache.prefetchPriorityFromNetwork());
+    unawaited(ProductCache.prefetchFromNetwork());
   }
 
   static void _startDeferredOnboardingPreload() {

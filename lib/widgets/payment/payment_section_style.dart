@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-/// Shared compact card styling for payment information sections.
+/// Shared card styling for payment information sections.
 abstract final class PaymentSectionStyle {
-  static const margin = EdgeInsets.symmetric(horizontal: 14);
-  static const padding = EdgeInsets.all(12);
-  static const radius = 14.0;
-  static const innerRadius = 10.0;
+  static const margin = EdgeInsets.symmetric(horizontal: 12);
+  static const padding = EdgeInsets.all(14);
+  static const radius = 15.0;
+  static const innerRadius = 11.0;
   static const borderColor = Color(0xFFE5E7EB);
-  static const shadowColor = Color(0x0A000000);
+  static const shadowColor = Color(0x12000000);
 
   static BoxDecoration cardDecoration() => BoxDecoration(
         color: Colors.white,
@@ -16,8 +16,8 @@ abstract final class PaymentSectionStyle {
         boxShadow: const [
           BoxShadow(
             color: shadowColor,
-            blurRadius: 6,
-            offset: Offset(0, 1),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
         ],
       );

@@ -4,8 +4,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/order_tracking_model.dart';
 
-/// Rider / courier block for post-checkout (Phase 2). Shows assigned rider when
-/// API data exists; otherwise a short “assigning rider” placeholder.
+/// Rider / courier block for post-checkout when the API returns assigned rider
+/// details (name, phone, vehicle). Live-tracking placeholders are not shown.
 class OrderCourierCard extends StatelessWidget {
   const OrderCourierCard({
     super.key,
@@ -18,22 +18,12 @@ class OrderCourierCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = accent ?? const Color(0xFF0D7A4C);
-
-    if (order.supportsCourierDetails) {
-      return _AssignedCourierCard(order: order, accent: color);
-    }
-
-    if (order.stage != OrderTrackingStage.outForDelivery &&
-        order.stage != OrderTrackingStage.delivered) {
+    if (!order.supportsCourierDetails) {
       return const SizedBox.shrink();
     }
 
-    return _PlaceholderCourierCard(
-      note: order.liveTrackingNote ??
-          'Your rider will appear here when assigned.',
-      accent: color,
-    );
+    final color = accent ?? const Color(0xFF0D7A4C);
+    return _AssignedCourierCard(order: order, accent: color);
   }
 }
 
@@ -143,72 +133,6 @@ class _AssignedCourierCard extends StatelessWidget {
                 ),
               ),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PlaceholderCourierCard extends StatelessWidget {
-  const _PlaceholderCourierCard({
-    required this.note,
-    required this.accent,
-  });
-
-  final String note;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 40,
-            height: 40,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.5,
-              color: accent.withValues(alpha: 0.7),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Rider assignment',
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF1A1A1A),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  note,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );

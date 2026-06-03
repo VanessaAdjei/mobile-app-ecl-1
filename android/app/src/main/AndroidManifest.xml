@@ -37,17 +37,13 @@
         android:debuggable="false"
         tools:replace="android:label">
 
-        <!-- ExpressPay Activity -->
+        <!-- ExpressPay checkout WebView — not exported (prevents intent redirection). -->
         <activity
             android:name="com.expresspaygh.api.ExpressPayBrowserSwitchActivity"
-            android:exported="true"
-            tools:node="merge">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="${applicationId}" />
-            </intent-filter>
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll" />
         </activity>
 
         <!-- Google Maps API Key: set MAPS_API_KEY in android/local.properties (do not commit) -->

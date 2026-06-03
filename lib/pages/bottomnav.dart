@@ -177,8 +177,8 @@ class _CustomBottomNavState extends State<CustomBottomNav>
     Widget iconWidget;
 
     if (child != null) {
-      // For icons with custom children (badges), apply opacity animation
-      iconWidget = AnimatedOpacity(
+      // Cart badge manages its own icon opacity so the red count stays vivid.
+      iconWidget = itemIndex == 1 ? child : AnimatedOpacity(
         duration: const Duration(milliseconds: 200),
         opacity: isSelected ? 1.0 : 0.7,
         child: child,
@@ -989,7 +989,9 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                         icon: Icons.shopping_cart_rounded,
                         isSelected: _selectedIndex == 1,
                         itemIndex: 1,
-                        child: const CartNavBadgeIcon(),
+                        child: CartNavBadgeIcon(
+                          isSelected: _selectedIndex == 1,
+                        ),
                       ),
                       label: 'Cart',
                     ),

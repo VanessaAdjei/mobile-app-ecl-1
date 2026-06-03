@@ -19,13 +19,13 @@ class OrderTrackingProvider extends ChangeNotifier {
         _onOrderConfirmed = onOrderConfirmed;
 
   static const Duration _paymentPollInterval = Duration(seconds: 5);
-  /// Poll every 2s so the UI updates as soon as the backend changes (no manual refresh).
-  static const Duration _trackingPollInterval = Duration(seconds: 2);
+  /// Poll periodically; status comes from GET /orders (no per-order /status route).
+  static const Duration _trackingPollInterval = Duration(seconds: 15);
 
   /// Callback for push-driven refresh (e.g. order_status / delivery notification). Set by the tracking screen.
   static void Function()? onOrderStatusUpdateFromPush;
 
-  /// Callback when order reaches [OrderTrackingStage.orderConfirmed] (SnackBar / banner on screen).
+  /// Callback when order reaches [OrderTrackingStage.orderConfirmed] (defer SnackBar until user leaves confirmation).
   static void Function(OrderTrackingModel order)? onOrderConfirmedStageUi;
 
   /// Call when a push notification indicates order status changed; refreshes immediately if tracking is active.
@@ -47,6 +47,7 @@ class OrderTrackingProvider extends ChangeNotifier {
   String? _errorMessage;
   bool _didHandleSuccessfulOrder = false;
   bool _didNotifyOrderConfirmed = false;
+  bool _didNotifyArrived = false;
   bool _didNotifyDelivered = false;
   Timer? _paymentPollTimer;
   Timer? _trackingPollTimer;
@@ -67,6 +68,7 @@ class OrderTrackingProvider extends ChangeNotifier {
   Future<void> initialize() async {
     _showManualRefresh = false;
     _scheduleManualRefresh();
+    _order = await _service.syncTimelineWithTimestamps(_order);
     await _checkPaymentStatus(isInitialLoad: true);
     if (isAwaitingPaymentConfirmation) {
       _startPaymentPolling();
@@ -85,7 +87,10 @@ class OrderTrackingProvider extends ChangeNotifier {
       final previousStage = _order.stage;
       _isRefreshing = true;
       _notifyListenersSafely();
-      _order = await _service.refreshOrder(_order);
+      _order = await _service.refreshOrder(
+        _order,
+        previousStage: previousStage,
+      );
       if (_isDisposed) return;
       _errorMessage = null;
       await _notifyImportantStageChanges(previousStage);
@@ -112,7 +117,12 @@ class OrderTrackingProvider extends ChangeNotifier {
       final result = await _service.checkPaymentStatus();
       if (_isDisposed) return;
       _handleEmptyResponses(result);
+      final previousStage = _order.stage;
       _order = _service.applyPaymentStatus(_order, result);
+      _order = await _service.syncTimelineWithTimestamps(
+        _order,
+        previousStage: previousStage,
+      );
       _errorMessage = null;
 
       if (result.status == 'success') {
@@ -142,7 +152,10 @@ class OrderTrackingProvider extends ChangeNotifier {
     // Backend first: authoritative snapshot before any local backup or UI side effects.
     try {
       final previousStage = _order.stage;
-      _order = await _service.refreshOrder(_order);
+      _order = await _service.refreshOrder(
+        _order,
+        previousStage: previousStage,
+      );
       if (!_isDisposed) {
         await _notifyImportantStageChanges(previousStage);
       }
@@ -208,7 +221,10 @@ class OrderTrackingProvider extends ChangeNotifier {
         stageLabel: _service.stageLabel(OrderTrackingStage.failed),
         stageMessage:
             'Payment verification timed out. Please try again or contact support.',
-        timelineSteps: _service.buildTimeline(OrderTrackingStage.orderPlaced),
+        timelineSteps: _service.buildTimeline(
+          OrderTrackingStage.orderPlaced,
+          createdAt: _order.createdAt,
+        ),
       );
       _stopPaymentPolling();
     }
@@ -276,6 +292,30 @@ class OrderTrackingProvider extends ChangeNotifier {
       } catch (e, st) {
         NonUiErrorReporter.report(
           'OrderTrackingProvider.onOrderConfirmedStageUi',
+          e,
+          st,
+        );
+      }
+    }
+
+    if (!_didNotifyArrived &&
+        previousStage != OrderTrackingStage.arrived &&
+        current == OrderTrackingStage.arrived) {
+      _didNotifyArrived = true;
+      try {
+        await OrderNotificationService.createOrderStatusNotification(
+          orderId: _order.orderId,
+          orderNumber: _order.orderNumber,
+          status: _order.rawStatus,
+          title: 'Order Arrived',
+          message:
+              'Your order #${_order.orderNumber} has arrived at your delivery location.',
+          totalAmount: _order.totalAmount.toStringAsFixed(2),
+          items: _order.items.map((e) => e.toMap()).toList(),
+        );
+      } catch (e, st) {
+        NonUiErrorReporter.report(
+          'OrderTrackingProvider.createOrderStatusNotification.arrived',
           e,
           st,
         );

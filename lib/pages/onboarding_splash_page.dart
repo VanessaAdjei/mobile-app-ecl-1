@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:eclapp/config/app_colors.dart';
 import 'package:eclapp/services/home_preload_service.dart';
+import 'package:eclapp/services/native_notification_service.dart';
 import 'package:eclapp/widgets/onboarding/onboarding_intro_slide.dart';
 import 'package:eclapp/widgets/onboarding/onboarding_permissions_slide.dart';
 import 'package:eclapp/widgets/onboarding/onboarding_safety_slide.dart';
@@ -54,7 +55,14 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage> {
   Future<void> _onContinue() async {
     try {
       if (_currentPage == _permissionsPageIndex) {
-        // Permissions run on home after navigation — do not block onboarding.
+        if (!mounted) return;
+        try {
+          await NativeNotificationService.requestOnboardingPermissions(
+            context: context,
+          );
+        } catch (e, st) {
+          debugPrint('Onboarding: permission request error: $e\n$st');
+        }
         if (!mounted) return;
         await _goToPage(_welcomePageIndex);
         return;
@@ -107,13 +115,23 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage> {
     }
     if (!mounted) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('hasLaunchedBefore', true);
-    await prefs.setBool('just_finished_onboarding', true);
-    await prefs.setBool('has_shown_welcome_message', true);
-    await prefs.setBool('request_permissions_after_onboarding', true);
-    if (!mounted) return;
+    // Navigate immediately — do not await SharedPreferences or permissions.
+    HomePreloadService.markPermissionsRequestedAfterOnboarding();
     widget.onFinish();
+
+    unawaited(_persistOnboardingCompletionFlags());
+  }
+
+  Future<void> _persistOnboardingCompletionFlags() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('hasLaunchedBefore', true);
+      await prefs.setBool('just_finished_onboarding', true);
+      await prefs.setBool('has_shown_welcome_message', true);
+      await prefs.setBool('request_permissions_after_onboarding', true);
+    } catch (e, st) {
+      debugPrint('Onboarding: persist flags error: $e\n$st');
+    }
   }
 
   Future<void> _onSkip() async {

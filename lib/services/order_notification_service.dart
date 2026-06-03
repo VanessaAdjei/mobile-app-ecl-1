@@ -103,9 +103,12 @@ class OrderNotificationService {
         }
       } catch (_) {}
 
-      // Show system / heads-up notification (still try when OS permission is off;
-      // in-app SnackBar on post-checkout is the primary on-screen fallback).
+      // Always show system notification; in-app SnackBar is deferred until the user
+      // leaves the post-checkout confirmation page.
       try {
+        await NativeNotificationService.ensureSystemNotificationsEnabled(
+          requestIfNeeded: true,
+        );
         await NativeNotificationService.showNotification(
           title: 'Order Placed Successfully! 🎉',
           body:
@@ -121,7 +124,6 @@ class OrderNotificationService {
             'created_at':
                 orderData['created_at'] ?? DateTime.now().toIso8601String(),
           }),
-          checkPermission: false,
         );
       } catch (e) {
         debugPrint('Error showing system notification: $e');
@@ -156,7 +158,7 @@ class OrderNotificationService {
   }
 
   /// Create a notification for order status/tracking stage changes.
-  /// Call this for every stage: Order Placed, Confirmed, Processing, Shipped, Out for Delivery, Delivered, Cancelled.
+  /// Call this for every stage: Order Placed, Confirmed, Ready for Dispatch, Out for Delivery, Delivered, Cancelled.
   static Future<void> createOrderStatusNotification({
     required String orderId,
     required String orderNumber,
@@ -190,6 +192,9 @@ class OrderNotificationService {
       }
 
       try {
+        await NativeNotificationService.ensureSystemNotificationsEnabled(
+          requestIfNeeded: true,
+        );
         await NativeNotificationService.showNotification(
           title: title,
           body: message,

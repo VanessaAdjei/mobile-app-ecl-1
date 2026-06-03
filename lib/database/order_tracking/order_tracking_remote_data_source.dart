@@ -1,14 +1,12 @@
-import 'dart:convert';
 import 'dart:io' show SocketException;
 
 import 'package:http/http.dart' as http;
 
-import '../../config/api_config.dart';
 import '../../database/payment/payment_remote_data_source.dart';
-import '../../models/category_fetch_result.dart';
 import '../../repositories/payment_repository.dart';
 import '../../services/auth_service.dart';
 import '../../utils/app_error_utils.dart';
+import '../../utils/order_steps_api_logger.dart';
 import '../../services/order_history_transformer.dart';
 import '../../models/order_tracking_model.dart';
 
@@ -115,8 +113,17 @@ class OrderTrackingRemoteDataSourceImpl
   }
 
   @override
-  Future<String?> fetchOrderStatus(String orderId) =>
-      _fetchDirectStatus(orderId);
+  Future<String?> fetchOrderStatus(String orderId) async {
+    if (orderId.isEmpty) return null;
+    final result = await AuthService.getOrders();
+    if (result['status'] != 'success' || result['data'] is! List) {
+      return null;
+    }
+    return _statusFromOrdersList(
+      result['data'] as List,
+      requestedIds: {orderId},
+    );
+  }
 
   @override
   Future<Map<String, dynamic>?> fetchLatestOrderSnapshot({
@@ -131,8 +138,6 @@ class OrderTrackingRemoteDataSourceImpl
     }
 
     final orders = result['data'] as List;
-    final directStatus = await _fetchDirectStatus(
-        _pickLookupId(orderId, orderNumber, transactionId));
 
     final requestedIds = <String>{
       orderId,
@@ -162,7 +167,7 @@ class OrderTrackingRemoteDataSourceImpl
     }
 
     if (matchedRows.isEmpty) {
-      return directStatus == null ? null : {'status': directStatus};
+      return null;
     }
 
     final mergeKey = transactionId.isNotEmpty
@@ -176,65 +181,38 @@ class OrderTrackingRemoteDataSourceImpl
           )
         : OrderHistoryTransformer.processMultiOrder(matchedRows, mergeKey);
 
-    if (directStatus != null && directStatus.isNotEmpty) {
-      merged['status'] = directStatus;
-    }
+    OrderStepsApiLogger.logSnapshotStageFields(
+      'fetchLatestOrderSnapshot',
+      snapshot: merged,
+    );
 
     return merged;
   }
 
-  String _pickLookupId(
-      String orderId, String orderNumber, String transactionId) {
-    if (transactionId.isNotEmpty) {
-      return transactionId;
-    }
-    if (orderId.isNotEmpty) {
-      return orderId;
-    }
-    return orderNumber;
-  }
+  /// Reads status from GET /orders rows (per-order status route is not deployed).
+  String? _statusFromOrdersList(
+    List orders, {
+    required Set<String> requestedIds,
+  }) {
+    if (requestedIds.isEmpty) return null;
 
-  Future<String?> _fetchDirectStatus(String orderId) async {
-    if (orderId.isEmpty) {
-      return null;
-    }
+    for (final item in orders) {
+      if (item is! Map) continue;
+      final order = Map<String, dynamic>.from(item);
+      final candidateIds = <String>{
+        order['delivery_id']?.toString() ?? '',
+        order['transaction_id']?.toString() ?? '',
+        order['id']?.toString() ?? '',
+        order['order_number']?.toString() ?? '',
+        order['order_id']?.toString() ?? '',
+      }..removeWhere((value) => value.isEmpty);
 
-    try {
-      final token = await AuthService.getToken();
-      if (token == null || token.isEmpty) {
-        return null;
+      if (candidateIds.intersection(requestedIds).isNotEmpty) {
+        final status = order['status']?.toString();
+        if (status != null && status.isNotEmpty) return status;
       }
-
-      final response = await http.get(
-        Uri.parse(ApiConfig.getOrderStatusUrl(orderId)),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 8));
-
-      if (response.statusCode != 200) {
-        return null;
-      }
-
-      final data = _decodeResponse(response.body);
-      return data['status']?.toString() ?? data['data']?['status']?.toString();
-    } catch (_) {
-      return null;
     }
-  }
-
-  Map<String, dynamic> _decodeResponse(String responseBody) {
-    final parsed = CategoryFetchResult.fromResponse(200, responseBody);
-    if (parsed.body != null) {
-      return parsed.body!;
-    }
-    var body = responseBody.trim();
-    final jsonStart = body.indexOf('{');
-    if (jsonStart != -1) {
-      body = body.substring(jsonStart);
-    }
-    return Map<String, dynamic>.from(json.decode(body) as Map);
+    return null;
   }
 
   /// Flattens `{ data: { status, transaction_id, ... } }` and similar API shapes.

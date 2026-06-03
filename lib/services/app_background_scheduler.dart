@@ -17,13 +17,14 @@ import 'native_notification_service.dart';
 import 'optimized_api_service.dart';
 import 'optimized_homepage_service.dart';
 import 'order_notification_service.dart';
+import 'realtime_cart_sync_service.dart';
 import 'universal_page_optimization_service.dart';
 
 /// Coordinates non-critical background work so startup and idle periods stay fast.
 ///
 /// Goals:
 /// - Stagger timers/API prefetch instead of firing everything at cold start.
-/// - Skip duplicate homepage/cart prefetch (cart sync lives on [CartProvider]).
+/// - Cart server sync: [RealtimeCartSyncService] (started from [CartProvider]).
 /// - Pause low-priority work while the app is in the background.
 class AppBackgroundScheduler {
   AppBackgroundScheduler._();
@@ -97,11 +98,12 @@ class AppBackgroundScheduler {
       unawaited(BackgroundPrefetchService().smartPrefetch());
     });
 
-    // Order polling — after home has had time to load (~12s).
+    // Order + cart polling — after home has had time to load (~12s).
     _schedule(const Duration(seconds: 12), () {
       if (_paused) return;
       BackgroundOrderChecker.startPeriodicChecking();
       BackgroundOrderTrackingService.startBackgroundTracking();
+      unawaited(RealtimeCartSyncService.checkNow());
     });
 
     // Store/inventory/tips — defer heavy/low-value work (~60s).
@@ -117,6 +119,8 @@ class AppBackgroundScheduler {
     switch (state) {
       case AppLifecycleState.resumed:
         _paused = false;
+        unawaited(BackgroundOrderChecker.checkNow());
+        unawaited(RealtimeCartSyncService.checkNow());
         break;
       case AppLifecycleState.inactive:
       case AppLifecycleState.paused:

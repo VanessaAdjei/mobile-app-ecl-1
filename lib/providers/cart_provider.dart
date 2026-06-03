@@ -241,6 +241,73 @@ class CartProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Replaces local cart with the full `items` list from check-auth (server is billing source).
+  void _mergeFullServerCartFromCheckAuthItems(List<dynamic> serverItems) {
+    if (serverItems.isEmpty) return;
+
+    final mergedItems = <String, CartItem>{};
+    for (final raw in serverItems) {
+      if (raw is! Map) continue;
+      var cartItem = CartItem.fromServerJson(Map<String, dynamic>.from(raw));
+      final mergeKey =
+          '${_normalizeProductName(cartItem.name)}-${cartItem.batchNo}';
+
+      if (mergedItems.containsKey(mergeKey)) {
+        final existing = mergedItems[mergeKey]!;
+        mergedItems[mergeKey] = existing.copyWith(
+          quantity: existing.quantity + cartItem.quantity,
+          totalPrice: existing.totalPrice + cartItem.totalPrice,
+        );
+      } else {
+        mergedItems[mergeKey] = cartItem;
+      }
+    }
+
+    if (mergedItems.isEmpty) return;
+
+    final items = mergedItems.values.toList();
+    for (var i = 0; i < items.length; i++) {
+      var cartItem = items[i];
+      CartItem? matchingLocal;
+      for (final local in _cartItems) {
+        if (_sameCartProduct(local, cartItem)) {
+          matchingLocal = local;
+          break;
+        }
+      }
+      if (matchingLocal != null) {
+        cartItem = cartItem.copyWith(
+          originalProductId: matchingLocal.originalProductId ??
+              matchingLocal.productId,
+          image: matchingLocal.image.isNotEmpty
+              ? matchingLocal.image
+              : cartItem.image,
+        );
+      } else if (_pendingItemBatch != null &&
+          cartItem.batchNo == _pendingItemBatch &&
+          (_pendingItemName == null ||
+              _productNamesLooselyMatch(cartItem.name, _pendingItemName!))) {
+        cartItem = cartItem.copyWith(
+          originalProductId: _pendingOriginalProductId,
+        );
+      }
+      items[i] = cartItem;
+    }
+
+    _pendingOriginalProductId = null;
+    _pendingItemName = null;
+    _pendingItemBatch = null;
+
+    _cartItems = items;
+    _consolidateDuplicateCartLines();
+    debugPrint(
+      '✅ Local cart synced from check-auth (${_cartItems.length} line(s), '
+      'subtotal ${_cartItems.fold<double>(0, (s, i) => s + i.totalPrice).toStringAsFixed(2)})',
+    );
+    unawaited(_saveUserCarts());
+    notifyListeners();
+  }
+
   /// Links server line ids to local rows from check-auth response (no full cart fetch).
   bool _applyServerCartLinesFromResponse(
     List<dynamic> serverItems, {
@@ -320,13 +387,20 @@ class CartProvider with ChangeNotifier {
 
   Future<void> _initializeRealtimeSync() async {
     try {
-      // Initialize real-time cart sync service with this CartProvider instance
       await RealtimeCartSyncService().initialize(this);
-      debugPrint('🔄 CartProvider: Real-time cart sync service initialized');
+      debugPrint('🔄 CartProvider: Background cart sync started');
+      if (_cartItems.isNotEmpty) {
+        _scheduleBackgroundCartSync();
+      }
     } catch (e) {
       debugPrint(
-          '🔄 CartProvider: Error initializing real-time cart sync service: $e');
+          '🔄 CartProvider: Error initializing background cart sync: $e');
     }
+  }
+
+  void _scheduleBackgroundCartSync() {
+    if (_isDisposed) return;
+    unawaited(RealtimeCartSyncService().triggerImmediateSync());
   }
 
   Future<void> _checkCurrentUser() async {
@@ -340,6 +414,7 @@ class CartProvider with ChangeNotifier {
       _loadCurrentUserCart(); // Load guest cart when not logged in
     }
     notifyListeners();
+    _scheduleBackgroundCartSync();
   }
 
   Future<void> _loadUserCarts() async {
@@ -613,9 +688,14 @@ class CartProvider with ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       String? guestId = prefs.getString('guest_id');
       if (guestId == null || guestId.isEmpty) {
-        // Create guest_id (fetch from backend)
-        guestId = await AuthService.generateGuestId();
-        debugPrint('[CartProvider] Created guest_id: $guestId');
+        try {
+          guestId = await AuthService.generateGuestId();
+          debugPrint('[CartProvider] Created guest_id: $guestId');
+        } catch (e) {
+          debugPrint('[CartProvider] guest_id unavailable: $e');
+          await _addToLocalCart(item);
+          return;
+        }
       }
     }
     // --- END GUEST SESSION LOGIC ---
@@ -681,6 +761,8 @@ class CartProvider with ChangeNotifier {
           _showSyncError(
             'Could not add to cart on server. The product may be unavailable.',
           );
+        } else {
+          _scheduleBackgroundCartSync();
         }
       } else {
         _cartItems.add(item);
@@ -703,6 +785,8 @@ class CartProvider with ChangeNotifier {
           _showSyncError(
             'Could not add to cart on server. The product may be unavailable.',
           );
+        } else {
+          _scheduleBackgroundCartSync();
         }
       }
     } catch (e) {
@@ -786,12 +870,19 @@ class CartProvider with ChangeNotifier {
       debugPrint('Successfully added item to server cart');
 
       List<dynamic> serverItems = [];
-      var serverLineIdApplied = false;
       try {
         final responseData = CartService.decodeBody(response);
         if (responseData != null) {
           serverItems = responseData['items'] as List? ?? [];
         }
+        if (serverItems.isNotEmpty) {
+          _pendingOriginalProductId = catalogProductId;
+          _pendingItemName = item.name;
+          _pendingItemBatch = item.batchNo;
+          _mergeFullServerCartFromCheckAuthItems(serverItems);
+          return true;
+        }
+
         if (syncQuantity != null) {
           final idx =
               _findLocalCartIndex(name: item.name, batchNo: item.batchNo);
@@ -810,19 +901,17 @@ class CartProvider with ChangeNotifier {
             catalogProductId: catalogProductId,
           );
         }
-        serverLineIdApplied = _applyServerCartLinesFromResponse(
+        if (_applyServerCartLinesFromResponse(
           serverItems,
           pendingOriginalProductId: catalogProductId,
           pendingName: item.name,
           pendingBatch: item.batchNo,
-        );
+        )) {
+          _consolidateDuplicateCartLines();
+          return true;
+        }
       } catch (e) {
-        debugPrint('⚠️ Error extracting server cart ID from response: $e');
-      }
-
-      if (serverLineIdApplied) {
-        _consolidateDuplicateCartLines();
-        return true;
+        debugPrint('⚠️ Error extracting server cart from response: $e');
       }
 
       final syncedItemIndex = _findLocalCartIndex(
@@ -953,6 +1042,7 @@ class CartProvider with ChangeNotifier {
       await syncWithApi();
     } finally {
       _inhibitRemoteCartSync = false;
+      _scheduleBackgroundCartSync();
     }
   }
 
@@ -1069,6 +1159,7 @@ class CartProvider with ChangeNotifier {
           _showSyncError('Quantity update failed. Please try again.');
         }
       }
+      _scheduleBackgroundCartSync();
     }
   }
 
@@ -1595,6 +1686,7 @@ class CartProvider with ChangeNotifier {
 
     debugPrint(
         '🛒 CartProvider: User logged in - cart loaded for user: $userId');
+    _scheduleBackgroundCartSync();
   }
 
   Future<void> handleUserLogout() async {
@@ -1617,6 +1709,7 @@ class CartProvider with ChangeNotifier {
 
   Future<void> refreshLoginStatus() async {
     await _checkCurrentUser();
+    _scheduleBackgroundCartSync();
   }
 
   int get totalItems => _cartItems.fold(0, (sum, item) => sum + item.quantity);
@@ -1708,8 +1801,8 @@ class CartProvider with ChangeNotifier {
 
     debugPrint('✅ Local cart merge completed. Items: ${_cartItems.length}');
 
-    // Sync with server in background (non-blocking)
     _syncMergedCartInBackground();
+    _scheduleBackgroundCartSync();
   }
 
   // Fast background sync for merged cart
@@ -1721,6 +1814,7 @@ class CartProvider with ChangeNotifier {
       await _batchSyncCartToServer();
 
       debugPrint('✅ Background server sync completed');
+      _scheduleBackgroundCartSync();
     } catch (e) {
       debugPrint('⚠️ Background sync failed: $e');
       // Don't show error to user - cart is already merged locally

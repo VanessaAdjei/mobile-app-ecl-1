@@ -9,6 +9,9 @@ class CartIconButton extends StatefulWidget {
   final EdgeInsets? padding;
   final Color? backgroundColor;
   final EdgeInsetsGeometry? margin;
+  final BoxConstraints? constraints;
+  final VisualDensity? visualDensity;
+  final double? splashRadius;
 
   const CartIconButton({
     super.key,
@@ -17,6 +20,9 @@ class CartIconButton extends StatefulWidget {
     this.padding,
     this.backgroundColor,
     this.margin,
+    this.constraints,
+    this.visualDensity,
+    this.splashRadius,
   });
 
   @override
@@ -53,6 +59,9 @@ class _CartIconButtonState extends State<CartIconButton> {
           iconSize: widget.iconSize,
         ),
         padding: widget.padding,
+        constraints: widget.constraints,
+        visualDensity: widget.visualDensity,
+        splashRadius: widget.splashRadius,
         onPressed: () => Navigator.pushNamed(context, AppRoutes.cart),
       ),
     );

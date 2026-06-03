@@ -1,14 +1,11 @@
-import 'package:flutter/foundation.dart';
-
 import '../models/order_tracking_page_details.dart';
-import '../repositories/order_tracking_repository.dart';
 import '../services/auth_service.dart';
 import '../services/order_history_transformer.dart';
+import 'order_steps_api_logger.dart';
 
 /// Resolves order list + status API data for the legacy order tracking page.
 Future<OrderTrackingPageDetails> resolveOrderTrackingPageDetails(
   Map<String, dynamic> orderDetails,
-  OrderTrackingRepository repository,
 ) async {
   final orderId = orderDetails['id']?.toString();
   final orderNumber = orderDetails['order_number']?.toString();
@@ -23,18 +20,9 @@ Future<OrderTrackingPageDetails> resolveOrderTrackingPageDetails(
           orderDetails['id']?.toString() ??
           orderDetails['order_number']?.toString();
 
-  String? directStatus;
-  try {
-    directStatus = await repository.fetchOrderStatus(
-      notificationDeliveryId ?? orderId ?? orderNumber ?? '',
-    );
-  } catch (e) {
-    debugPrint('🔍 Direct status API error: $e');
-  }
-
   final result = await AuthService.getOrders();
   if (result['status'] != 'success' || result['data'] is! List) {
-    return OrderTrackingPageDetails(directStatus: directStatus);
+    return const OrderTrackingPageDetails();
   }
 
   final orders = result['data'] as List;
@@ -74,7 +62,7 @@ Future<OrderTrackingPageDetails> resolveOrderTrackingPageDetails(
   }
 
   if (matchedRows.isEmpty) {
-    return OrderTrackingPageDetails(directStatus: directStatus);
+    return const OrderTrackingPageDetails();
   }
 
   final orderItems = _mergeMatchedOrderRows(matchedRows);
@@ -141,8 +129,12 @@ Future<OrderTrackingPageDetails> resolveOrderTrackingPageDetails(
     }
   }
 
+  OrderStepsApiLogger.logSnapshotStageFields(
+    'track-order page (GET /orders match)',
+    snapshot: targetOrder,
+  );
+
   return OrderTrackingPageDetails(
-    directStatus: directStatus,
     orderStatus: orderStatus,
     deliveryAddress: deliveryAddress,
     contactNumber: contactNumber,

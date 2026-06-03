@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config/api_config.dart';
 import 'app_optimization_service.dart';
+import '../cache/product_cache.dart';
 import '../cache/product_catalog_memory.dart';
 import '../models/product_model.dart';
 import '../models/health_tip.dart';
@@ -40,12 +41,9 @@ class HomepageOptimizationService {
       'homepage_categorized_products_cache_time';
 
   // Cache configuration
-  static const Duration _productsCacheDuration = Duration(minutes: 15);
-  // Popular products cache reduced to 15 minutes for maximum performance
-  // and very frequent updates while maintaining good user experience
-  static const Duration _popularProductsCacheDuration = Duration(minutes: 15);
-  static const Duration _categorizedProductsCacheDuration =
-      Duration(minutes: 20);
+  static const Duration _productsCacheDuration = Duration(hours: 1);
+  static const Duration _popularProductsCacheDuration = Duration(hours: 1);
+  static const Duration _categorizedProductsCacheDuration = Duration(hours: 1);
 
   // In-memory cache
   List<Product> _cachedProducts = [];
@@ -114,7 +112,8 @@ class HomepageOptimizationService {
     }
 
     if (!forceRefresh && _cachedProducts.isNotEmpty) {
-      if (!_isProductsCacheValid && !ProductCatalogMemory.hasProducts) {
+      if (ProductCache.shouldRefreshFromNetwork &&
+          !ProductCatalogMemory.hasProducts) {
         unawaited(_fetchProducts().catchError((_) => _cachedProducts));
       }
       _optimizationService.endTimer('HomepageService_GetProducts');
@@ -240,8 +239,9 @@ class HomepageOptimizationService {
     if (!forceRefresh &&
         _isPopularProductsCacheValid &&
         _cachedPopularProducts.isNotEmpty) {
-      // Return cached but refresh in background
-      _fetchPopularProducts();
+      if (ProductCache.shouldRefreshFromNetwork) {
+        unawaited(_fetchPopularProducts().catchError((_) => _cachedPopularProducts));
+      }
       return _cachedPopularProducts;
     }
 

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/order_tracking_model.dart';
@@ -10,6 +12,14 @@ abstract class OrderTrackingLocalDataSource {
   });
 
   Future<void> createOrderPlacedNotification(OrderTrackingModel order);
+
+  Future<Map<String, DateTime>> loadStageTimestamps(String orderKey);
+
+  Future<void> recordStageTimestampIfAbsent(
+    String orderKey,
+    String stageId,
+    DateTime occurredAt,
+  );
 }
 
 class OrderTrackingLocalDataSourceImpl implements OrderTrackingLocalDataSource {
@@ -55,5 +65,50 @@ class OrderTrackingLocalDataSourceImpl implements OrderTrackingLocalDataSource {
           .toList(),
       'created_at': order.createdAt.toIso8601String(),
     });
+  }
+
+  static String _stageTimestampsKey(String orderKey) =>
+      'order_stage_ts_$orderKey';
+
+  @override
+  Future<Map<String, DateTime>> loadStageTimestamps(String orderKey) async {
+    if (orderKey.isEmpty) return {};
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_stageTimestampsKey(orderKey));
+    if (raw == null || raw.isEmpty) return {};
+
+    try {
+      final decoded = json.decode(raw);
+      if (decoded is! Map) return {};
+      final result = <String, DateTime>{};
+      for (final entry in decoded.entries) {
+        final parsed = DateTime.tryParse(entry.value.toString());
+        if (parsed != null) {
+          result[entry.key.toString()] = parsed;
+        }
+      }
+      return result;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  @override
+  Future<void> recordStageTimestampIfAbsent(
+    String orderKey,
+    String stageId,
+    DateTime occurredAt,
+  ) async {
+    if (orderKey.isEmpty || stageId.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final key = _stageTimestampsKey(orderKey);
+    final existing = await loadStageTimestamps(orderKey);
+    if (existing.containsKey(stageId)) return;
+
+    existing[stageId] = occurredAt;
+    final encoded = json.encode(
+      existing.map((k, v) => MapEntry(k, v.toIso8601String())),
+    );
+    await prefs.setString(key, encoded);
   }
 }

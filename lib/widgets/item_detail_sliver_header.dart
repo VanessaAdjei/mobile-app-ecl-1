@@ -155,9 +155,9 @@ class _ItemDetailSliverHeaderState extends State<ItemDetailSliverHeader> {
       tooltip: tooltip,
       padding: EdgeInsets.zero,
       visualDensity: VisualDensity.compact,
-      constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-      splashRadius: 16,
-      icon: Icon(icon, color: Colors.white, size: 18),
+      constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+      splashRadius: 14,
+      icon: Icon(icon, color: Colors.white, size: 16),
     );
   }
 
@@ -171,7 +171,7 @@ class _ItemDetailSliverHeaderState extends State<ItemDetailSliverHeader> {
           border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+          padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 0),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -183,10 +183,13 @@ class _ItemDetailSliverHeaderState extends State<ItemDetailSliverHeader> {
                 ),
               CartIconButton(
                 iconColor: Colors.white,
-                iconSize: 18,
+                iconSize: 16,
                 padding: EdgeInsets.zero,
                 margin: EdgeInsets.zero,
                 backgroundColor: Colors.transparent,
+                constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+                visualDensity: VisualDensity.compact,
+                splashRadius: 14,
               ),
             ],
           ),

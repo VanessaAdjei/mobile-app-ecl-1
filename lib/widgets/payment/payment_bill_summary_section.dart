@@ -54,9 +54,11 @@ class PaymentBillSummarySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sectionPadding = compact
-        ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
+        ? const EdgeInsets.symmetric(horizontal: 12, vertical: 12)
         : PaymentSectionStyle.padding;
-    final blockGap = compact ? 4.0 : 6.0;
+    final blockGap = compact ? 7.0 : 8.0;
+    final titleFontSize = compact ? 13.0 : 14.0;
+    final accentBarHeight = compact ? 15.0 : 16.0;
 
     return Container(
       margin: PaymentSectionStyle.margin,
@@ -70,24 +72,24 @@ class PaymentBillSummarySection extends StatelessWidget {
             children: [
               Container(
                 width: 3,
-                height: 14,
+                height: accentBarHeight,
                 decoration: BoxDecoration(
                   color: AppColors.primary,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Text(
                 'Bill',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
-                  fontSize: 12,
+                  fontSize: titleFontSize,
                   color: AppColors.primaryDark,
                 ),
               ),
             ],
           ),
-          SizedBox(height: compact ? 6 : 8),
+          SizedBox(height: compact ? 7 : 10),
           OrderThresholdPromoBanner(compact: true, subtotal: subtotal),
           SizedBox(height: blockGap),
           _PromoCodeBlock(
@@ -102,7 +104,7 @@ class PaymentBillSummarySection extends StatelessWidget {
           ),
           SizedBox(height: blockGap),
           Container(
-            padding: EdgeInsets.all(compact ? 6 : 8),
+            padding: EdgeInsets.all(compact ? 9 : 12),
             decoration: BoxDecoration(
               color: const Color(0xFFF4FAF7),
               borderRadius:
@@ -117,7 +119,7 @@ class PaymentBillSummarySection extends StatelessWidget {
                   icon: Icons.shopping_cart_outlined,
                 ),
                 if (discountAmount > 0) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   PaymentSummaryRow(
                     label: 'Discount',
                     value: -discountAmount,
@@ -126,7 +128,7 @@ class PaymentBillSummarySection extends StatelessWidget {
                   ),
                 ],
                 if (showDeliveryFee && _displayDeliveryFee > 0) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   PaymentSummaryRow(
                     label: 'Delivery fee',
                     value: _displayDeliveryFee,
@@ -134,14 +136,14 @@ class PaymentBillSummarySection extends StatelessWidget {
                   ),
                 ],
                 if (emergencyOrderFee > 0) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   PaymentSummaryRow(
                     label: 'Urgent order fee',
                     value: emergencyOrderFee,
                     icon: Icons.flash_on,
                   ),
                 ],
-                Divider(height: 16, thickness: 1, color: Colors.grey[300]),
+                Divider(height: 18, thickness: 1, color: Colors.grey[300]),
                 PaymentSummaryRow(
                   label: 'Total',
                   value: _total,
@@ -184,7 +186,7 @@ class _PromoCodeBlock extends StatelessWidget {
     final lockedLabel = appliedPromoCode ?? 'Server pricing';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: const Color(0xFFEEF9F3),
         borderRadius: BorderRadius.circular(PaymentSectionStyle.innerRadius),
@@ -198,8 +200,8 @@ class _PromoCodeBlock extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Icon(Icons.local_offer_outlined,
-                  color: AppColors.primaryDark, size: 13),
-              const SizedBox(width: 6),
+                  color: AppColors.primaryDark, size: 16),
+              const SizedBox(width: 8),
               Expanded(
                 child: hasApplied
                     ? Row(
@@ -208,7 +210,7 @@ class _PromoCodeBlock extends StatelessWidget {
                             child: Text(
                               lockPromoEditing ? lockedLabel : appliedPromoCode!,
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 color: AppColors.primaryDark,
                               ),
@@ -219,7 +221,7 @@ class _PromoCodeBlock extends StatelessWidget {
                           Icon(
                             Icons.check_circle,
                             color: AppColors.primary,
-                            size: 13,
+                            size: 16,
                           ),
                         ],
                       )
@@ -231,7 +233,7 @@ class _PromoCodeBlock extends StatelessWidget {
                           hintText: 'Promo code',
                           hintStyle: TextStyle(
                             color: Colors.grey[500],
-                            fontSize: 10,
+                            fontSize: 12,
                           ),
                           filled: true,
                           fillColor: Colors.white,
@@ -250,16 +252,16 @@ class _PromoCodeBlock extends StatelessWidget {
                             borderSide: BorderSide(color: AppColors.primary),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 5,
+                            horizontal: 10,
+                            vertical: 8,
                           ),
                         ),
-                        style: const TextStyle(fontSize: 10, height: 1.2),
+                        style: const TextStyle(fontSize: 12, height: 1.2),
                       ),
               ),
               const SizedBox(width: 6),
               SizedBox(
-                height: 26,
+                height: 30,
                 child: TextButton(
                   onPressed: lockPromoEditing
                       ? null
@@ -302,7 +304,7 @@ class _PromoCodeBlock extends StatelessWidget {
                                   ? 'Remove'
                                   : 'Apply',
                           style: const TextStyle(
-                            fontSize: 9,
+                            fontSize: 11,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -316,23 +318,23 @@ class _PromoCodeBlock extends StatelessWidget {
               'Pricing is set from delivery quote.',
               style: TextStyle(
                 color: Colors.grey[600],
-                fontSize: 9,
+                fontSize: 11,
                 fontWeight: FontWeight.w500,
               ),
             ),
           ] else if (promoError != null) ...[
-            const SizedBox(height: 3),
+            const SizedBox(height: 4),
             Text(
               promoError!,
-              style: TextStyle(color: Colors.red[600], fontSize: 9, height: 1.2),
+              style: TextStyle(color: Colors.red[600], fontSize: 11, height: 1.2),
             ),
           ] else if (hasApplied && discountAmount > 0) ...[
-            const SizedBox(height: 2),
+            const SizedBox(height: 4),
             Text(
               'Saved GHS ${discountAmount.toStringAsFixed(2)}',
               style: TextStyle(
                 color: AppColors.primaryDark,
-                fontSize: 9,
+                fontSize: 11,
                 fontWeight: FontWeight.w500,
               ),
             ),

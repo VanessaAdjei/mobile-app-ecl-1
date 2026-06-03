@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:intl/intl.dart';
 
 import '../models/order_tracking_model.dart';
 import '../services/location_service.dart';
@@ -8,6 +9,9 @@ import '../utils/non_ui_error_reporter.dart';
 /// Default center when address cannot be geocoded (Accra, Ghana). Also used as default shop location.
 const LatLng _defaultCenter = LatLng(5.6037, -0.1870);
 const double _defaultZoom = 12.0;
+
+String _formatOrderPlaced(DateTime createdAt) =>
+    DateFormat('MMM d, y · h:mm a').format(createdAt);
 
 /// Full-screen map for track order page. Uses Google Maps.
 /// When [showShopLocation] is false (home delivery), only the customer's delivery point is shown.
@@ -418,9 +422,9 @@ class LiveTrackingPlaceholderCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               _DetailCard(
-                icon: Icons.schedule_outlined,
-                title: 'ETA',
-                value: order.estimatedDeliveryTime,
+                icon: Icons.event_outlined,
+                title: 'Order placed',
+                value: _formatOrderPlaced(order.createdAt),
               ),
             ],
           ),

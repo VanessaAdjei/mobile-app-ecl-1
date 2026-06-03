@@ -2,31 +2,40 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../config/api_config.dart';
+import 'auth_service.dart';
 import 'order_notification_service.dart';
 
+/// Polls GET /orders and fires local notifications when cached status changes.
+///
+/// Works while the app process is alive (timer + resume). Not a substitute for
+/// push notifications when the app is force-quit.
 class BackgroundOrderChecker {
   static Timer? _timer;
-  static const Duration _checkInterval =
-      Duration(minutes: 5); // Check every 5 minutes
-  static String get _baseUrl => ApiConfig.baseUrl;
+  static bool _checkInProgress = false;
+  static const Duration _checkInterval = Duration(minutes: 5);
+
+  /// Stable id for [user_orders] cache and change detection.
+  static String _orderKey(Map<String, dynamic> order) {
+    return order['delivery_id']?.toString() ??
+        order['transaction_id']?.toString() ??
+        order['id']?.toString() ??
+        order['order_number']?.toString() ??
+        '';
+  }
+
+  static String _orderStatus(Map<String, dynamic> order) {
+    return (order['status'] ?? order['order_status'] ?? '').toString().trim();
+  }
 
   /// Start periodic checking for order updates
   static void startPeriodicChecking() {
     debugPrint('🔄 Starting background order checking...');
-
-    // Stop any existing timer
     _timer?.cancel();
-
-    // Start new timer
-    _timer = Timer.periodic(_checkInterval, (timer) {
-      _checkForOrderUpdates();
+    _timer = Timer.periodic(_checkInterval, (_) {
+      unawaited(_checkForOrderUpdates());
     });
-
-    // Also check immediately on startup
-    _checkForOrderUpdates();
+    unawaited(_checkForOrderUpdates());
   }
 
   /// Stop periodic checking
@@ -36,59 +45,53 @@ class BackgroundOrderChecker {
     _timer = null;
   }
 
-  /// Check for order updates
+  /// Run one poll immediately (foreground resume, purchases screen, manual).
+  static Future<void> checkNow({bool manual = false}) async {
+    if (manual) debugPrint('🔄 Manual order check triggered');
+    await _checkForOrderUpdates();
+  }
+
+  static bool get isRunning => _timer != null && _timer!.isActive;
+
   static Future<void> _checkForOrderUpdates() async {
+    if (_checkInProgress) {
+      debugPrint('🔄 Order check already in progress, skipping');
+      return;
+    }
+    _checkInProgress = true;
     try {
       debugPrint('🔄 Checking for order updates...');
 
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? prefs.getString('auth_token');
-
+      final token = await AuthService.getToken();
       if (token == null || token.isEmpty) {
         debugPrint('🔄 No auth token found, skipping order check');
         return;
       }
 
-      final headers = {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      };
-
-      final response = await http
-          .get(
-            Uri.parse('$_baseUrl/orders'),
-            headers: headers,
-          )
-          .timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-
-        if (responseData['status'] == 'success' &&
-            responseData['data'] != null) {
-          final List<dynamic> ordersData = responseData['data'];
-          final List<Map<String, dynamic>> rawOrders = ordersData
-              .map((order) => Map<String, dynamic>.from(order))
-              .toList();
-
-          // Group by delivery_id/transaction_id (API returns items per order)
-          final List<Map<String, dynamic>> groupedOrders =
-              _groupOrdersByTransaction(rawOrders);
-
-          await _trackOrderStatusChangesAndNotify(prefs, groupedOrders);
-          await prefs.setString('user_orders', json.encode(groupedOrders));
-
-          debugPrint(
-              '🔄 Order check completed - ${groupedOrders.length} orders (from ${rawOrders.length} raw items)');
-        } else {
-          debugPrint('🔄 No orders found or invalid response format');
-        }
-      } else {
-        debugPrint('🔄 Failed to fetch orders: ${response.statusCode}');
+      final responseData = await AuthService.getOrders();
+      if (responseData['status'] != 'success' || responseData['data'] == null) {
+        debugPrint('🔄 No orders found or invalid response format');
+        return;
       }
-    } catch (e) {
-      debugPrint('🔄 Error checking for order updates: $e');
+
+      final ordersData = responseData['data'] as List<dynamic>;
+      final rawOrders = ordersData
+          .map((order) => Map<String, dynamic>.from(order as Map))
+          .toList();
+
+      final groupedOrders = _groupOrdersByTransaction(rawOrders);
+      await _trackOrderStatusChangesAndNotify(prefs, groupedOrders);
+      await prefs.setString('user_orders', json.encode(groupedOrders));
+
+      debugPrint(
+        '🔄 Order check completed - ${groupedOrders.length} orders '
+        '(from ${rawOrders.length} raw items)',
+      );
+    } catch (e, st) {
+      debugPrint('🔄 Error checking for order updates: $e\n$st');
+    } finally {
+      _checkInProgress = false;
     }
   }
 
@@ -98,11 +101,7 @@ class BackgroundOrderChecker {
   ) {
     final Map<String, List<Map<String, dynamic>>> byKey = {};
     for (final o in rawOrders) {
-      final key = o['delivery_id']?.toString() ??
-          o['transaction_id']?.toString() ??
-          o['order_id']?.toString() ??
-          o['id']?.toString() ??
-          '';
+      final key = _orderKey(o);
       if (key.isEmpty) continue;
       byKey.putIfAbsent(key, () => []).add(o);
     }
@@ -115,63 +114,63 @@ class BackgroundOrderChecker {
         'delivery_id': e.key,
         'transaction_id': e.key,
         'order_number': first['order_number'] ?? first['delivery_id'] ?? e.key,
-        'status': first['status'] ?? first['order_status'] ?? '',
-        'items': items.expand((o) => (o['items'] as List<dynamic>?) ?? []).toList(),
-        'total_amount': first['total_amount'] ?? first['total'] ?? first['total_price'],
+        'status': _orderStatus(first),
+        'items': items
+            .expand((o) => (o['items'] as List<dynamic>?) ?? [])
+            .toList(),
+        'total_amount':
+            first['total_amount'] ?? first['total'] ?? first['total_price'],
       };
     }).toList();
   }
 
-  /// Compare new orders with cached ones and send notifications for every status change
+  /// Compare new orders with cached ones and send notifications for status changes.
   static Future<void> _trackOrderStatusChangesAndNotify(
     SharedPreferences prefs,
     List<Map<String, dynamic>> newOrders,
   ) async {
     try {
       final cachedJson = prefs.getString('user_orders');
-      final Map<String, Map<String, dynamic>> cachedOrders = {};
+      final cachedOrders = <String, Map<String, dynamic>>{};
       if (cachedJson != null) {
         final list = json.decode(cachedJson) as List<dynamic>?;
         if (list != null) {
           for (final o in list) {
+            if (o is! Map) continue;
             final order = Map<String, dynamic>.from(o);
-            final key = order['delivery_id']?.toString() ??
-                order['transaction_id']?.toString() ??
-                order['id']?.toString() ??
-                order['order_number']?.toString();
-            if (key != null && key.isNotEmpty) cachedOrders[key] = order;
+            final key = _orderKey(order);
+            if (key.isNotEmpty) cachedOrders[key] = order;
           }
         }
       }
 
       for (final order in newOrders) {
-        final orderId = order['delivery_id']?.toString() ??
-            order['transaction_id']?.toString() ??
-            order['id']?.toString() ??
-            '';
-        final orderNumber =
-            order['order_number']?.toString() ?? order['delivery_id']?.toString() ?? orderId;
-        final newStatus =
-            (order['status'] ?? order['order_status'] ?? '').toString().trim();
+        final orderId = _orderKey(order);
+        final newStatus = _orderStatus(order);
         if (orderId.isEmpty || newStatus.isEmpty) continue;
 
-        final oldOrder = cachedOrders[orderId];
-        final oldStatus = oldOrder != null
-            ? (oldOrder['status'] ?? oldOrder['order_status'] ?? '')
-                .toString()
-                .trim()
-            : null;
+        final orderNumber =
+            order['order_number']?.toString() ?? order['delivery_id']?.toString() ?? orderId;
 
-        if (oldStatus == null || oldStatus.isEmpty) continue;
-        if (oldStatus.toLowerCase() == newStatus.toLowerCase()) continue;
+        final oldOrder = cachedOrders[orderId];
+        if (oldOrder == null) {
+          // First time in checker cache — baseline only (placed alert handled at checkout).
+          continue;
+        }
+
+        final oldStatus = _orderStatus(oldOrder);
+        if (oldStatus.isNotEmpty &&
+            oldStatus.toLowerCase() == newStatus.toLowerCase()) {
+          continue;
+        }
 
         debugPrint(
-            '🔄 Status change: order $orderId $oldStatus -> $newStatus');
+          '🔄 Status change: order $orderId "$oldStatus" -> "$newStatus"',
+        );
 
         final (title, message) = _getStatusNotificationContent(
           orderNumber,
           newStatus,
-          order,
         );
         await OrderNotificationService.createOrderStatusNotification(
           orderId: orderId,
@@ -184,71 +183,114 @@ class BackgroundOrderChecker {
           items: order['items'] as List<dynamic>?,
         );
       }
-    } catch (e) {
-      debugPrint('🔄 Error tracking order status changes: $e');
+    } catch (e, st) {
+      debugPrint('🔄 Error tracking order status changes: $e\n$st');
     }
   }
 
+  /// Match [OrderTrackingService.normalizeStage] ordering — specific phrases first.
   static (String title, String message) _getStatusNotificationContent(
     String orderNumber,
     String status,
-    Map<String, dynamic> order,
   ) {
     final s = status.toLowerCase();
-    if (s.contains('order placed') || s.contains('pending') || s == 'placed') {
-      return (
-        'Order Placed',
-        'Your order #$orderNumber has been placed and is being processed.',
-      );
-    }
-    if (s.contains('paid') || s.contains('payment')) {
-      return (
-        'Payment Received',
-        'Payment for order #$orderNumber has been received. Your order is being confirmed.',
-      );
-    }
-    if (s.contains('confirm') || s.contains('processing')) {
-      return (
-        'Order Confirmed',
-        'Your order #$orderNumber has been confirmed and is being prepared.',
-      );
-    }
-    if (s.contains('ship') && !s.contains('out for')) {
-      return (
-        'Order Shipped',
-        'Your order #$orderNumber has been shipped and is on its way!',
-      );
-    }
-    if (s.contains('out for delivery') || s.contains('out for')) {
-      return (
-        'Out for Delivery',
-        'Your order #$orderNumber is out for delivery. It will arrive soon!',
-      );
-    }
-    if (s.contains('delivered')) {
-      return (
-        'Order Delivered',
-        'Your order #$orderNumber has been delivered. Thank you for shopping with us!',
-      );
-    }
+
     if (s.contains('cancel')) {
       return (
         'Order Cancelled',
         'Your order #$orderNumber has been cancelled.',
       );
     }
+    if (s == 'arrived' || s.contains('arrived')) {
+      return (
+        'Order Arrived',
+        'Your order #$orderNumber has arrived at your delivery location.',
+      );
+    }
+    if (s.contains('delivered') || s == 'completed') {
+      return (
+        'Order Delivered',
+        'Your order #$orderNumber has been delivered. Thank you for shopping with us!',
+      );
+    }
+    if (s.contains('ready for pickup') ||
+        s.contains('ready_for_pickup') ||
+        s.contains('ready to be picked')) {
+      return (
+        'Ready for Pickup',
+        'Your order #$orderNumber is ready for pickup.',
+      );
+    }
+    if (s.contains('out for delivery') ||
+        s.contains('out_for_delivery') ||
+        s.contains('out for')) {
+      return (
+        'Out for Delivery',
+        'Your order #$orderNumber is out for delivery. It will arrive soon!',
+      );
+    }
+    if (s.contains('ready for dispatch') ||
+        s.contains('ready_for_dispatch') ||
+        s.contains('ready to dispatch')) {
+      return (
+        'Ready for Dispatch',
+        'Your order #$orderNumber is packed and ready for dispatch.',
+      );
+    }
+    if (s.contains('dispatched') ||
+        (s.contains('dispatch') && !s.contains('confirmation'))) {
+      return (
+        'Ready for Dispatch',
+        'Your order #$orderNumber is packed and ready for dispatch.',
+      );
+    }
+    if (s.contains('ship') && !s.contains('out for')) {
+      return (
+        'Out for Delivery',
+        'Your order #$orderNumber has been shipped and is on its way!',
+      );
+    }
+    if (s.contains('pending confirmation') ||
+        s.contains('pending_confirmation') ||
+        s == 'confirming') {
+      return (
+        'Pending Confirmation',
+        'Your order #$orderNumber is awaiting confirmation from the store.',
+      );
+    }
+    if (s.contains('confirm') ||
+        s == 'processing' ||
+        s.contains('preparing') ||
+        s.contains('packing')) {
+      return (
+        'Order Confirmed',
+        'Your order #$orderNumber has been confirmed and is being prepared.',
+      );
+    }
+    if (s.contains('paid') ||
+        s == 'payment received' ||
+        s == 'payment verified') {
+      return (
+        'Payment Received',
+        'Payment for order #$orderNumber has been received. Your order is being confirmed.',
+      );
+    }
+    if (s.contains('order placed') || s == 'placed' || s == 'success') {
+      return (
+        'Order Placed',
+        'Your order #$orderNumber has been placed and is being processed.',
+      );
+    }
+    if (s == 'pending') {
+      return (
+        'Order Placed',
+        'Your order #$orderNumber has been placed and is being processed.',
+      );
+    }
+
     return (
       'Order Update',
       'Your order #$orderNumber status: $status',
     );
   }
-
-  /// Manually trigger an order check
-  static Future<void> checkNow() async {
-    debugPrint('🔄 Manual order check triggered');
-    await _checkForOrderUpdates();
-  }
-
-  /// Check if the service is running
-  static bool get isRunning => _timer != null && _timer!.isActive;
 }

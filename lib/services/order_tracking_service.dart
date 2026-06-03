@@ -4,6 +4,7 @@ import '../models/order_tracking_model.dart';
 import '../models/order_tracking_page_details.dart';
 import '../repositories/order_tracking_repository.dart';
 import '../services/delivery_service.dart';
+import '../utils/order_steps_api_logger.dart';
 import '../utils/order_tracking_page_resolver.dart';
 
 class OrderTrackingService {
@@ -26,12 +27,15 @@ class OrderTrackingService {
     String initialStatus = 'pending',
   }) {
     final items = _groupOrderItems(
-      purchasedItems.map(OrderTrackingItem.fromCartItem).toList(growable: false),
+      purchasedItems
+          .map(OrderTrackingItem.fromCartItem)
+          .toList(growable: false),
     );
     final subtotal = items.fold<double>(0, (sum, item) => sum + item.lineTotal);
     final total = _parseDouble(paymentParams['amount']);
     final normalizedTotal = total > 0 ? total : subtotal - discount;
     final stage = normalizeStage(initialStatus);
+    final createdAt = DateTime.now();
 
     return OrderTrackingModel(
       orderId: initialTransactionId,
@@ -52,8 +56,12 @@ class OrderTrackingService {
       stage: stage,
       stageLabel: stageLabel(stage),
       stageMessage: stageMessage(stage),
-      timelineSteps: buildTimeline(stage),
-      createdAt: DateTime.now(),
+      timelineSteps: buildTimeline(
+        stage,
+        createdAt: createdAt,
+        stageTimes: {OrderTrackingStage.orderPlaced.name: createdAt},
+      ),
+      createdAt: createdAt,
       liveTrackingNote:
           'Live rider tracking will appear here as soon as courier data is available.',
       deliveryOtp: _generateDeliveryOtp(initialTransactionId),
@@ -77,7 +85,7 @@ class OrderTrackingService {
   Future<OrderTrackingPageDetails> fetchPageDetails(
     Map<String, dynamic> orderDetails,
   ) {
-    return resolveOrderTrackingPageDetails(orderDetails, _repository);
+    return resolveOrderTrackingPageDetails(orderDetails);
   }
 
   Future<Map<String, dynamic>?> fetchSavedDeliveryInfo() async {
@@ -98,8 +106,193 @@ class OrderTrackingService {
     );
   }
 
+  static const List<OrderTrackingStage> _timelineOrder = [
+    OrderTrackingStage.orderPlaced,
+    OrderTrackingStage.paid,
+    OrderTrackingStage.pendingConfirmation,
+    OrderTrackingStage.orderConfirmed,
+    OrderTrackingStage.orderDispatched,
+    OrderTrackingStage.outForDelivery,
+    OrderTrackingStage.arrived,
+    OrderTrackingStage.delivered,
+  ];
+
+  static const Map<String, String> _snapshotKeyToStepId = {
+    'placed_at': 'orderPlaced',
+    'order_placed_at': 'orderPlaced',
+    'paid_at': 'paid',
+    'payment_at': 'paid',
+    'pending_confirmation_at': 'pendingConfirmation',
+    'confirmed_at': 'orderConfirmed',
+    'order_confirmed_at': 'orderConfirmed',
+    'ready_for_dispatch_at': 'orderDispatched',
+    'dispatch_ready_at': 'orderDispatched',
+    'dispatched_at': 'orderDispatched',
+    'shipped_at': 'outForDelivery',
+    'out_for_delivery_at': 'outForDelivery',
+    'arrived_at': 'arrived',
+    'delivered_at': 'delivered',
+    'completed_at': 'delivered',
+    'picked_up_at': 'delivered',
+  };
+
+  String _orderStorageKey(OrderTrackingModel order) {
+    if (order.transactionId.isNotEmpty) return order.transactionId;
+    if (order.orderNumber.isNotEmpty) return order.orderNumber;
+    return order.orderId;
+  }
+
+  OrderTrackingStage _effectiveTimelineStage(OrderTrackingStage stage) {
+    if (stage == OrderTrackingStage.pendingPayment) {
+      return OrderTrackingStage.orderPlaced;
+    }
+    return _timelineOrder.contains(stage)
+        ? stage
+        : OrderTrackingStage.orderPlaced;
+  }
+
+  int _timelineIndex(OrderTrackingStage stage) =>
+      _timelineOrder.indexOf(_effectiveTimelineStage(stage));
+
+  Map<String, DateTime> parseStageTimestampsFromSnapshot(
+    Map<String, dynamic> snapshot,
+  ) {
+    final times = <String, DateTime>{};
+
+    DateTime? parseAt(dynamic value) {
+      if (value == null) return null;
+      if (value is DateTime) return value;
+      return DateTime.tryParse(value.toString());
+    }
+
+    for (final entry in _snapshotKeyToStepId.entries) {
+      final at = parseAt(snapshot[entry.key]);
+      if (at != null) {
+        times.putIfAbsent(entry.value, () => at);
+      }
+    }
+
+    final createdAt = parseAt(snapshot['created_at']);
+    if (createdAt != null) {
+      times.putIfAbsent(OrderTrackingStage.orderPlaced.name, () => createdAt);
+    }
+
+    final history =
+        snapshot['status_history'] ?? snapshot['order_status_history'];
+    if (history is List) {
+      for (final item in history) {
+        if (item is! Map) continue;
+        final map = Map<String, dynamic>.from(item);
+        final rawStatus =
+            map['status']?.toString() ?? map['order_status']?.toString();
+        if (rawStatus == null || rawStatus.isEmpty) continue;
+        final stepId = _effectiveTimelineStage(normalizeStage(rawStatus)).name;
+        final at = parseAt(
+          map['occurred_at'] ??
+              map['at'] ??
+              map['timestamp'] ??
+              map['created_at'] ??
+              map['updated_at'],
+        );
+        if (at != null) {
+          times.putIfAbsent(stepId, () => at);
+        }
+      }
+    }
+
+    OrderStepsApiLogger.logParsedStageTimes(times);
+    return times;
+  }
+
+  Future<Map<String, DateTime>> _resolveStageTimes({
+    required String orderKey,
+    required DateTime createdAt,
+    Map<String, dynamic>? snapshot,
+    OrderTrackingStage? currentStage,
+  }) async {
+    if (currentStage != null && currentStage != OrderTrackingStage.failed) {
+      await _repository.recordStageTimestampIfAbsent(
+        orderKey,
+        _effectiveTimelineStage(currentStage).name,
+        DateTime.now(),
+      );
+    }
+
+    final local = await _repository.loadStageTimestamps(orderKey);
+    final fromApi = snapshot == null
+        ? <String, DateTime>{}
+        : parseStageTimestampsFromSnapshot(snapshot);
+
+    final merged = Map<String, DateTime>.from(local);
+    for (final entry in fromApi.entries) {
+      merged.putIfAbsent(entry.key, () => entry.value);
+    }
+    merged.putIfAbsent(OrderTrackingStage.orderPlaced.name, () => createdAt);
+
+    await _repository.recordStageTimestampIfAbsent(
+      orderKey,
+      OrderTrackingStage.orderPlaced.name,
+      merged[OrderTrackingStage.orderPlaced.name]!,
+    );
+
+    return merged;
+  }
+
+  Future<void> _recordStageAdvance(
+    String orderKey,
+    OrderTrackingStage previous,
+    OrderTrackingStage current,
+  ) async {
+    final prevIdx = _timelineIndex(previous);
+    final curIdx = _timelineIndex(current);
+    if (curIdx <= prevIdx) return;
+
+    final now = DateTime.now();
+    for (var i = prevIdx + 1; i <= curIdx; i++) {
+      await _repository.recordStageTimestampIfAbsent(
+        orderKey,
+        _timelineOrder[i].name,
+        now,
+      );
+    }
+  }
+
+  Future<OrderTrackingModel> syncTimelineWithTimestamps(
+    OrderTrackingModel order, {
+    OrderTrackingStage? previousStage,
+  }) async {
+    final orderKey = _orderStorageKey(order);
+    final previous = previousStage ?? order.stage;
+    if (previous != order.stage) {
+      await _recordStageAdvance(orderKey, previous, order.stage);
+    }
+
+    final stageTimes = await _resolveStageTimes(
+      orderKey: orderKey,
+      createdAt: order.createdAt,
+      currentStage: order.stage,
+    );
+
+    final timelineSteps = buildTimeline(
+      order.stage,
+      createdAt: order.createdAt,
+      stageTimes: stageTimes,
+    );
+    OrderStepsApiLogger.logParsedStageTimes(stageTimes);
+    OrderStepsApiLogger.logBuiltTimeline(
+      source: 'syncTimelineWithTimestamps',
+      rawStatus: order.rawStatus,
+      stage: order.stage,
+      steps: timelineSteps,
+    );
+
+    return order.copyWith(timelineSteps: timelineSteps);
+  }
+
   Future<OrderTrackingModel> refreshOrder(
-      OrderTrackingModel currentOrder) async {
+    OrderTrackingModel currentOrder, {
+    OrderTrackingStage? previousStage,
+  }) async {
     final checkoutOrderId =
         currentOrder.paymentParams['order_id']?.toString() ?? '';
     final snapshot = await _repository.fetchLatestOrderSnapshot(
@@ -109,8 +302,25 @@ class OrderTrackingService {
       checkoutOrderId: checkoutOrderId,
     );
 
+    final orderKey = _orderStorageKey(currentOrder);
+    final previous = previousStage ?? currentOrder.stage;
+
     if (snapshot == null) {
-      return currentOrder;
+      if (previous != currentOrder.stage) {
+        await _recordStageAdvance(orderKey, previous, currentOrder.stage);
+      }
+      final stageTimes = await _resolveStageTimes(
+        orderKey: orderKey,
+        createdAt: currentOrder.createdAt,
+        currentStage: currentOrder.stage,
+      );
+      return currentOrder.copyWith(
+        timelineSteps: buildTimeline(
+          currentOrder.stage,
+          createdAt: currentOrder.createdAt,
+          stageTimes: stageTimes,
+        ),
+      );
     }
 
     final mergedStatus =
@@ -141,6 +351,36 @@ class OrderTrackingService {
     final transactionId =
         snapshot['transaction_id']?.toString() ?? currentOrder.transactionId;
 
+    if (previous != stage) {
+      await _recordStageAdvance(orderKey, previous, stage);
+    }
+
+    final createdAt =
+        DateTime.tryParse(snapshot['created_at']?.toString() ?? '') ??
+            currentOrder.createdAt;
+    final stageTimes = await _resolveStageTimes(
+      orderKey: orderKey,
+      createdAt: createdAt,
+      snapshot: snapshot,
+      currentStage: stage,
+    );
+
+    final timelineSteps = buildTimeline(
+      stage,
+      createdAt: createdAt,
+      stageTimes: stageTimes,
+    );
+    OrderStepsApiLogger.logSnapshotStageFields(
+      'refreshOrder',
+      snapshot: snapshot,
+    );
+    OrderStepsApiLogger.logBuiltTimeline(
+      source: 'refreshOrder',
+      rawStatus: rawStatus,
+      stage: stage,
+      steps: timelineSteps,
+    );
+
     return currentOrder.copyWith(
       orderId: orderId,
       orderNumber: orderNumber,
@@ -154,7 +394,8 @@ class OrderTrackingService {
       stage: stage,
       stageLabel: stageLabel(stage),
       stageMessage: stageMessage(stage),
-      timelineSteps: buildTimeline(stage),
+      createdAt: createdAt,
+      timelineSteps: timelineSteps,
       courierName: snapshot['courier_name']?.toString(),
       courierPhone: snapshot['courier_phone']?.toString(),
       courierVehicle: snapshot['courier_vehicle']?.toString(),
@@ -193,7 +434,10 @@ class OrderTrackingService {
           : stageLabel(stage),
       stageMessage:
           result.message.isNotEmpty ? result.message : stageMessage(stage),
-      timelineSteps: buildTimeline(stage),
+      timelineSteps: buildTimeline(
+        stage,
+        createdAt: currentOrder.createdAt,
+      ),
     );
   }
 
@@ -221,6 +465,18 @@ class OrderTrackingService {
         status.contains('shipped') ||
         status.contains('out for')) {
       return OrderTrackingStage.outForDelivery;
+    }
+    if (status.contains('ready for dispatch') ||
+        status.contains('ready_for_dispatch') ||
+        status.contains('ready to dispatch')) {
+      return OrderTrackingStage.orderDispatched;
+    }
+    if (status.contains('dispatched') ||
+        (status.contains('dispatch') && !status.contains('confirmation'))) {
+      return OrderTrackingStage.orderDispatched;
+    }
+    if (status == 'arrived' || status.contains('arrived')) {
+      return OrderTrackingStage.arrived;
     }
     if (status == 'delivered' ||
         status.contains('delivered') ||
@@ -265,8 +521,12 @@ class OrderTrackingService {
         return 'Pending Confirmation';
       case OrderTrackingStage.orderConfirmed:
         return 'Order Confirmed';
+      case OrderTrackingStage.orderDispatched:
+        return 'Ready for Dispatch';
       case OrderTrackingStage.outForDelivery:
         return 'Out for Delivery';
+      case OrderTrackingStage.arrived:
+        return 'Arrived';
       case OrderTrackingStage.delivered:
         return 'Delivered';
       case OrderTrackingStage.failed:
@@ -286,8 +546,12 @@ class OrderTrackingService {
         return 'Your order is awaiting confirmation from the store.';
       case OrderTrackingStage.orderConfirmed:
         return 'Your order has been confirmed and is being prepared!';
+      case OrderTrackingStage.orderDispatched:
+        return 'Your order is packed and ready to be dispatched.';
       case OrderTrackingStage.outForDelivery:
         return 'Your order is on its way to you.';
+      case OrderTrackingStage.arrived:
+        return 'Your order has arrived at your delivery location.';
       case OrderTrackingStage.delivered:
         return 'Your order has been delivered successfully.';
       case OrderTrackingStage.failed:
@@ -295,37 +559,49 @@ class OrderTrackingService {
     }
   }
 
-  List<OrderStatusStep> buildTimeline(OrderTrackingStage stage) {
-    const order = <OrderTrackingStage>[
-      OrderTrackingStage.orderPlaced,
-      OrderTrackingStage.paid,
-      OrderTrackingStage.pendingConfirmation,
-      OrderTrackingStage.orderConfirmed,
-      OrderTrackingStage.outForDelivery,
-      OrderTrackingStage.delivered,
-    ];
+  List<OrderStatusStep> buildTimeline(
+    OrderTrackingStage stage, {
+    required DateTime createdAt,
+    Map<String, DateTime> stageTimes = const {},
+  }) {
     const titles = <OrderTrackingStage, String>{
       OrderTrackingStage.orderPlaced: 'Order Placed',
       OrderTrackingStage.paid: 'Paid',
       OrderTrackingStage.pendingConfirmation: 'Pending Confirmation',
       OrderTrackingStage.orderConfirmed: 'Order Confirmed',
+      OrderTrackingStage.orderDispatched: 'Ready for Dispatch',
       OrderTrackingStage.outForDelivery: 'Out for Delivery',
+      OrderTrackingStage.arrived: 'Arrived',
       OrderTrackingStage.delivered: 'Delivered',
     };
 
-    final effectiveStage = stage == OrderTrackingStage.pendingPayment
-        ? OrderTrackingStage.orderPlaced
-        : (order.contains(stage) ? stage : OrderTrackingStage.orderPlaced);
-    final currentIndex = order.indexOf(effectiveStage);
+    final effectiveStage = _effectiveTimelineStage(stage);
+    final currentIndex = _timelineOrder.indexOf(effectiveStage);
 
-    return order.asMap().entries.map((entry) {
+    return _timelineOrder.asMap().entries.map((entry) {
       final stepStage = entry.value;
       final stepIndex = entry.key;
+      final isCompleted = currentIndex > stepIndex;
+      final isCurrent = currentIndex == stepIndex;
+      final stepId = stepStage.name;
+
+      DateTime? occurredAt;
+      if (isCompleted || isCurrent) {
+        occurredAt = stageTimes[stepId];
+        if (occurredAt == null && stepStage == OrderTrackingStage.orderPlaced) {
+          occurredAt = createdAt;
+        }
+        if (isCurrent && occurredAt == null) {
+          occurredAt = DateTime.now();
+        }
+      }
+
       return OrderStatusStep(
-        id: stepStage.name,
+        id: stepId,
         title: titles[stepStage]!,
-        isCompleted: currentIndex > stepIndex,
-        isCurrent: currentIndex == stepIndex,
+        isCompleted: isCompleted,
+        isCurrent: isCurrent,
+        occurredAt: occurredAt,
       );
     }).toList(growable: false);
   }
@@ -351,11 +627,11 @@ class OrderTrackingService {
         result = merged;
       } else {
         final parsedTotal = parsed.fold<int>(0, (s, i) => s + i.quantity);
-        final fallbackTotal =
-            fallback.fold<int>(0, (s, i) => s + i.quantity);
-        result = (fallback.length > parsed.length || fallbackTotal > parsedTotal)
-            ? fallback
-            : parsed;
+        final fallbackTotal = fallback.fold<int>(0, (s, i) => s + i.quantity);
+        result =
+            (fallback.length > parsed.length || fallbackTotal > parsedTotal)
+                ? fallback
+                : parsed;
       }
     }
     return _groupOrderItems(result);
@@ -432,8 +708,11 @@ class OrderTrackingService {
       return List<OrderTrackingItem>.generate(apiItems.length, (index) {
         final api = apiItems[index];
         final cart = cartItems[index];
-        final match = _orderItemsMatch(api, cart) ? cart : _findMatchingCartItem(api, cartItems);
-        final qty = _resolveItemQuantity(api.quantity, match?.quantity ?? cart.quantity);
+        final match = _orderItemsMatch(api, cart)
+            ? cart
+            : _findMatchingCartItem(api, cartItems);
+        final qty = _resolveItemQuantity(
+            api.quantity, match?.quantity ?? cart.quantity);
         return OrderTrackingItem(
           name: api.name.isNotEmpty ? api.name : (match?.name ?? cart.name),
           price: api.price > 0 ? api.price : (match?.price ?? cart.price),
@@ -441,8 +720,9 @@ class OrderTrackingService {
           imageUrl: api.imageUrl.isNotEmpty
               ? api.imageUrl
               : (match?.imageUrl ?? cart.imageUrl),
-          batchNo:
-              api.batchNo.isNotEmpty ? api.batchNo : (match?.batchNo ?? cart.batchNo),
+          batchNo: api.batchNo.isNotEmpty
+              ? api.batchNo
+              : (match?.batchNo ?? cart.batchNo),
         );
       });
     }

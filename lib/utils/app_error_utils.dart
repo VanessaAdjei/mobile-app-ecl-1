@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../services/notification_service.dart';
 import 'non_ui_error_reporter.dart';
 
 /// Shared failure kinds for product detail and catalog screens.
@@ -148,6 +149,26 @@ class AppErrorUtils {
     if (!context.mounted) return;
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
+    _showSnackOnMessenger(messenger, message, isError: isError, duration: duration);
+  }
+
+  /// SnackBar via app-wide [NotificationService.messengerKey] (e.g. after leaving confirmation).
+  static void showGlobalSnack(
+    String message, {
+    bool isError = true,
+    Duration duration = const Duration(seconds: 3),
+  }) {
+    final messenger = NotificationService.messengerKey.currentState;
+    if (messenger == null) return;
+    _showSnackOnMessenger(messenger, message, isError: isError, duration: duration);
+  }
+
+  static void _showSnackOnMessenger(
+    ScaffoldMessengerState messenger,
+    String message, {
+    required bool isError,
+    required Duration duration,
+  }) {
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
       SnackBar(

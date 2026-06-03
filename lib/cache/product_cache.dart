@@ -24,7 +24,9 @@ class ProductCache {
   static List<Product> _priorityProducts = [];
   static DateTime? _lastCacheTime;
 
-  static const Duration _cacheValidDuration = Duration(hours: 2);
+  /// Fresh catalog TTL — network reload only after this unless forced.
+  static const Duration _cacheValidDuration = Duration(hours: 1);
+  /// Disk may still be shown offline up to this age; network waits for [_cacheValidDuration].
   static const Duration _staleWhileRevalidateDuration = Duration(hours: 6);
   static const String _allProductsKey = 'cached_all_products';
   static const String _popularProductsKey = 'cached_popular_products';
@@ -99,6 +101,10 @@ class ProductCache {
     if (_lastCacheTime == null) return false;
     return DateTime.now().difference(_lastCacheTime!) < _cacheValidDuration;
   }
+
+  /// True when a network catalog fetch is allowed (hourly gate or no data).
+  static bool get shouldRefreshFromNetwork =>
+      !hasProductsInMemory || !isCacheValid;
 
   static bool get canUseStaleData {
     if (_lastCacheTime == null) return false;
@@ -189,13 +195,15 @@ class ProductCache {
       debugPrint(
         'ProductCache: catalog ready from disk (${_cachedProducts.length})',
       );
-      if (!isCacheValid) {
+      if (shouldRefreshFromNetwork) {
         unawaited(prefetchFromNetwork());
       }
       return true;
     }
 
-    final networkFuture = prefetchFromNetwork();
+    final networkFuture = shouldRefreshFromNetwork
+        ? prefetchFromNetwork()
+        : Future<void>.value();
     try {
       await networkFuture.timeout(maxWait);
     } on TimeoutException {
@@ -241,8 +249,8 @@ class ProductCache {
     return hasPriorityProducts || hasProductsInMemory;
   }
 
-  static Future<void> prefetchPriorityFromNetwork() async {
-    if (hasProductsInMemory && isCacheValid) return;
+  static Future<void> prefetchPriorityFromNetwork({bool forceRefresh = false}) async {
+    if (!forceRefresh && hasProductsInMemory && isCacheValid) return;
     if (hasPriorityProducts) return;
     if (_priorityLoadFuture != null) return _priorityLoadFuture;
 
@@ -308,11 +316,19 @@ class ProductCache {
 
   static void warmPopularFromCatalog() => _fillPopularFromCatalogIfNeeded();
 
-  static Future<void> ensurePopularReady() async {
-    if (_cachedPopularProducts.isNotEmpty) return;
+  static Future<void> ensurePopularReady({bool forceRefresh = false}) async {
+    if (!forceRefresh &&
+        _cachedPopularProducts.isNotEmpty &&
+        isCacheValid) {
+      return;
+    }
     warmPopularFromCatalog();
-    if (_cachedPopularProducts.isNotEmpty) return;
-    if (!_prefetchInFlight) {
+    if (!forceRefresh &&
+        _cachedPopularProducts.isNotEmpty &&
+        isCacheValid) {
+      return;
+    }
+    if (!_prefetchInFlight && shouldRefreshFromNetwork) {
       await _fetchAndCachePopularProducts();
     }
     warmPopularFromCatalog();
@@ -381,8 +397,8 @@ class ProductCache {
     }
   }
 
-  static Future<void> prefetchFromNetwork() async {
-    if (_cachedProducts.isNotEmpty && isCacheValid) return;
+  static Future<void> prefetchFromNetwork({bool forceRefresh = false}) async {
+    if (!forceRefresh && _cachedProducts.isNotEmpty && isCacheValid) return;
     if (_catalogLoadFuture != null) {
       return _catalogLoadFuture;
     }

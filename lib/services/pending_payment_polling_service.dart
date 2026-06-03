@@ -151,8 +151,10 @@ class PendingPaymentPollingService {
         stageLabel: _service.stageLabel(OrderTrackingStage.failed),
         stageMessage:
             'Payment verification timed out. Please try again or contact support.',
-        timelineSteps:
-            _service.buildTimeline(OrderTrackingStage.orderPlaced),
+        timelineSteps: _service.buildTimeline(
+          OrderTrackingStage.orderPlaced,
+          createdAt: _order!.createdAt,
+        ),
       );
       stop();
     }

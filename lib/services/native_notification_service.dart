@@ -39,9 +39,8 @@ class NativeNotificationService {
         debugPrint('📱 Native: Continuing with flutter_local_notifications...');
       }
 
-      if (!_nativeChannelAvailable) {
-        await _initializeLocalNotifications();
-      }
+      // Always init local plugin (permission requests + fallback when native fails).
+      await _initializeLocalNotifications();
 
       // Check if notifications are enabled
       final isEnabled = await areNotificationsEnabled();
@@ -152,6 +151,10 @@ class NativeNotificationService {
     }
   }
 
+  static IOSFlutterLocalNotificationsPlugin? get _iosPlugin =>
+      _localNotifications.resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin>();
+
   static Future<void> _initializeLocalNotifications() async {
     if (_localNotificationsInitialized) return;
     try {
@@ -211,6 +214,7 @@ class NativeNotificationService {
         presentBadge: true,
         presentSound: true,
         sound: 'notification.wav',
+        interruptionLevel: InterruptionLevel.active,
       );
       const details = NotificationDetails(
         android: androidDetails,
@@ -225,6 +229,68 @@ class NativeNotificationService {
     }
   }
 
+  /// True when the OS allows posting notifications (permission + system toggle).
+  static Future<bool> canPostSystemNotifications() async {
+    try {
+      if (Platform.isIOS) {
+        final ios = _iosPlugin;
+        if (ios != null) {
+          final settings = await ios.checkPermissions();
+          final allowed = settings?.isEnabled ?? false;
+          debugPrint(
+            '📱 Native: iOS notification permission — '
+            'enabled=$allowed alert=${settings?.isAlertEnabled} '
+            'badge=${settings?.isBadgeEnabled} sound=${settings?.isSoundEnabled}',
+          );
+          return allowed;
+        }
+        debugPrint('📱 Native: iOS notification plugin unavailable');
+        return false;
+      }
+
+      if (Platform.isAndroid && _nativeChannelAvailable) {
+        final enabled =
+            await _channel.invokeMethod<bool>('areNotificationsEnabled');
+        if (enabled == false) {
+          debugPrint('📱 Native: Android notifications disabled in system settings');
+          return false;
+        }
+      }
+
+      final status = await Permission.notification.status;
+      if (!status.isGranted) {
+        debugPrint('📱 Native: Notification permission not granted: $status');
+        return false;
+      }
+
+      if (Platform.isAndroid && _nativeChannelAvailable) {
+        final enabled =
+            await _channel.invokeMethod<bool>('areNotificationsEnabled');
+        return enabled ?? true;
+      }
+      return true;
+    } catch (e) {
+      debugPrint('📱 Native: canPostSystemNotifications error: $e');
+      return false;
+    }
+  }
+
+  /// Requests OS permission when needed so system notifications can be shown.
+  static Future<bool> ensureSystemNotificationsEnabled({
+    BuildContext? context,
+    bool requestIfNeeded = true,
+  }) async {
+    if (await canPostSystemNotifications()) return true;
+    if (!requestIfNeeded) {
+      debugPrint(
+        '📱 Native: Notifications off — enable in Settings → ECL → Notifications',
+      );
+      return false;
+    }
+    debugPrint('📱 Native: Requesting notification permission…');
+    return requestNotificationPermissionDirect(context: context);
+  }
+
   /// Show a system notification
   static Future<void> showNotification({
     required String title,
@@ -237,15 +303,19 @@ class NativeNotificationService {
       debugPrint('📱 Native: Attempting to show notification: $title');
       debugPrint('📱 Native: Notification body: $body');
 
-      // Check permissions before showing notification
-      if (checkPermission) {
-        final permission = Permission.notification;
-        final status = await permission.status;
+      if (!_localNotificationsInitialized) {
+        await _initializeLocalNotifications();
+      }
 
-        if (!status.isGranted) {
+      if (checkPermission) {
+        final allowed = await ensureSystemNotificationsEnabled(
+          requestIfNeeded: true,
+        );
+        if (!allowed) {
           debugPrint(
-              '📱 Native: Notification permission not granted, skipping notification');
-          debugPrint('📱 Native: Permission status: $status');
+            '📱 Native: Cannot show "$title" — notifications are off. '
+            'Open Settings → ECL → Notifications.',
+          );
           return;
         }
       }
@@ -254,8 +324,19 @@ class NativeNotificationService {
           id ?? DateTime.now().millisecondsSinceEpoch % 2147483647;
       debugPrint('📱 Native: Using notification ID: $notificationId');
 
+      // iOS uses flutter_local_notifications only (no Android-style method channel).
+      if (Platform.isIOS) {
+        await _showViaLocalNotifications(
+          notificationId,
+          title,
+          body,
+          payload,
+        );
+        return;
+      }
+
+      var shown = false;
       if (_nativeChannelAvailable) {
-        // Try to use native channel if available
         try {
           await _channel.invokeMethod('showNotification', {
             'id': notificationId,
@@ -263,19 +344,15 @@ class NativeNotificationService {
             'body': body,
             'payload': payload,
           });
+          shown = true;
           debugPrint(
               '📱 Native: Notification sent successfully via native channel!');
         } catch (e) {
           debugPrint(
               '📱 Native: Native notification failed, trying flutter_local_notifications: $e');
-          await _showViaLocalNotifications(
-            notificationId,
-            title,
-            body,
-            payload,
-          );
         }
-      } else {
+      }
+      if (!shown) {
         await _showViaLocalNotifications(
           notificationId,
           title,
@@ -286,8 +363,6 @@ class NativeNotificationService {
     } catch (e) {
       debugPrint('Error showing native notification: $e');
       debugPrint('Error stack trace: ${StackTrace.current}');
-      // Log that we're falling back to console logging
-      debugPrint('📱 Native: Falling back to console logging for notification');
       debugPrint('📱 Native: Would show notification: $title - $body');
     }
   }
@@ -395,11 +470,12 @@ class NativeNotificationService {
   /// Cancel all notifications
   static Future<void> cancelAllNotifications() async {
     try {
-      // For now, just log the action since native implementation is not available
-      // TODO: Implement native notification cancellation when platform channels are set up
-      debugPrint(
-          '📱 Native: Would cancel all notifications (native implementation not available)');
-      debugPrint('📱 Native: All notifications cancellation logged');
+      if (_nativeChannelAvailable) {
+        await _channel.invokeMethod('cancelAllNotifications');
+      }
+      if (_localNotificationsInitialized) {
+        await _localNotifications.cancelAll();
+      }
     } catch (e) {
       debugPrint('Error cancelling notifications: $e');
     }
@@ -407,15 +483,7 @@ class NativeNotificationService {
 
   /// Check if notifications are enabled
   static Future<bool> areNotificationsEnabled() async {
-    try {
-      // Use permission_handler to check notification status
-      final permission = Permission.notification;
-      final status = await permission.status;
-      return status.isGranted;
-    } catch (e) {
-      debugPrint('Error checking notification permissions: $e');
-      return false;
-    }
+    return canPostSystemNotifications();
   }
 
   static Future<bool> isLocationWhenInUseGranted() async {
@@ -484,17 +552,34 @@ class NativeNotificationService {
     if (open == true) await openAppSettings();
   }
 
-  /// Notifications then location — used during onboarding.
+  /// Notifications then location — used after onboarding / from settings.
   static Future<({bool notifications, bool location})>
       requestOnboardingPermissions({BuildContext? context}) async {
     final dialogContext = context ?? globalNavigatorKey.currentContext;
     final notifications = await requestNotificationPermissionDirect(
       context: dialogContext,
     );
+    // Brief gap so the notification dialog can dismiss before location.
+    await Future<void>.delayed(const Duration(milliseconds: 600));
     final location = await requestLocationWhenInUseDirect(
       context: dialogContext,
     );
     return (notifications: notifications, location: location);
+  }
+
+  static Future<bool> _requestAndroidNotificationPermissionNative() async {
+    if (!_nativeChannelAvailable || !Platform.isAndroid) return false;
+    try {
+      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'requestPermissions',
+      );
+      final granted = result?['granted'] == true;
+      debugPrint('📱 Android native notification permission: $granted');
+      return granted;
+    } catch (e) {
+      debugPrint('📱 Android native permission request failed: $e');
+      return false;
+    }
   }
 
   /// Shows the OS notification prompt via flutter_local_notifications + permission_handler.
@@ -505,7 +590,14 @@ class NativeNotificationService {
     try {
       await _initializeLocalNotifications();
 
+      if (await canPostSystemNotifications()) {
+        return true;
+      }
+
       if (Platform.isAndroid) {
+        if (await _requestAndroidNotificationPermissionNative()) {
+          return true;
+        }
         final android = _localNotifications
             .resolvePlatformSpecificImplementation<
                 AndroidFlutterLocalNotificationsPlugin>();
@@ -515,13 +607,11 @@ class NativeNotificationService {
       }
 
       if (Platform.isIOS) {
-        final ios = _localNotifications
-            .resolvePlatformSpecificImplementation<
-                IOSFlutterLocalNotificationsPlugin>();
-        final granted = await ios?.requestPermissions(
+        final granted = await _iosPlugin?.requestPermissions(
           alert: true,
           badge: true,
           sound: true,
+          critical: false,
         );
         debugPrint('📱 iOS notification plugin request: $granted');
         if (granted == true) return true;

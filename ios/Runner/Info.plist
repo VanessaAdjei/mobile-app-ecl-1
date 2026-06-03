@@ -62,6 +62,8 @@
 	<string>This app needs access to make phone calls.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>We need access to your gallery to update your profile picture.</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>We send order updates, delivery alerts, and important pharmacy messages.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

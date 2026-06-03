@@ -18,6 +18,14 @@ abstract class OrderTrackingRepository {
     required OrderTrackingModel order,
     String? initialTransactionId,
   });
+
+  Future<Map<String, DateTime>> loadStageTimestamps(String orderKey);
+
+  Future<void> recordStageTimestampIfAbsent(
+    String orderKey,
+    String stageId,
+    DateTime occurredAt,
+  );
 }
 
 class OrderTrackingRepositoryImpl implements OrderTrackingRepository {
@@ -67,5 +75,23 @@ class OrderTrackingRepositoryImpl implements OrderTrackingRepository {
       initialTransactionId: initialTransactionId,
     );
     await _localDataSource.createOrderPlacedNotification(order);
+  }
+
+  @override
+  Future<Map<String, DateTime>> loadStageTimestamps(String orderKey) {
+    return _localDataSource.loadStageTimestamps(orderKey);
+  }
+
+  @override
+  Future<void> recordStageTimestampIfAbsent(
+    String orderKey,
+    String stageId,
+    DateTime occurredAt,
+  ) {
+    return _localDataSource.recordStageTimestampIfAbsent(
+      orderKey,
+      stageId,
+      occurredAt,
+    );
   }
 }

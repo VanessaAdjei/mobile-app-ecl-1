@@ -86,6 +86,7 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
             }
         }
         println("🔧 Android: Notification method channel setup complete")
+        createNotificationChannel()
 
         MethodChannel(binaryMessenger, MAPS_CONFIG_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -186,49 +187,61 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
         handlePaymentResult(paymentCompleted, errorMessage)
     }
 
-    // Handle when app is opened from notification
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        println("🔧 Android: onNewIntent called")
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        intent = IntentSanitizer.sanitizeMainActivityIntent(
+            packageName,
+            MainActivity::class.java,
+            intent,
+        )
+        super.onCreate(savedInstanceState)
+    }
 
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        val safeData = IntentSanitizer.sanitizeActivityResultIntent(data)
+        super.onActivityResult(requestCode, resultCode, safeData)
+    }
+
+    // Handle when app is opened from notification (never forward untrusted intents).
+    override fun onNewIntent(intent: Intent) {
+        val safeIntent = IntentSanitizer.sanitizeMainActivityIntent(
+            packageName,
+            MainActivity::class.java,
+            intent,
+        )
+        super.onNewIntent(safeIntent)
+        setIntent(safeIntent)
+        deliverSanitizedNotificationIntent(safeIntent)
+    }
+
+    private fun deliverSanitizedNotificationIntent(intent: Intent) {
         val payload = intent.getStringExtra("notification_payload")
         val action = intent.action
 
-        println("🔧 Android: Intent action: $action")
-        println("🔧 Android: Received notification payload: $payload")
+        if (payload == null) return
 
-        if (payload != null) {
-            notificationPayload = payload
+        notificationPayload = payload
 
-            // Immediately send the payload to Flutter with action
-            try {
-                val binaryMessenger = flutterEngine?.dartExecutor?.binaryMessenger
-                if (binaryMessenger != null) {
-                    val notificationChannel = MethodChannel(binaryMessenger, NOTIFICATION_CHANNEL)
-                    val data = mapOf(
-                        "payload" to payload,
-                        "action" to (action ?: "OPEN_NOTIFICATIONS")
-                    )
-                    // Use invokeMethod with null result for faster execution
-                    notificationChannel.invokeMethod("onNotificationOpened", data, null)
-                    println("🔧 Android: Sent payload to Flutter immediately with action: $action")
-                } else {
-                    println("🔧 Android: binaryMessenger is null, cannot send payload to Flutter")
-                }
-            } catch (e: Exception) {
-                println("🔧 Android: Error sending payload to Flutter: $e")
-            }
+        try {
+            val binaryMessenger = flutterEngine?.dartExecutor?.binaryMessenger ?: return
+            val notificationChannel = MethodChannel(binaryMessenger, NOTIFICATION_CHANNEL)
+            val data = mapOf(
+                "payload" to payload,
+                "action" to (action ?: "OPEN_NOTIFICATIONS"),
+            )
+            notificationChannel.invokeMethod("onNotificationOpened", data, null)
+        } catch (_: Exception) {
+            // Ignore — notification tap is best-effort.
         }
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                "ecl_notifications",
-                "ECL Notifications",
+                "ecl_order_channel_v3",
+                "Order Updates",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Notifications for ECL Pharmacy App"
+                description = "Notifications for order status and updates"
                 enableLights(true)
                 enableVibration(true)
             }
@@ -262,7 +275,7 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(this, "ecl_notifications")
+        val notification = NotificationCompat.Builder(this, "ecl_order_channel_v3")
             .setContentTitle(title)
             .setContentText(body)
             .setSmallIcon(R.mipmap.ic_launcher)

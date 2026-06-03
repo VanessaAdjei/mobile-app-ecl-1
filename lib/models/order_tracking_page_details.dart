@@ -1,7 +1,6 @@
 /// Resolved order data for [OrderTrackingPage] (delivery info, status, line items).
 class OrderTrackingPageDetails {
   const OrderTrackingPageDetails({
-    this.directStatus,
     this.orderStatus,
     this.deliveryAddress,
     this.contactNumber,
@@ -12,7 +11,6 @@ class OrderTrackingPageDetails {
     this.foundInOrdersList = false,
   });
 
-  final String? directStatus;
   final String? orderStatus;
   final String? deliveryAddress;
   final String? contactNumber;

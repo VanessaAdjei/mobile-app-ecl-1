@@ -131,6 +131,8 @@ class CartService {
     final url = ApiConfig.getEndpointUrl(ApiConfig.checkAuth);
     CategoryFetchResult? lastResult;
 
+    const maxTransientRetries = 2;
+
     for (final productId in productIds) {
       final requestBody = <String, dynamic>{
         'productID': productId,
@@ -140,27 +142,40 @@ class CartService {
         requestBody['batch_no'] = batchNo;
       }
       final encoded = jsonEncode(requestBody);
-      final result = await _repository.postCheckAuth(
-        headers: headers,
-        body: encoded,
-        timeout: timeout,
-      );
-      lastResult = result;
-      onAttempt?.call(
-        url: url,
-        headers: headers,
-        requestBody: encoded,
-        result: result,
-      );
-      if (isSuccessStatus(result.statusCode)) {
+
+      for (var attempt = 0; attempt <= maxTransientRetries; attempt++) {
+        final result = await _repository.postCheckAuth(
+          headers: headers,
+          body: encoded,
+          timeout: timeout,
+        );
+        lastResult = result;
+        onAttempt?.call(
+          url: url,
+          headers: headers,
+          requestBody: encoded,
+          result: result,
+        );
+        if (isSuccessStatus(result.statusCode)) {
+          return result;
+        }
+        if (result.statusCode == 404) {
+          debugPrint(
+            '⚠️ productID $productId not found (404), trying next id...',
+          );
+          break;
+        }
+        final transient = result.statusCode == 0;
+        if (transient && attempt < maxTransientRetries) {
+          final delayMs = 350 * (attempt + 1);
+          debugPrint(
+            '⚠️ check-auth transient failure (status 0), retry in ${delayMs}ms',
+          );
+          await Future<void>.delayed(Duration(milliseconds: delayMs));
+          continue;
+        }
         return result;
       }
-      if (result.statusCode != 404) {
-        return result;
-      }
-      debugPrint(
-        '⚠️ productID $productId not found (404), trying next id...',
-      );
     }
 
     return lastResult ??

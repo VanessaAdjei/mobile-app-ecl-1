@@ -84,6 +84,8 @@ class _AnimatedTimelineStepState extends State<_AnimatedTimelineStep>
         return 'Awaiting confirmation from the store.';
       case 'orderConfirmed':
         return 'Your order has been confirmed!';
+      case 'orderDispatched':
+        return 'Your order is ready for dispatch.';
       case 'outForDelivery':
         return 'Your order is on its way.';
       case 'delivered':
@@ -362,6 +364,8 @@ class _AnimatedStepIconState extends State<_AnimatedStepIcon>
         return Icons.hourglass_top_rounded;
       case 'orderConfirmed':
         return Icons.check_circle_outline_rounded;
+      case 'orderDispatched':
+        return Icons.inventory_2_outlined;
       case 'outForDelivery':
         return Icons.delivery_dining_rounded;
       case 'delivered':
@@ -407,6 +411,7 @@ class _AnimatedStepIconState extends State<_AnimatedStepIcon>
     switch (stepId) {
       case 'pendingConfirmation':
         return const Duration(milliseconds: 2200);
+      case 'orderDispatched':
       case 'outForDelivery':
         return const Duration(milliseconds: 900);
       case 'orderPlaced':

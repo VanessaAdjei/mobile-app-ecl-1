@@ -21,6 +21,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'app_back_button.dart';
 import '../widgets/full_screen_image_viewer.dart';
 import '../widgets/item_detail_sliver_header.dart';
+import '../widgets/item_detail/item_detail_design.dart';
 import '../widgets/optimized_quantity_button.dart';
 import '../services/stock_utility_service.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -49,28 +50,25 @@ class ItemPage extends StatefulWidget {
 }
 
 class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
-  static const Color _detailBg = Color(0xFFF4FAF7);
-  static const Color _detailBorder = Color(0xFFE5E7EB);
+  static const Color _detailBg = ItemDetailDesign.pageBg;
+  static const Color _detailBorder = ItemDetailDesign.border;
   static const Color _detailGreenBorder = Color(0xFFBBEAD3);
-  static const Color _detailGreenTint = Color(0xFFEEF9F3);
-  static const Color _detailInk = Color(0xFF1F2937);
-  static const Color _detailMuted = Color(0xFF6B7280);
-  static const double _pageHPad = 16;
-  static const double _relatedCardWidth = 96;
-  static const double _relatedListHeight = 128;
-  static const double _galleryHeight = 190;
+  static const Color _detailGreenTint = ItemDetailDesign.accentLight;
+  static const Color _detailInk = ItemDetailDesign.ink;
+  static const Color _detailMuted = ItemDetailDesign.muted;
+  static const double _pageHPad = ItemDetailDesign.pagePadding;
+  static const double _relatedCardWidth = 108;
+  static const double _relatedListHeight = 148;
+  static const double _galleryHeight = 220;
 
   // Slightly larger type for readability on product detail.
   static const double _fsToolbarTitle = 17;
-  static const double _fsHeroPrice = 16;
-  static const double _fsHeroMeta = 11;
-  static const double _fsSectionTitle = 16;
-  static const double _fsSectionCaption = 13;
   static const double _fsBody = 15;
   static const double _fsBodyMedium = 14;
   static const double _fsCaption = 12;
   static const double _fsSmall = 11;
   static const double _fsChip = 12;
+  static const double _fsHeroPrice = 16;
   static const double _fsPriceLarge = 18;
   static const double _fsButton = 15;
 
@@ -484,42 +482,9 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     return fromSlug.isEmpty ? 'Product' : fromSlug;
   }
 
-  BoxDecoration _detailCardDecoration({
-    Color? bg,
-    bool accentTop = false,
-  }) =>
-      BoxDecoration(
-        color: bg ?? Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: accentTop ? _detailGreenBorder : _detailBorder,
-        ),
-      );
-
-  Widget _buildSectionHeader(String title, {String? subtitle}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: _sectionTitleStyle()),
-        if (subtitle != null) ...[
-          const SizedBox(height: 2),
-          Text(subtitle, style: _sectionCaptionStyle()),
-        ],
-      ],
-    );
+  Widget _buildSectionHeader(String title, {String? subtitle, IconData? icon}) {
+    return ItemDetailDesign.sectionLabel(title, subtitle: subtitle, icon: icon);
   }
-
-  TextStyle _sectionTitleStyle() => GoogleFonts.poppins(
-        fontSize: _fsSectionTitle,
-        fontWeight: FontWeight.w600,
-        color: _detailInk,
-      );
-
-  TextStyle _sectionCaptionStyle() => GoogleFonts.poppins(
-        fontSize: _fsSectionCaption,
-        color: _detailMuted,
-        height: 1.35,
-      );
 
   Widget _itemDetailBackButton({Color? backgroundColor}) {
     return BackButtonUtils.withConfirmation(
@@ -603,58 +568,51 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildPrescriptionUploadedBanner() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(_pageHPad, 12, _pageHPad, 0),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFECFDF5),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFBBF7D0)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.check_circle_rounded,
-                color: AppColors.primary,
-                size: 20,
-              ),
+    return ItemDetailDesign.accentStripeCard(
+      stripeColor: AppColors.primary,
+      backgroundColor: const Color(0xFFECFDF5),
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Prescription uploaded',
-                    style: GoogleFonts.poppins(
-                      fontSize: _fsBodyMedium,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF065F46),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Our pharmacist will review it. You can replace the file if needed.',
-                    style: GoogleFonts.poppins(
-                      fontSize: _fsCaption,
-                      color: const Color(0xFF047857),
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-              ),
+            child: const Icon(
+              Icons.check_circle_rounded,
+              color: AppColors.primary,
+              size: 20,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Prescription uploaded',
+                  style: GoogleFonts.poppins(
+                    fontSize: _fsBodyMedium,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF065F46),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Our pharmacist will review it. You can replace the file if needed.',
+                  style: GoogleFonts.poppins(
+                    fontSize: _fsCaption,
+                    color: const Color(0xFF047857),
+                    height: 1.25,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -692,7 +650,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         if (!snapshot.hasData) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Scaffold(
-              backgroundColor: const Color(0xFFF5F7F6),
+              backgroundColor: _detailBg,
               body: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(
                   parent: BouncingScrollPhysics(),
@@ -780,19 +738,30 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 _buildItemSliverHeader(product: product),
                 SliverToBoxAdapter(
                   child: ColoredBox(
-                    color: Colors.white,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildProductImageGallery(product),
-                        _buildProductHeroSection(product),
-                        if (_isPrescriptionProduct(product) &&
-                            _prescriptionUploaded)
-                          _buildPrescriptionUploadedBanner(),
-                        _buildDescriptionSection(product),
-                        _buildRelatedProductsSection(product),
-                        const SizedBox(height: 84),
-                      ],
+                    color: _detailBg,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        _pageHPad,
+                        12,
+                        _pageHPad,
+                        0,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildProductImageGallery(product),
+                          const SizedBox(height: 10),
+                          _buildProductHeroSection(product),
+                          if (_isPrescriptionProduct(product) &&
+                              _prescriptionUploaded) ...[
+                            const SizedBox(height: 10),
+                            _buildPrescriptionUploadedBanner(),
+                          ],
+                          _buildDescriptionSection(product),
+                          _buildRelatedProductsSection(product),
+                          const SizedBox(height: 84),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -810,38 +779,28 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       baseColor: Colors.grey[300]!,
       highlightColor: Colors.grey[100]!,
       child: ColoredBox(
-        color: Colors.white,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              height: _galleryHeight,
-              color: _detailGreenTint,
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(_pageHPad, 10, _pageHPad, 0),
-              child: Center(
-                child: Container(
-                  height: 14,
-                  width: 200,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
+        color: _detailBg,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(_pageHPad, 12, _pageHPad, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                height: _galleryHeight,
+                decoration: ItemDetailDesign.surfaceCard(color: Colors.white),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(_pageHPad),
-              child: Container(
-                height: 100,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                ),
+              const SizedBox(height: 12),
+              Container(
+                height: 88,
+                decoration: ItemDetailDesign.surfaceCard(color: Colors.white),
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Container(
+                height: 120,
+                decoration: ItemDetailDesign.surfaceCard(color: Colors.white),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -970,91 +929,117 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 imageUrls: imageUrls,
                 initialIndex: _currentImageIndex.clamp(0, imageUrls.length - 1),
               ),
-      child: SizedBox(
+      child: Container(
         height: _galleryHeight,
         width: double.infinity,
-        child: Stack(
-          alignment: Alignment.bottomCenter,
-          children: [
-            ColoredBox(
-              color: _detailGreenTint,
-              child: PageView.builder(
-                controller: _imagePageController,
-                onPageChanged: (index) {
-                  setState(() => _currentImageIndex = index);
-                },
-                itemCount: imageUrls.isEmpty ? 1 : imageUrls.length,
-                itemBuilder: (context, index) {
-                  final imageUrl = imageUrls.isEmpty ? '' : imageUrls[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 28, vertical: 16),
-                    child: Hero(
-                      tag: 'product-image-${product.id}-${product.urlName}',
-                      child: imageUrl.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: imageUrl,
-                              fit: BoxFit.contain,
-                              memCacheWidth: 700,
-                              memCacheHeight: 700,
-                              fadeInDuration: index == 0
-                                  ? Duration.zero
-                                  : const Duration(milliseconds: 150),
-                              fadeOutDuration: Duration.zero,
-                              placeholder: (context, url) => Center(
-                                child: SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      AppColors.primary,
+        decoration: ItemDetailDesign.surfaceCard(),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(ItemDetailDesign.radiusLg - 1),
+          child: Stack(
+            alignment: Alignment.bottomCenter,
+            children: [
+              ColoredBox(
+                color: ItemDetailDesign.imageWell,
+                child: PageView.builder(
+                  controller: _imagePageController,
+                  onPageChanged: (index) {
+                    setState(() => _currentImageIndex = index);
+                  },
+                  itemCount: imageUrls.isEmpty ? 1 : imageUrls.length,
+                  itemBuilder: (context, index) {
+                    final imageUrl = imageUrls.isEmpty ? '' : imageUrls[index];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                      child: Hero(
+                        tag: 'product-image-${product.id}-${product.urlName}',
+                        child: imageUrl.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: imageUrl,
+                                fit: BoxFit.contain,
+                                memCacheWidth: 700,
+                                memCacheHeight: 700,
+                                fadeInDuration: index == 0
+                                    ? Duration.zero
+                                    : const Duration(milliseconds: 150),
+                                fadeOutDuration: Duration.zero,
+                                placeholder: (context, url) => Center(
+                                  child: SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor:
+                                          AlwaysStoppedAnimation<Color>(
+                                        AppColors.primary,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              errorWidget: (context, url, error) =>
-                                  _galleryPlaceholder(),
-                            )
-                          : _galleryPlaceholder(),
-                    ),
-                  );
-                },
+                                errorWidget: (context, url, error) =>
+                                    _galleryPlaceholder(),
+                              )
+                            : _galleryPlaceholder(),
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-            if (imageUrls.length > 1)
-              Positioned(
-                bottom: 10,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    imageUrls.length,
-                    (index) => AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: _currentImageIndex == index ? 14 : 5,
-                      height: 5,
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(999),
-                        color: _currentImageIndex == index
-                            ? AppColors.primary
-                            : const Color(0xFFD1E7DD),
+              if (imageUrls.length > 1)
+                Positioned(
+                  bottom: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _detailBorder),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List.generate(
+                        imageUrls.length,
+                        (index) => AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: _currentImageIndex == index ? 16 : 6,
+                          height: 6,
+                          margin: const EdgeInsets.symmetric(horizontal: 2),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            color: _currentImageIndex == index
+                                ? AppColors.primary
+                                : const Color(0xFFD1E7DD),
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            if (imageUrls.isNotEmpty)
-              Positioned(
-                right: _pageHPad,
-                bottom: 10,
-                child: Icon(
-                  Icons.zoom_in_rounded,
-                  size: 20,
-                  color: AppColors.primaryDark.withValues(alpha: 0.55),
+              if (imageUrls.isNotEmpty)
+                Positioned(
+                  right: 10,
+                  top: 10,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.95),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: _detailBorder),
+                    ),
+                    child: Icon(
+                      Icons.zoom_in_rounded,
+                      size: 18,
+                      color: AppColors.primaryDark.withValues(alpha: 0.7),
+                    ),
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1075,67 +1060,82 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     final inStock = StockUtilityService.isProductInStock(product.quantity);
     final price = double.tryParse(product.price) ?? 0.0;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(_pageHPad, 10, _pageHPad, 0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: ItemDetailDesign.surface,
+        borderRadius: BorderRadius.circular(ItemDetailDesign.radiusMd),
+        border: Border.all(color: ItemDetailDesign.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            'GHS ${price.toStringAsFixed(2)}',
-            style: GoogleFonts.poppins(
-              fontSize: _fsHeroPrice,
-              fontWeight: FontWeight.w600,
-              color: AppColors.primary,
-            ),
-          ),
-          if (product.uom != null && product.uom!.isNotEmpty) ...[
-            const SizedBox(width: 3),
-            Text(
-              '/ ${product.uom}',
-              style: GoogleFonts.poppins(
-                fontSize: _fsHeroMeta,
-                color: _detailMuted,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                'GHS ',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
+                  height: 1.1,
+                ),
               ),
-            ),
-          ],
-          const SizedBox(width: 8),
-          Text(
-            '·',
-            style: GoogleFonts.poppins(
-              fontSize: _fsHeroMeta,
-              color: _detailMuted,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            inStock ? 'In stock' : 'Out of stock',
-            style: GoogleFonts.poppins(
-              fontSize: _fsHeroMeta,
-              fontWeight: FontWeight.w500,
-              color: inStock ? AppColors.primaryDark : const Color(0xFFB45309),
-            ),
-          ),
-          if (isPrescription) ...[
-            const SizedBox(width: 8),
-            Text(
-              '·',
-              style: GoogleFonts.poppins(
-                fontSize: _fsHeroMeta,
-                color: _detailMuted,
+              Text(
+                price.toStringAsFixed(2),
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                  letterSpacing: -0.3,
+                  height: 1.05,
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              _prescriptionUploaded ? 'Rx uploaded' : 'Rx required',
-              style: GoogleFonts.poppins(
-                fontSize: _fsHeroMeta,
-                fontWeight: FontWeight.w500,
-                color: _prescriptionUploaded
-                    ? AppColors.primaryDark
-                    : const Color(0xFF991B1B),
+              if (product.uom != null && product.uom!.isNotEmpty) ...[
+                const SizedBox(width: 4),
+                Text(
+                  '/ ${product.uom}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    height: 1.1,
+                    color: _detailMuted,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 5,
+            runSpacing: 4,
+            children: [
+              _buildMetaChip(
+                label: inStock ? 'In stock' : 'Out of stock',
+                fg: inStock ? AppColors.primaryDark : const Color(0xFFB45309),
+                green: inStock,
+                compact: true,
               ),
-            ),
-          ],
+              if (isPrescription)
+                _buildMetaChip(
+                  label: _prescriptionUploaded ? 'Rx uploaded' : 'Rx required',
+                  fg: _prescriptionUploaded
+                      ? AppColors.primaryDark
+                      : const Color(0xFF991B1B),
+                  green: _prescriptionUploaded,
+                  tint: _prescriptionUploaded
+                      ? _detailGreenTint
+                      : const Color(0xFFFEF2F2),
+                  border: _prescriptionUploaded
+                      ? _detailGreenBorder
+                      : const Color(0xFFFECACA),
+                  compact: true,
+                ),
+            ],
+          ),
         ],
       ),
     );
@@ -1145,14 +1145,18 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     required String label,
     required Color fg,
     bool green = false,
+    bool compact = false,
     Color? tint,
     Color? border,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 6 : 8,
+        vertical: compact ? 2 : 3,
+      ),
       decoration: BoxDecoration(
         color: tint ?? (green ? _detailGreenTint : const Color(0xFFF9FAFB)),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(compact ? 5 : 6),
         border: Border.all(
           color: border ?? (green ? _detailGreenBorder : _detailBorder),
         ),
@@ -1160,8 +1164,9 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       child: Text(
         label,
         style: GoogleFonts.poppins(
-          fontSize: _fsChip,
+          fontSize: compact ? 10 : _fsChip,
           fontWeight: FontWeight.w500,
+          height: 1.1,
           color: fg,
         ),
       ),
@@ -1172,39 +1177,22 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     if (product.description.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(_pageHPad, 10, _pageHPad, 0),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: _detailGreenTint.withValues(alpha: 0.45),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _detailGreenBorder.withValues(alpha: 0.75)),
-        ),
+      padding: const EdgeInsets.only(top: 10),
+      child: ItemDetailDesign.accentStripeCard(
+        padding: const EdgeInsets.fromLTRB(12, 10, 10, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-              child: Text(
-                'Product details',
-                style: GoogleFonts.poppins(
-                  fontSize: _fsBody,
-                  fontWeight: FontWeight.w600,
-                  color: _detailInk,
-                ),
-              ),
+            ItemDetailDesign.sectionLabel(
+              'Product details',
+              subtitle: 'Ingredients, usage & more',
+              icon: Icons.info_outline_rounded,
             ),
-            Divider(
-              height: 1,
-              thickness: 1,
-              color: _detailGreenBorder.withValues(alpha: 0.8),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-              child: ProductDescription(
-                description: product.description,
-                fadeColor: _detailGreenTint.withValues(alpha: 0.95),
-                chipBorderColor: _detailGreenBorder,
-              ),
+            const SizedBox(height: 8),
+            ProductDescription(
+              description: product.description,
+              fadeColor: ItemDetailDesign.surface,
+              chipBorderColor: _detailBorder,
             ),
           ],
         ),
@@ -1556,29 +1544,33 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildRelatedProductsSection(Product product) {
-    return Container(
-      color: _detailBg,
-      padding: const EdgeInsets.fromLTRB(_pageHPad, 20, _pageHPad, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          FutureBuilder<List<Product>>(
-            future: _relatedProductsFuture,
-            builder: (context, relatedSnapshot) {
-              final relatedProducts = relatedSnapshot.data ?? [];
-              final showSubtitle =
-                  relatedSnapshot.connectionState == ConnectionState.done &&
-                      !relatedSnapshot.hasError &&
-                      relatedProducts.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        decoration: ItemDetailDesign.surfaceCard(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            FutureBuilder<List<Product>>(
+              future: _relatedProductsFuture,
+              builder: (context, relatedSnapshot) {
+                final relatedProducts = relatedSnapshot.data ?? [];
+                final showSubtitle =
+                    relatedSnapshot.connectionState == ConnectionState.done &&
+                        !relatedSnapshot.hasError &&
+                        relatedProducts.isNotEmpty;
 
-              return _buildSectionHeader(
-                'You may also like',
-                subtitle: showSubtitle ? 'Similar items' : null,
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          FutureBuilder<List<Product>>(
+                return _buildSectionHeader(
+                  'You may also like',
+                  subtitle: showSubtitle ? 'Similar items' : null,
+                  icon: Icons.grid_view_rounded,
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+            FutureBuilder<List<Product>>(
             future: _relatedProductsFuture,
             builder: (context, relatedSnapshot) {
               if (relatedSnapshot.connectionState == ConnectionState.waiting) {
@@ -1607,7 +1599,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               return _buildRelatedProductsList(relatedProducts);
             },
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1644,10 +1637,10 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(10),
+        color: ItemDetailDesign.imageWell,
+        borderRadius: BorderRadius.circular(ItemDetailDesign.radiusMd),
         border: Border.all(color: _detailBorder),
       ),
       child: Column(
@@ -1696,13 +1689,20 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             },
           );
         },
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(ItemDetailDesign.radiusMd),
         child: Ink(
           width: _relatedCardWidth,
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            color: ItemDetailDesign.surface,
+            borderRadius: BorderRadius.circular(ItemDetailDesign.radiusMd),
             border: Border.all(color: _detailBorder),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1765,13 +1765,13 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                       style: GoogleFonts.poppins(
                         fontWeight: FontWeight.w500,
                         fontSize: _fsCaption,
-                        height: 1.25,
+                        height: 1.15,
                         color: _detailInk,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 1),
                     Text(
                       'GHS ${product.price}',
                       style: GoogleFonts.poppins(
@@ -2203,47 +2203,47 @@ class _ProductDescriptionState extends State<ProductDescription> {
       'body': Style(
         fontSize: FontSize(15),
         color: bodyColor,
-        lineHeight: LineHeight.number(1.4),
+        lineHeight: LineHeight.number(1.28),
         margin: Margins.zero,
         padding: HtmlPaddings.zero,
       ),
       'p': Style(
         fontSize: FontSize(15),
         color: bodyColor,
-        lineHeight: LineHeight.number(1.4),
-        margin: Margins.only(bottom: 8),
+        lineHeight: LineHeight.number(1.28),
+        margin: Margins.only(bottom: 5),
       ),
       'h1': Style(
         color: AppColors.primaryDark,
         fontWeight: FontWeight.w700,
         fontSize: FontSize(17),
-        margin: Margins.only(top: 2, bottom: 5),
-        lineHeight: LineHeight.number(1.15),
+        margin: Margins.only(top: 2, bottom: 4),
+        lineHeight: LineHeight.number(1.12),
       ),
       'h2': Style(
         color: AppColors.primaryDark,
         fontWeight: FontWeight.w700,
         fontSize: FontSize(16),
-        margin: Margins.only(top: 2, bottom: 5),
-        lineHeight: LineHeight.number(1.15),
+        margin: Margins.only(top: 2, bottom: 4),
+        lineHeight: LineHeight.number(1.12),
       ),
       'h3, h4': Style(
         color: AppColors.primaryDark,
         fontWeight: FontWeight.w600,
         fontSize: FontSize(14),
         letterSpacing: 0.2,
-        margin: Margins.only(top: 8, bottom: 3),
-        lineHeight: LineHeight.number(1.15),
+        margin: Margins.only(top: 6, bottom: 2),
+        lineHeight: LineHeight.number(1.12),
       ),
       'ul, ol': Style(
         padding: HtmlPaddings.only(left: 18),
-        margin: Margins.only(top: 2, bottom: 8),
+        margin: Margins.only(top: 2, bottom: 5),
       ),
       'li': Style(
         fontSize: FontSize(15),
         color: bodyColor,
-        lineHeight: LineHeight.number(1.4),
-        margin: Margins.only(bottom: 4),
+        lineHeight: LineHeight.number(1.28),
+        margin: Margins.only(bottom: 2),
         display: Display.listItem,
       ),
       'strong, b': Style(
@@ -2399,7 +2399,7 @@ class _ExpandableHtmlState extends State<_ExpandableHtml> {
           ],
         ),
         if (_showButton) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Center(
             child: Material(
               color: Colors.white,

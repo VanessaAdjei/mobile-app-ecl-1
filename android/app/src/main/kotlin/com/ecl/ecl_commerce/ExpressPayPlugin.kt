@@ -133,7 +133,8 @@ class ExpressPayPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, PluginR
                     requestCode == REQUEST_CODE_CHECKOUT ||
                     requestCode == REQUEST_CODE_CHECKOUT_WITH_TOKEN)) {
 
-            expressPayApi?.onActivityResult(activity!!, requestCode, resultCode, data)
+            val safeData = IntentSanitizer.sanitizeActivityResultIntent(data)
+            expressPayApi?.onActivityResult(activity!!, requestCode, resultCode, safeData)
 
             // We handle callback results in their respective listeners
             // This is just to make sure we catch any unhandled results

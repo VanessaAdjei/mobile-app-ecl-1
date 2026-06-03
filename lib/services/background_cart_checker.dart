@@ -1,4 +1,7 @@
 // services/background_cart_checker.dart
+//
+// Legacy duplicate of [RealtimeCartSyncService]. Cart background sync is started
+// from [CartProvider] via RealtimeCartSyncService — do not initialize this class.
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';

@@ -476,10 +476,10 @@ class PaymentPageState extends State<PaymentPage> {
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
-    final bottomSafe = MediaQuery.paddingOf(context).bottom;
-    // Pay bar: SafeArea + container padding (10+8) + slide track (44).
-    const payBarHeight = 62.0;
-    final payBarInset = bottomSafe + payBarHeight;
+    const bottomLift = 10.0;
+    // Pay bar: top padding (10) + slide (44) + small bottom lift.
+    const payBarHeight = 54.0 + bottomLift;
+    final payBarInset = payBarHeight;
 
     return Scaffold(
       backgroundColor: _pageBg,
@@ -607,9 +607,6 @@ class PaymentPageState extends State<PaymentPage> {
                   children: [
                         Consumer<CartProvider>(
                           builder: (context, cart, child) {
-                            final itemCount = cart.getSelectedItems().length;
-                            final tightLayout = itemCount <= 3;
-
                             WidgetsBinding.instance.addPostFrameCallback((_) {
                               if (mounted) _updateScrollHint();
                             });
@@ -624,7 +621,7 @@ class PaymentPageState extends State<PaymentPage> {
                               physics: const BouncingScrollPhysics(),
                               padding: EdgeInsets.fromLTRB(
                                 0,
-                                tightLayout ? 8 : 12,
+                                12,
                                 0,
                                 payBarInset + 12,
                               ),
@@ -642,10 +639,9 @@ class PaymentPageState extends State<PaymentPage> {
                             ],
                             child: PaymentOrderItemsSection(
                               selectedItems: cart.getSelectedItems(),
-                              compact: tightLayout,
                             ),
                           ),
-                          SizedBox(height: tightLayout ? 4 : 6),
+                          const SizedBox(height: 8),
                           if (widget._isDelivery) ...[
                             Animate(
                               effects: [
@@ -660,7 +656,7 @@ class PaymentPageState extends State<PaymentPage> {
                                 contactNumber: widget.contactNumber,
                               ),
                             ),
-                            SizedBox(height: tightLayout ? 4 : 6),
+                            const SizedBox(height: 8),
                           ],
                           Animate(
                             effects: [
@@ -671,7 +667,6 @@ class PaymentPageState extends State<PaymentPage> {
                                   end: Offset(0, 0))
                             ],
                             child: PaymentBillSummarySection(
-                              compact: tightLayout,
                               subtotal: _effectiveSubtotalFromApiOrCart,
                               deliveryFee: widget._effectiveDeliveryFee,
                               showDeliveryFee: widget._isDelivery,
@@ -690,7 +685,7 @@ class PaymentPageState extends State<PaymentPage> {
                             ),
                           ),
                           if (_paymentError != null) ...[
-                            SizedBox(height: tightLayout ? 4 : 6),
+                            const SizedBox(height: 8),
                             Animate(
                               effects: [
                                 FadeEffect(duration: 400.ms),
@@ -812,30 +807,26 @@ class PaymentPageState extends State<PaymentPage> {
                           left: 0,
                           right: 0,
                           bottom: 0,
-                          child: SafeArea(
-                            top: false,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(18),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(18),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primary
+                                      .withValues(alpha: 0.1),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, -6),
                                 ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppColors.primary
-                                        .withValues(alpha: 0.1),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, -6),
-                                  ),
-                                ],
-                              ),
-                              padding:
-                                  const EdgeInsets.fromLTRB(14, 10, 14, 8),
-                              child: Consumer<CartProvider>(
-                                builder: (context, cart, child) {
-                                  return _buildSlideToPay(cart);
-                                },
-                              ),
+                              ],
+                            ),
+                            padding: EdgeInsets.fromLTRB(14, 10, 14, bottomLift),
+                            child: Consumer<CartProvider>(
+                              builder: (context, cart, child) {
+                                return _buildSlideToPay(cart);
+                              },
                             ),
                           ),
                         ),

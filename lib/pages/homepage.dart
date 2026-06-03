@@ -356,6 +356,7 @@ class HomePageState extends State<HomePage>
   bool _homeGridImagesReady = false;
   bool _spotlightTourScheduled = false;
   bool _isRoutePushInProgress = false;
+  bool _hasMarkedHomeHydrated = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -439,6 +440,13 @@ class HomePageState extends State<HomePage>
     _hasTriedLoadingCategories = true;
   }
 
+  void _markHomeHydratedOnce() {
+    if (_hasMarkedHomeHydrated) return;
+    if (_products.isEmpty && !ProductCache.hasProductsInMemory) return;
+    _hasMarkedHomeHydrated = true;
+    CatalogTimer.mark('home_hydrated');
+  }
+
   /// Apply preloaded get-all-products catalog before the first frame.
   void _hydrateFromProductCacheSync() {
     if (!ProductCache.hasProductsInMemory) return;
@@ -456,7 +464,7 @@ class HomePageState extends State<HomePage>
       popularProducts = List<Product>.from(ProductCache.cachedPopularProducts);
     }
     _isLoadingPopular = popularProducts.isEmpty;
-    CatalogTimer.mark('home_hydrated');
+    _markHomeHydratedOnce();
   }
 
   /// Fast shuffle — only randomize a small pool per section (not 1000+ items).
@@ -567,6 +575,9 @@ class HomePageState extends State<HomePage>
 
       _error = null;
     });
+    if (cachedAll.isNotEmpty) {
+      _markHomeHydratedOnce();
+    }
     _persistSnapshot();
   }
 
@@ -598,13 +609,15 @@ class HomePageState extends State<HomePage>
       _applyCacheToState();
       _hasBeenLoaded = true;
       _startHomeContentAfterCatalog();
-      if (!ProductCache.isCacheValid) {
+      if (ProductCache.shouldRefreshFromNetwork) {
         unawaited(_refreshCatalogInBackground());
       }
       return;
     }
 
-    unawaited(ProductCache.prefetchFromNetwork());
+    if (ProductCache.shouldRefreshFromNetwork) {
+      unawaited(ProductCache.prefetchFromNetwork());
+    }
     if (ProductCache.isCatalogLoadInFlight) {
       _schedulePostInitHomeWork();
       return;
@@ -712,7 +725,7 @@ class HomePageState extends State<HomePage>
 
   Future<void> _refreshCatalogInBackground() async {
     if (_isLoadingContent || !mounted) return;
-    if (ProductCache.isCacheValid) return;
+    if (!ProductCache.shouldRefreshFromNetwork) return;
     _isLoadingContent = true;
     try {
       await ProductCache.prefetchFromNetwork();
@@ -737,40 +750,57 @@ class HomePageState extends State<HomePage>
   /// Context-dependent work (precacheImage, sheets) must run after [initState].
   void _schedulePostInitHomeWork() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (!mounted) return;
+      if (!mounted) return;
       ProductImagePreloadService.warmRemainingInBackground(
         catalog: ProductCache.cachedProducts,
         popular: ProductCache.cachedPopularProducts,
       );
-      unawaited(_maybeRequestPermissionsDirect());
+      // OS prompts after home paints — never block hydration or first frame.
+      unawaited(
+        Future<void>.delayed(
+          const Duration(milliseconds: 800),
+          _requestPermissionsBackground,
+        ),
+      );
     });
   }
 
   /// OS notification + location prompts only (no in-app sheet/dialog first).
-  Future<void> _maybeRequestPermissionsDirect() async {
-    final prefs = await SharedPreferences.getInstance();
-    final afterOnboarding =
-        prefs.getBool('request_permissions_after_onboarding') ?? false;
-    final alreadyAttempted =
-        prefs.getBool('notification_prompt_attempted') ?? false;
+  Future<void> _requestPermissionsBackground() async {
+    if (!mounted) return;
 
-    if (!afterOnboarding && alreadyAttempted) return;
-    if (!afterOnboarding &&
-        !await NativeNotificationService.needsPermissionsPrompt()) {
-      return;
-    }
+    final pendingFromOnboarding =
+        HomePreloadService.takePendingPermissionsAfterOnboarding();
+
+    final prefs = await SharedPreferences.getInstance();
+    final afterOnboarding = pendingFromOnboarding ||
+        (prefs.getBool('request_permissions_after_onboarding') ?? false);
 
     if (afterOnboarding) {
-      await prefs.setBool('request_permissions_after_onboarding', false);
+      unawaited(prefs.setBool('request_permissions_after_onboarding', false));
     }
 
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
     try {
-      await NativeNotificationService.requestOnboardingPermissions(
-        context: context,
-      ).timeout(const Duration(seconds: 45));
-      await prefs.setBool('notification_prompt_attempted', true);
+      if (!await NativeNotificationService.areNotificationsEnabled()) {
+        if (!mounted) return;
+        final granted =
+            await NativeNotificationService.requestNotificationPermissionDirect(
+          context: context,
+        );
+        if (granted) {
+          unawaited(prefs.setBool('notification_prompt_attempted', true));
+          await NativeNotificationService.testNotification();
+        }
+      }
+
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      if (!mounted) return;
+
+      if (!await NativeNotificationService.isLocationWhenInUseGranted()) {
+        await NativeNotificationService.requestLocationWhenInUseDirect(
+          context: context,
+        );
+      }
     } on TimeoutException {
       debugPrint('HomePage: permission prompts timed out');
     } catch (e, st) {
@@ -864,7 +894,7 @@ class HomePageState extends State<HomePage>
             });
             _schedulePostInitHomeWork();
           }
-          if (!ProductCache.isCacheValid) {
+          if (ProductCache.shouldRefreshFromNetwork) {
             unawaited(_refreshCatalogInBackground());
           }
           return;
@@ -884,7 +914,7 @@ class HomePageState extends State<HomePage>
           });
           _schedulePostInitHomeWork();
         }
-        if (!ProductCache.isCacheValid) {
+        if (ProductCache.shouldRefreshFromNetwork) {
           unawaited(_refreshCatalogInBackground());
         }
         return;
@@ -1141,11 +1171,9 @@ class HomePageState extends State<HomePage>
   Future<void> _handleRefresh() async {
     if (_isLoadingContent) return;
     _isLoadingContent = true;
-    // A manual refresh reshuffles the sections regardless of the hourly gate.
+    // Manual refresh bypasses the hourly catalog gate.
     _forceSectionShuffleOnce = true;
     try {
-      // Refresh the popular strip in the background so the spinner only waits
-      // for the main product list, not the slower of the two network calls.
       unawaited(_fetchPopularProducts(forceRefresh: true));
       await loadProducts(forceRefresh: true);
       _hasBeenLoaded = true;
@@ -1199,9 +1227,11 @@ class HomePageState extends State<HomePage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    // On resume: clear search only — do NOT reload data
     if (state == AppLifecycleState.resumed && mounted) {
       _clearSearch();
+      if (_hasBeenLoaded && ProductCache.shouldRefreshFromNetwork) {
+        unawaited(_refreshCatalogInBackground());
+      }
     }
   }
 

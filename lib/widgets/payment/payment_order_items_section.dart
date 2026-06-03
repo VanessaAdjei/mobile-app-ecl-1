@@ -35,17 +35,18 @@ class _PaymentOrderItemsSectionState extends State<PaymentOrderItemsSection> {
     final selectedItems = widget.selectedItems;
 
     final sectionPadding = widget.compact
-        ? const EdgeInsets.symmetric(horizontal: 10, vertical: 9)
+        ? const EdgeInsets.symmetric(horizontal: 12, vertical: 12)
         : PaymentSectionStyle.padding;
     final itemPadding = widget.compact
-        ? const EdgeInsets.symmetric(horizontal: 7, vertical: 6)
-        : const EdgeInsets.all(7);
-    final itemGap = widget.compact ? 4.0 : 5.0;
-    final thumbSize = widget.compact ? 34.0 : 36.0;
-    final titleFontSize = widget.compact ? 12.0 : 13.0;
-    final nameFontSize = widget.compact ? 11.0 : 12.0;
-    final metaFontSize = widget.compact ? 9.0 : 10.0;
-    final lineTotalFontSize = widget.compact ? 11.0 : 12.0;
+        ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
+        : const EdgeInsets.all(10);
+    final itemGap = widget.compact ? 6.0 : 7.0;
+    final thumbSize = widget.compact ? 40.0 : 46.0;
+    final titleFontSize = widget.compact ? 13.0 : 14.0;
+    final nameFontSize = widget.compact ? 12.0 : 13.0;
+    final metaFontSize = widget.compact ? 10.0 : 11.0;
+    final lineTotalFontSize = widget.compact ? 12.0 : 13.0;
+    final accentBarHeight = widget.compact ? 15.0 : 16.0;
 
     return Container(
       margin: PaymentSectionStyle.margin,
@@ -59,13 +60,13 @@ class _PaymentOrderItemsSectionState extends State<PaymentOrderItemsSection> {
             children: [
               Container(
                 width: 3,
-                height: 14,
+                height: accentBarHeight,
                 decoration: BoxDecoration(
                   color: AppColors.primary,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Text(
                 selectedItems.length == 1
                     ? 'Order summary (1 item)'
@@ -79,7 +80,7 @@ class _PaymentOrderItemsSectionState extends State<PaymentOrderItemsSection> {
             ],
           ),
           if (selectedItems.isNotEmpty) ...[
-            SizedBox(height: widget.compact ? 6 : 8),
+            SizedBox(height: widget.compact ? 8 : 10),
             ...selectedItems.take(_showAllItems ? selectedItems.length : 3).map(
                   (item) => Container(
                     margin: EdgeInsets.only(bottom: itemGap),
@@ -98,10 +99,10 @@ class _PaymentOrderItemsSectionState extends State<PaymentOrderItemsSection> {
                           height: thumbSize,
                           decoration: BoxDecoration(
                             color: const Color(0xFFEEF9F3),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                             child: CachedNetworkImage(
                               imageUrl: _imageUrl(item.image),
                               fit: BoxFit.contain,
@@ -129,7 +130,7 @@ class _PaymentOrderItemsSectionState extends State<PaymentOrderItemsSection> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,22 +208,22 @@ class _ExpandToggle extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color: color.shade50,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(6),
             border: Border.all(color: color.shade200),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: color.shade600, size: 13),
-              const SizedBox(width: 4),
+              Icon(icon, color: color.shade600, size: 16),
+              const SizedBox(width: 6),
               Text(
                 label,
                 style: TextStyle(
                   color: color.shade700,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
               ),

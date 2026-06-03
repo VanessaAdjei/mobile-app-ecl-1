@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
+import 'auth_service.dart';
 import 'native_notification_service.dart';
 import 'order_notification_service.dart';
 import '../utils/app_error_utils.dart';
@@ -118,25 +119,31 @@ class BackgroundOrderTrackingService {
     }
   }
 
-  // Get order status from server
+  // Status from GET /orders (per-order /status route is not on production API).
   static Future<String?> _getOrderStatusFromServer(String orderId) async {
     try {
-      final token = await _getAuthToken();
-      if (token == null) return null;
+      final result = await AuthService.getOrders();
+      if (result['status'] != 'success' || result['data'] is! List) {
+        return null;
+      }
 
-      final response = await http.get(
-        Uri.parse(ApiConfig.getOrderStatusUrl(orderId)),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(Duration(seconds: 8));
+      for (final item in result['data'] as List) {
+        if (item is! Map) continue;
+        final order = Map<String, dynamic>.from(item);
+        final candidateIds = <String>{
+          order['delivery_id']?.toString() ?? '',
+          order['transaction_id']?.toString() ?? '',
+          order['id']?.toString() ?? '',
+          order['order_number']?.toString() ?? '',
+        }..removeWhere((v) => v.isEmpty);
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return data['status'];
+        if (candidateIds.contains(orderId)) {
+          final status = order['status']?.toString();
+          if (status != null && status.isNotEmpty) return status;
+        }
       }
     } catch (e) {
-
+      AppErrorUtils.log('BackgroundOrderTracking._getOrderStatusFromServer', e);
     }
     return null;
   }
@@ -186,13 +193,29 @@ class BackgroundOrderTrackingService {
       } else if (s.contains('confirm') || s.contains('processing')) {
         title = 'Order Confirmed';
         message = 'Your order #$orderNumber has been confirmed and is being prepared.';
-      } else if (s.contains('ship') && !s.contains('out for')) {
-        title = 'Order Shipped';
-        message = 'Your order #$orderNumber has been shipped and is on its way!';
       } else if (s.contains('out for delivery') || s.contains('out for')) {
         title = 'Out for Delivery';
         message = 'Your order #$orderNumber is out for delivery. It will arrive soon!';
-      } else if (s.contains('delivered')) {
+      } else if (s.contains('ready for dispatch') ||
+          s.contains('ready_for_dispatch') ||
+          s.contains('ready to dispatch')) {
+        title = 'Ready for Dispatch';
+        message =
+            'Your order #$orderNumber is packed and ready for dispatch.';
+      } else if (s.contains('dispatched') ||
+          (s.contains('dispatch') && !s.contains('confirmation'))) {
+        title = 'Ready for Dispatch';
+        message =
+            'Your order #$orderNumber is packed and ready for dispatch.';
+      } else if (s.contains('ship') && !s.contains('out for')) {
+        title = 'Out for Delivery';
+        message =
+            'Your order #$orderNumber has been shipped and is on its way!';
+      } else if (s == 'arrived' || s.contains('arrived')) {
+        title = 'Order Arrived';
+        message =
+            'Your order #$orderNumber has arrived at your delivery location.';
+      } else if (s.contains('delivered') || s == 'completed') {
         title = 'Order Delivered';
         message = 'Your order #$orderNumber has been delivered. Thank you for shopping with us!';
       } else if (s.contains('cancel')) {

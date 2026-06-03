@@ -32,7 +32,7 @@ class PaymentDeliveryDetailsCard extends StatelessWidget {
           _Header(hasDetails: hasAddress || hasContact),
           Container(
             color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
             child: hasAddress || hasContact
                 ? Column(
                     children: [
@@ -44,7 +44,7 @@ class PaymentDeliveryDetailsCard extends StatelessWidget {
                           label: 'Delivery address',
                           value: address,
                         ),
-                      if (hasAddress && hasContact) const SizedBox(height: 8),
+                      if (hasAddress && hasContact) const SizedBox(height: 10),
                       if (hasContact)
                         _DetailTile(
                           icon: Icons.call_rounded,
@@ -58,7 +58,7 @@ class PaymentDeliveryDetailsCard extends StatelessWidget {
                 : Text(
                     'Delivery address not available',
                     style: GoogleFonts.poppins(
-                      fontSize: 12,
+                      fontSize: 13,
                       color: Colors.grey.shade500,
                       fontStyle: FontStyle.italic,
                     ),
@@ -78,7 +78,7 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -92,11 +92,11 @@ class _Header extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 30,
-            height: 30,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: Colors.white.withValues(alpha: 0.25),
               ),
@@ -104,7 +104,7 @@ class _Header extends StatelessWidget {
             child: const Icon(
               Icons.local_shipping_rounded,
               color: Colors.white,
-              size: 17,
+              size: 18,
             ),
           ),
           const SizedBox(width: 10),
@@ -116,7 +116,7 @@ class _Header extends StatelessWidget {
                   'Delivering to',
                   style: GoogleFonts.poppins(
                     color: Colors.white,
-                    fontSize: 14,
+                    fontSize: 15,
                     fontWeight: FontWeight.w600,
                     height: 1.15,
                   ),
@@ -160,7 +160,7 @@ class _DetailTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFFF4FAF7),
         borderRadius: BorderRadius.circular(PaymentSectionStyle.innerRadius),
@@ -170,13 +170,13 @@ class _DetailTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 28,
-            height: 28,
+            width: 30,
+            height: 30,
             decoration: BoxDecoration(
               color: iconBg,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(9),
             ),
-            child: Icon(icon, size: 15, color: iconColor),
+            child: Icon(icon, size: 16, color: iconColor),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -186,13 +186,13 @@ class _DetailTile extends StatelessWidget {
                 Text(
                   label.toUpperCase(),
                   style: GoogleFonts.poppins(
-                    fontSize: 9,
+                    fontSize: 10,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.4,
                     color: Colors.grey.shade600,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 4),
                 Text(
                   value,
                   style: GoogleFonts.poppins(

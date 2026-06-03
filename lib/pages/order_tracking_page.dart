@@ -1,10 +1,18 @@
 // pages/order_tracking_page.dart
 import 'dart:async';
+import 'package:eclapp/models/order_tracking_model.dart';
+import 'package:eclapp/utils/order_steps_api_logger.dart';
+import 'package:eclapp/utils/order_tracking_timeline_helper.dart';
+import 'package:eclapp/widgets/order_tracking/order_tracking_bill_card.dart';
+import 'package:eclapp/widgets/order_tracking/order_tracking_delivery_card.dart';
+import 'package:eclapp/widgets/order_tracking/order_tracking_status_card.dart';
+import 'package:eclapp/widgets/post_checkout/post_checkout_design.dart';
+import 'package:eclapp/widgets/post_checkout/post_checkout_order_items_card.dart';
+import 'package:eclapp/widgets/post_checkout/post_checkout_order_progress_card.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
-import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/order_tracking_service.dart';
 import '../services/auth_service.dart';
@@ -27,7 +35,7 @@ class OrderTrackingPage extends StatefulWidget {
 
 class OrderTrackingPageState extends State<OrderTrackingPage> {
   final OrderTrackingService _orderTrackingService = OrderTrackingService();
-  static const double _kTrackRadius = 20;
+  static const Color _accent = PostCheckoutDesign.accent;
 
   String? _deliveryAddress;
   String? _contactNumber;
@@ -476,12 +484,6 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   void _applyPageDetails(OrderTrackingPageDetails details) {
     if (!mounted) return;
 
-    if (details.directStatus != null &&
-        details.directStatus!.isNotEmpty) {
-      setState(() => _orderStatus = details.directStatus);
-      debugPrint('🔍 Status from direct API: ${details.directStatus}');
-    }
-
     if (details.orderItems.isNotEmpty) {
       _applyResolvedItems(details.orderItems);
     }
@@ -520,8 +522,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     }
 
     if (!details.foundInOrdersList) {
-      debugPrint(
-          '🔍 Target order not found in list (direct API already tried)');
+      debugPrint('🔍 Target order not found in GET /orders list');
     }
   }
 
@@ -658,6 +659,170 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     return quantity == 1 ? '1 item' : '$quantity items';
   }
 
+  String _friendlyStageLabel(String status, bool isPickup) {
+    final stage = _orderTrackingService.normalizeStage(status);
+    var label = _orderTrackingService.stageLabel(stage);
+    if (isPickup) {
+      if (label == 'Out for Delivery') label = 'Ready for Pickup';
+      if (label == 'Arrived') label = 'At store';
+      if (label == 'Delivered') label = 'Picked up';
+    }
+    return label;
+  }
+
+  String _statusBadgeLabel(String status, bool isPickup) {
+    final stage = _orderTrackingService.normalizeStage(status);
+    var label = _orderTrackingService.stageLabel(stage);
+    if (isPickup) {
+      if (label == 'Out for Delivery') return 'Ready for Pickup';
+      if (label == 'Arrived') return 'At store';
+      if (label == 'Delivered') return 'Picked up';
+    }
+    return label;
+  }
+
+  bool _isDeliveredStatus(String status) {
+    return _orderTrackingService.normalizeStage(status) ==
+        OrderTrackingStage.delivered;
+  }
+
+  ({
+    double subtotal,
+    double deliveryFee,
+    double discount,
+    double total,
+    bool showDeliveryFee,
+  }) _billSummary(double totalAmount) {
+    final orderItems = getOrderItems();
+    final subtotal = orderItems.fold(0.0, (sum, item) {
+      final price = (item['price'] ?? 0.0).toDouble();
+      final qty = item['qty'] ?? 1;
+      return sum + (price * qty);
+    });
+
+    final discountValue = widget.orderDetails['discount'] ??
+        widget.orderDetails['discount_amount'];
+    final discount = discountValue != null
+        ? ((discountValue is num)
+            ? discountValue.toDouble()
+            : (double.tryParse(discountValue.toString()) ?? 0.0))
+        : 0.0;
+
+    final deliveryFeeValue = widget.orderDetails['delivery_fee'] ??
+        widget.orderDetails['deliveryFee'];
+    var deliveryFee = 0.0;
+    if (deliveryFeeValue != null) {
+      deliveryFee = (deliveryFeeValue is num)
+          ? deliveryFeeValue.toDouble()
+          : (double.tryParse(deliveryFeeValue.toString()) ?? 0.0);
+    }
+    if (deliveryFee <= 0.01 &&
+        _actualDeliveryFee != null &&
+        _actualDeliveryFee! > 0.01) {
+      deliveryFee = _actualDeliveryFee!;
+    }
+    if (deliveryFee <= 0.01) {
+      final calculated = totalAmount - subtotal + discount;
+      if (calculated > 0.01) deliveryFee = calculated;
+    }
+
+    return (
+      subtotal: subtotal,
+      deliveryFee: deliveryFee,
+      discount: discount,
+      total: totalAmount,
+      showDeliveryFee: deliveryFee > 0.01 && !_isPickupOrder(),
+    );
+  }
+
+  List<Widget> _trackOrderBody({
+    required String status,
+    required DateTime? orderDate,
+    required List<Map<String, dynamic>> orderItems,
+    required double totalAmount,
+    required String orderNumber,
+    required bool isPickup,
+  }) {
+    final isDelivered = _isDeliveredStatus(status);
+    final bill = _billSummary(totalAmount);
+    final trackingItems =
+        orderItems.map(OrderTrackingItem.fromMap).toList(growable: false);
+    final timelineSteps = OrderTrackingTimelineHelper.build(
+      service: _orderTrackingService,
+      currentStatus: status,
+      isPickup: isPickup,
+      placedAt: orderDate,
+    );
+    OrderStepsApiLogger.logBuiltTimeline(
+      source: 'track-order page UI',
+      rawStatus: status,
+      stage: _orderTrackingService.normalizeStage(status),
+      steps: timelineSteps,
+    );
+
+    final children = <Widget>[
+      PostCheckoutDesign.pageLogo(height: 30),
+      OrderTrackingStatusCard(
+        stageLabel: _friendlyStageLabel(status, isPickup),
+        badgeLabel: _statusBadgeLabel(status, isPickup),
+        orderRef: orderNumber,
+        isPickup: isPickup,
+        isDelivered: isDelivered,
+        accent: _accent,
+        placedAt: orderDate,
+      ),
+    ];
+
+    if (!isDelivered) {
+      children.addAll([
+        const SizedBox(height: 12),
+        PostCheckoutOrderProgressCard(
+          steps: timelineSteps,
+          accent: _accent,
+          animate: false,
+        ),
+      ]);
+    }
+
+    if (trackingItems.isNotEmpty) {
+      children.addAll([
+        const SizedBox(height: 12),
+        PostCheckoutOrderItemsCard(
+          items: trackingItems,
+          accent: _accent,
+          showAllItems: true,
+          animate: false,
+        ),
+      ]);
+    }
+
+    children.addAll([
+      const SizedBox(height: 12),
+      OrderTrackingBillCard(
+        subtotal: bill.subtotal,
+        deliveryFee: bill.deliveryFee,
+        discount: bill.discount,
+        total: bill.total,
+        accent: _accent,
+        showDeliveryFee: bill.showDeliveryFee,
+      ),
+      const SizedBox(height: 12),
+      OrderTrackingDeliveryCard(
+        isPickup: isPickup,
+        address: isPickup
+            ? _pickupLocationSummary()
+            : (_deliveryAddress ?? 'Not available'),
+        contact: _contactNumber ?? 'Not available',
+        method: isPickup
+            ? 'Store pickup'
+            : (_deliveryOption ?? 'Standard delivery'),
+        accent: _accent,
+      ),
+    ]);
+
+    return children;
+  }
+
   @override
   Widget build(BuildContext context) {
     try {
@@ -685,7 +850,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       debugPrint('🔍 Total amount: $totalAmount');
 
       return Scaffold(
-        backgroundColor: const Color(0xFFF0F2F5),
+        backgroundColor: PostCheckoutDesign.pageBg,
         body: _isLoading
             ? CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -734,10 +899,10 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
                           SizedBox(
                             width: 40,
                             height: 40,
-                            child: CircularProgressIndicator(
+                            child: const CircularProgressIndicator(
                               strokeWidth: 3,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.green.shade700),
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(_accent),
                             ),
                           ),
                           const SizedBox(height: 20),
@@ -765,7 +930,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
               )
             : RefreshIndicator(
                 onRefresh: _loadDeliveryInfo,
-                color: Colors.green.shade700,
+                color: _accent,
                 backgroundColor: Colors.white,
                 child: CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(
@@ -808,19 +973,23 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
                       ],
                     ),
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                      padding: EdgeInsets.fromLTRB(
+                        14,
+                        10,
+                        14,
+                        28 + MediaQuery.paddingOf(context).bottom,
+                      ),
                       sliver: SliverList(
-                        delegate: SliverChildListDelegate([
-                          _buildModernHeader(
-                              orderNumber, status, orderDate, isPickup),
-                          const SizedBox(height: 16),
-                          _buildOrderItemsCard(
-                              orderItems, totalQuantity, totalAmount),
-                          const SizedBox(height: 16),
-                          _buildStatusTimelineCard(status, isPickup),
-                          const SizedBox(height: 16),
-                          _buildDeliveryDetailsCard(isPickup: isPickup),
-                        ]),
+                        delegate: SliverChildListDelegate(
+                          _trackOrderBody(
+                            status: status,
+                            orderDate: orderDate,
+                            orderItems: orderItems,
+                            totalAmount: totalAmount,
+                            orderNumber: orderNumber,
+                            isPickup: isPickup,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -830,7 +999,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     } catch (e) {
       debugPrint('🔍 Error in OrderTrackingPage build: $e');
       return Scaffold(
-        backgroundColor: const Color(0xFFF0F2F5),
+        backgroundColor: PostCheckoutDesign.pageBg,
         body: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
@@ -864,1118 +1033,5 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         ),
       );
     }
-  }
-
-  Widget _buildModernHeader(
-      String orderNumber, String status, DateTime? orderDate, bool isPickup) {
-    // derive a primary color/icon for the current status so the header feels more alive
-    final lowerStatus = status.toLowerCase().trim();
-    Color accentColor;
-    IconData accentIcon;
-    String friendlyStatus;
-    if (lowerStatus.contains('delivered') || lowerStatus == 'completed') {
-      accentColor = Colors.green.shade600;
-      accentIcon = Icons.check_circle_rounded;
-      friendlyStatus = 'Delivered';
-    } else if (lowerStatus.contains('out for delivery') ||
-        lowerStatus.contains('out_for_delivery') ||
-        lowerStatus.contains('shipped') ||
-        lowerStatus == 'shipped' ||
-        lowerStatus.contains('out for')) {
-      accentColor = Colors.blue.shade600;
-      accentIcon = Icons.delivery_dining_rounded;
-      friendlyStatus = 'Out for delivery';
-    } else if (lowerStatus.contains('paid') ||
-        lowerStatus.contains('confirm') ||
-        lowerStatus == 'processing' ||
-        lowerStatus == 'payment received' ||
-        lowerStatus == 'payment verified' ||
-        lowerStatus == 'pending confirmation') {
-      accentColor = Colors.orange.shade600;
-      accentIcon = Icons.verified_rounded;
-      friendlyStatus = 'Confirmed';
-    } else if (lowerStatus == 'order placed' || lowerStatus == 'pending') {
-      accentColor = Colors.grey.shade700;
-      accentIcon = Icons.receipt_long_rounded;
-      friendlyStatus = 'Order placed';
-    } else {
-      accentColor = Colors.grey.shade700;
-      accentIcon = Icons.info_rounded;
-      friendlyStatus = status.isNotEmpty ? status : 'Pending';
-    }
-
-    if (isPickup) {
-      if (friendlyStatus == 'Out for delivery') {
-        friendlyStatus = 'Ready for Pickup';
-        accentIcon = Icons.store_mall_directory_rounded;
-        accentColor = Colors.teal.shade600;
-      } else if (friendlyStatus == 'Delivered') {
-        friendlyStatus = 'Picked up';
-        accentIcon = Icons.shopping_bag_rounded;
-      }
-    }
-
-    return Material(
-      color: Colors.white,
-      elevation: 0,
-      borderRadius: BorderRadius.circular(_kTrackRadius),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(_kTrackRadius),
-          border: Border.all(
-            color: Colors.grey.shade200.withValues(alpha: 0.85),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(_kTrackRadius),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(width: 4, color: accentColor),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              isPickup
-                                  ? Icons.storefront_outlined
-                                  : Icons.local_shipping_outlined,
-                              size: 15,
-                              color: Colors.grey.shade500,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              isPickup ? 'Pickup order' : 'Delivery order',
-                              style: GoogleFonts.poppins(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade500,
-                              ),
-                            ),
-                            const Spacer(),
-                            _buildStatusBadge(status, isPickup: isPickup),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              accentIcon,
-                              size: 26,
-                              color: accentColor,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                friendlyStatus,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.grey.shade900,
-                                  height: 1.2,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (orderDate != null) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            DateFormat('EEE, MMM d · h:mm a').format(orderDate),
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
-                        Padding(
-                          padding: const EdgeInsets.only(top: 14),
-                          child: Divider(
-                            height: 1,
-                            color: Colors.grey.shade200,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Order ID',
-                          style: GoogleFonts.poppins(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.6,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          orderNumber,
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade800,
-                            letterSpacing: 0.15,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusBadge(String status, {bool isPickup = false}) {
-    Color statusColor;
-    String statusText;
-
-    final s = status.toLowerCase().trim();
-    // Check "out for delivery" / "shipped" BEFORE "delivered" (since "out for delivery" contains "deliver")
-    if (s.contains('out for delivery') ||
-        s.contains('out_for_delivery') ||
-        s.contains('shipped') ||
-        s == 'shipped' ||
-        s.contains('out for')) {
-      statusColor = Colors.blue.shade600;
-      statusText = 'Out for Delivery';
-    } else if (s.contains('delivered') ||
-        s == 'delivered' ||
-        s == 'completed') {
-      statusColor = Colors.green.shade600;
-      statusText = 'Delivered';
-    } else if (s.contains('ship')) {
-      statusColor = Colors.blue.shade600;
-      statusText = 'Out for Delivery';
-    } else if (s.contains('paid') ||
-        s.contains('confirm') ||
-        s == 'processing' ||
-        s == 'payment received' ||
-        s == 'payment verified' ||
-        s == 'pending confirmation') {
-      statusColor = Colors.orange.shade600;
-      statusText = 'Confirmed';
-    } else if (s == 'order placed' || s == 'pending') {
-      statusColor = Colors.grey.shade600;
-      statusText = 'Order Placed';
-    } else {
-      statusColor = Colors.grey.shade600;
-      statusText = status.isNotEmpty ? status : 'Pending';
-    }
-
-    if (isPickup) {
-      if (statusText == 'Out for Delivery') {
-        statusText = 'Ready for Pickup';
-      } else if (statusText == 'Delivered') {
-        statusText = 'Picked up';
-      }
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: statusColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: statusColor.withValues(alpha: 0.35)),
-      ),
-      child: Text(
-        statusText,
-        style: GoogleFonts.poppins(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          color: statusColor,
-          letterSpacing: 0.15,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusTimelineCard(String currentStatus, bool isPickup) {
-    return Material(
-      color: Colors.white,
-      elevation: 0,
-      shadowColor: Colors.black.withValues(alpha: 0.06),
-      borderRadius: BorderRadius.circular(_kTrackRadius),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(_kTrackRadius),
-          border:
-              Border.all(color: Colors.grey.shade200.withValues(alpha: 0.6)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 24,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color:
-                        isPickup ? Colors.teal.shade50 : Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    isPickup ? Icons.storefront_rounded : Icons.route_rounded,
-                    size: 20,
-                    color:
-                        isPickup ? Colors.teal.shade800 : Colors.green.shade800,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isPickup ? 'Pickup progress' : 'Delivery progress',
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade900,
-                        ),
-                      ),
-                      Text(
-                        isPickup
-                            ? 'From order to collection'
-                            : 'Step-by-step updates',
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          color: Colors.grey.shade500,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Divider(height: 28, color: Colors.grey.shade100),
-            _buildModernStatusTimeline(currentStatus, isPickup: isPickup),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOrderItemsCard(List<Map<String, dynamic>> orderItems,
-      int totalQuantity, double totalAmount) {
-    // Calculate subtotal from items
-    final subtotal = orderItems.fold(0.0, (sum, item) {
-      final price = (item['price'] ?? 0.0).toDouble();
-      final qty = item['qty'] ?? 1;
-      return sum + (price * qty);
-    });
-
-    // Get discount first (needed for delivery fee calculation)
-    final discountValue = widget.orderDetails['discount'] ??
-        widget.orderDetails['discount_amount'];
-    final discount = discountValue != null
-        ? ((discountValue is num)
-            ? discountValue.toDouble()
-            : (double.tryParse(discountValue.toString()) ?? 0.0))
-        : 0.0;
-
-    // Get delivery fee from order details - prioritize delivery_fee and deliveryFee
-    // These are set when navigating from order confirmation page
-    final deliveryFeeValue = widget.orderDetails['delivery_fee'] ??
-        widget.orderDetails['deliveryFee'];
-
-    double deliveryFee = 0.0;
-    if (deliveryFeeValue != null) {
-      deliveryFee = (deliveryFeeValue is num)
-          ? deliveryFeeValue.toDouble()
-          : (double.tryParse(deliveryFeeValue.toString()) ?? 0.0);
-    }
-
-    // Debug logging
-    debugPrint('🔍 ===== Delivery Fee Calculation =====');
-    debugPrint('🔍   totalAmount: $totalAmount');
-    debugPrint('🔍   subtotal: $subtotal');
-    debugPrint('🔍   discount: $discount');
-    debugPrint('🔍   deliveryFeeValue from order: $deliveryFeeValue');
-    debugPrint('🔍   deliveryFee (from order): $deliveryFee');
-
-    // Use stored delivery fee if available (stored when order was placed)
-    if (deliveryFee <= 0.01 &&
-        _actualDeliveryFee != null &&
-        _actualDeliveryFee! > 0.01) {
-      deliveryFee = _actualDeliveryFee!;
-      debugPrint('🔍   ✅ Using stored delivery fee: $deliveryFee');
-    }
-
-    // Calculate delivery fee from difference: total = subtotal + deliveryFee - discount
-    // So: deliveryFee = total - subtotal + discount
-    // This is a fallback when delivery fee is not explicitly provided
-    if (deliveryFee <= 0.01) {
-      final calculatedFeeFromDifference = totalAmount - subtotal + discount;
-      if (calculatedFeeFromDifference > 0.01) {
-        deliveryFee = calculatedFeeFromDifference;
-        debugPrint(
-            '🔍   ✅ Using calculated deliveryFee from difference: $deliveryFee');
-      }
-    }
-
-    debugPrint('🔍   ===== Final deliveryFee: $deliveryFee =====');
-    debugPrint('🔍   Will show delivery fee: ${deliveryFee > 0.01}');
-
-    return Material(
-      color: Colors.white,
-      elevation: 0,
-      borderRadius: BorderRadius.circular(_kTrackRadius),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(_kTrackRadius),
-          border:
-              Border.all(color: Colors.grey.shade200.withValues(alpha: 0.6)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 24,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.teal.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.receipt_long_rounded,
-                    size: 20,
-                    color: Colors.teal.shade800,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Items & payment',
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade900,
-                        ),
-                      ),
-                      Text(
-                        'What you ordered',
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          color: Colors.grey.shade500,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '$totalQuantity item${totalQuantity == 1 ? '' : 's'}',
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  'GHS ${totalAmount.toStringAsFixed(2)}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.green.shade800,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ...orderItems.map((item) => _buildModernOrderItemRow(item)),
-            const Divider(height: 14),
-            // Price Breakdown
-            // Subtotal
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Subtotal',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[700],
-                  ),
-                ),
-                Text(
-                  'GHS ${subtotal.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[700],
-                  ),
-                ),
-              ],
-            ),
-            // Delivery Fee - always show if there's a difference between total and subtotal
-            Builder(
-              builder: (context) {
-                // Use the deliveryFee calculated above, or calculate from difference
-                double finalDeliveryFee = deliveryFee;
-
-                // If delivery fee is 0 or very small, calculate from difference
-                // Formula: total = subtotal + deliveryFee - discount
-                // So: deliveryFee = total - subtotal + discount
-                if (finalDeliveryFee <= 0.01) {
-                  final calculatedFee = totalAmount - subtotal + discount;
-                  if (calculatedFee > 0.01) {
-                    finalDeliveryFee = calculatedFee;
-                  }
-                }
-
-                debugPrint(
-                    '🔍 Display Builder: finalDeliveryFee=$finalDeliveryFee, totalAmount=$totalAmount, subtotal=$subtotal, discount=$discount');
-
-                // Always show if there's a meaningful delivery fee
-                if (finalDeliveryFee > 0.01) {
-                  debugPrint(
-                      '🔍 Display: ✅ SHOWING delivery fee: GHS ${finalDeliveryFee.toStringAsFixed(2)}');
-                  return Column(
-                    children: [
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Delivery Fee',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                          Text(
-                            'GHS ${finalDeliveryFee.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  );
-                } else {
-                  debugPrint('🔍 Display: ❌ NOT showing delivery fee');
-                  debugPrint('🔍   - finalDeliveryFee: $finalDeliveryFee');
-                  debugPrint('🔍   - totalAmount: $totalAmount');
-                  debugPrint('🔍   - subtotal: $subtotal');
-                  debugPrint('🔍   - discount: $discount');
-                  debugPrint(
-                      '🔍   - calculated difference: ${totalAmount - subtotal + discount}');
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-            // Discount (if any)
-            if (discount > 0) ...[
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Discount',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.green[700],
-                    ),
-                  ),
-                  Text(
-                    '-GHS ${discount.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.green[700],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            const Divider(height: 12),
-            // Total
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Total',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade900,
-                  ),
-                ),
-                Text(
-                  'GHS ${totalAmount.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.green.shade700,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildModernOrderItemRow(Map<String, dynamic> item) {
-    final productName = item['product_name'] ?? 'Unknown Product';
-    final productImg = getImageUrl(item['product_img']);
-    final qty = item['qty'] ?? 1;
-    final price = (item['price'] ?? 0.0).toDouble();
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              productImg,
-              width: 48,
-              height: 48,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.image_rounded,
-                  color: Colors.grey.shade400,
-                  size: 22,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  productName,
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade900,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Qty $qty',
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey.shade500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            'GHS ${price.toStringAsFixed(2)}',
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: Colors.grey.shade900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModernStatusTimeline(String currentStatus,
-      {required bool isPickup}) {
-    final List<Map<String, Object>> statuses = isPickup
-        ? [
-            {
-              'title': 'Order Placed',
-              'status': 'pending',
-              'icon': Icons.shopping_cart_rounded,
-            },
-            {'title': 'Paid', 'status': 'paid', 'icon': Icons.payment_rounded},
-            {
-              'title': 'Pending Confirmation',
-              'status': 'pending_confirmation',
-              'icon': Icons.hourglass_empty_rounded,
-            },
-            {
-              'title': 'Order Confirmed',
-              'status': 'confirmed',
-              'icon': Icons.check_circle_outline_rounded,
-            },
-            {
-              'title': 'Ready for Pickup',
-              'status': 'shipped',
-              'icon': Icons.store_mall_directory_rounded,
-            },
-            {
-              'title': 'Picked up',
-              'status': 'delivered',
-              'icon': Icons.shopping_bag_rounded,
-            },
-          ]
-        : [
-            {
-              'title': 'Order Placed',
-              'status': 'pending',
-              'icon': Icons.shopping_cart_rounded,
-            },
-            {'title': 'Paid', 'status': 'paid', 'icon': Icons.payment_rounded},
-            {
-              'title': 'Pending Confirmation',
-              'status': 'pending_confirmation',
-              'icon': Icons.hourglass_empty_rounded,
-            },
-            {
-              'title': 'Order Confirmed',
-              'status': 'confirmed',
-              'icon': Icons.check_circle_outline_rounded,
-            },
-            {
-              'title': 'Out for Delivery',
-              'status': 'shipped',
-              'icon': Icons.delivery_dining_rounded,
-            },
-            {
-              'title': 'Delivered',
-              'status': 'delivered',
-              'icon': Icons.check_circle_rounded,
-            },
-          ];
-
-    final normalizedStatus = currentStatus.toLowerCase().trim();
-    // Map API statuses to timeline steps
-    String timelineStatus;
-    if (normalizedStatus == 'order placed' || normalizedStatus == 'pending') {
-      timelineStatus = 'pending';
-    } else if (normalizedStatus.contains('paid') &&
-        !normalizedStatus.contains('pending')) {
-      timelineStatus = 'paid';
-    } else if (normalizedStatus == 'pending confirmation' ||
-        normalizedStatus.contains('pending_confirmation') ||
-        normalizedStatus == 'payment received' ||
-        normalizedStatus == 'payment verified') {
-      timelineStatus = 'pending_confirmation';
-    } else if (normalizedStatus.contains('confirmed') ||
-        normalizedStatus.contains('confirm')) {
-      timelineStatus = 'confirmed';
-    } else if (normalizedStatus == 'processing' ||
-        normalizedStatus.contains('preparing') ||
-        normalizedStatus.contains('packing')) {
-      timelineStatus = 'confirmed';
-    } else if (normalizedStatus.contains('out for delivery') ||
-        normalizedStatus.contains('out_for_delivery') ||
-        normalizedStatus.contains('shipped') ||
-        normalizedStatus == 'shipped' ||
-        normalizedStatus.contains('out for')) {
-      timelineStatus = 'shipped';
-    } else if (normalizedStatus.contains('ship')) {
-      timelineStatus = 'shipped';
-    } else if (normalizedStatus.contains('delivered') ||
-        normalizedStatus == 'delivered' ||
-        normalizedStatus == 'completed') {
-      timelineStatus = 'delivered';
-    } else {
-      timelineStatus = normalizedStatus;
-    }
-
-    return Column(
-      children: List.generate(statuses.length, (index) {
-        final status = statuses[index];
-        final statusStr = status['status'] as String;
-        final isCompleted = _isStatusCompleted(statusStr, normalizedStatus);
-        final isCurrent = statusStr == timelineStatus;
-        final icon = status['icon'] as IconData;
-        final displayTitle = status['title'] as String;
-
-        final lineDone = isCompleted;
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 36,
-              child: Column(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: isCompleted
-                          ? Colors.green.shade600
-                          : isCurrent
-                              ? Colors.blue.shade600
-                              : Colors.grey.shade200,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isCurrent && !isCompleted
-                            ? Colors.blue.shade200
-                            : Colors.transparent,
-                        width: 2,
-                      ),
-                      boxShadow: [
-                        if (isCompleted || isCurrent)
-                          BoxShadow(
-                            color: (isCompleted
-                                    ? Colors.green.shade600
-                                    : Colors.blue.shade600)
-                                .withValues(alpha: 0.35),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                      ],
-                    ),
-                    child: Icon(
-                      icon,
-                      color: isCompleted || isCurrent
-                          ? Colors.white
-                          : Colors.grey.shade500,
-                      size: 17,
-                    ),
-                  ),
-                  if (index < statuses.length - 1)
-                    Container(
-                      width: 3,
-                      height: 22,
-                      margin: const EdgeInsets.only(top: 4, bottom: 2),
-                      decoration: BoxDecoration(
-                        color: lineDone
-                            ? Colors.green.shade300
-                            : Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 4, bottom: 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        displayTitle,
-                        style: GoogleFonts.poppins(
-                          fontSize: 13.5,
-                          fontWeight: isCurrent
-                              ? FontWeight.w700
-                              : isCompleted
-                                  ? FontWeight.w600
-                                  : FontWeight.w500,
-                          color: isCurrent
-                              ? Colors.blue.shade800
-                              : isCompleted
-                                  ? Colors.green.shade800
-                                  : Colors.grey.shade500,
-                          height: 1.25,
-                        ),
-                      ),
-                    ),
-                    if (isCurrent)
-                      Container(
-                        margin: const EdgeInsets.only(left: 8),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Now',
-                          style: GoogleFonts.poppins(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.blue.shade800,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        );
-      }),
-    );
-  }
-
-  bool _isStatusCompleted(String status, String currentStatus) {
-    final statusOrder = [
-      'pending',
-      'paid',
-      'pending_confirmation',
-      'confirmed',
-      'shipped',
-      'delivered'
-    ];
-
-    // Normalize status
-    final normalizedCurrentStatus = currentStatus.toLowerCase().trim();
-    String normalizedStatus;
-    if (normalizedCurrentStatus == 'order placed' ||
-        normalizedCurrentStatus == 'pending') {
-      normalizedStatus = 'pending';
-    } else if (normalizedCurrentStatus.contains('paid') &&
-        !normalizedCurrentStatus.contains('pending')) {
-      normalizedStatus = 'paid';
-    } else if (normalizedCurrentStatus == 'pending confirmation' ||
-        normalizedCurrentStatus.contains('pending_confirmation') ||
-        normalizedCurrentStatus == 'payment received' ||
-        normalizedCurrentStatus == 'payment verified') {
-      normalizedStatus = 'pending_confirmation';
-    } else if (normalizedCurrentStatus.contains('confirmed') ||
-        normalizedCurrentStatus.contains('confirm')) {
-      normalizedStatus = 'confirmed';
-    } else if (normalizedCurrentStatus == 'processing' ||
-        normalizedCurrentStatus.contains('preparing') ||
-        normalizedCurrentStatus.contains('packing')) {
-      normalizedStatus = 'confirmed';
-    } else if (normalizedCurrentStatus.contains('out for delivery') ||
-        normalizedCurrentStatus.contains('out_for_delivery') ||
-        normalizedCurrentStatus.contains('shipped') ||
-        normalizedCurrentStatus == 'shipped' ||
-        normalizedCurrentStatus.contains('out for')) {
-      normalizedStatus = 'shipped';
-    } else if (normalizedCurrentStatus.contains('ship')) {
-      normalizedStatus = 'shipped';
-    } else if (normalizedCurrentStatus.contains('delivered') ||
-        normalizedCurrentStatus == 'delivered' ||
-        normalizedCurrentStatus == 'completed') {
-      normalizedStatus = 'delivered';
-    } else {
-      normalizedStatus = normalizedCurrentStatus;
-    }
-
-    final currentIndex = statusOrder.indexOf(normalizedStatus);
-    final statusIndex = statusOrder.indexOf(status);
-
-    // If current status is not in the list, treat it as 'pending'
-    if (currentIndex == -1) {
-      return status == 'pending';
-    }
-
-    return statusIndex <= currentIndex;
-  }
-
-  Widget _buildDeliveryDetailsCard({required bool isPickup}) {
-    Widget detailBlock({
-      required IconData icon,
-      required String title,
-      required String body,
-      required Color tint,
-    }) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: tint.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon,
-                  size: 20, color: Color.lerp(tint, Colors.black, 0.15)),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade500,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    body,
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade900,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Material(
-      color: Colors.white,
-      elevation: 0,
-      borderRadius: BorderRadius.circular(_kTrackRadius),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(_kTrackRadius),
-          border:
-              Border.all(color: Colors.grey.shade200.withValues(alpha: 0.6)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 24,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color:
-                        isPickup ? Colors.teal.shade50 : Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    isPickup
-                        ? Icons.storefront_outlined
-                        : Icons.local_shipping_outlined,
-                    size: 20,
-                    color: isPickup
-                        ? Colors.teal.shade800
-                        : Colors.orange.shade800,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isPickup ? 'Pickup details' : 'Delivery details',
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade900,
-                        ),
-                      ),
-                      Text(
-                        isPickup
-                            ? 'Where to collect your order'
-                            : 'Where we are bringing your order',
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          color: Colors.grey.shade500,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            detailBlock(
-              icon: Icons.location_on_outlined,
-              title: isPickup ? 'Pickup location' : 'Address',
-              body: isPickup
-                  ? _pickupLocationSummary()
-                  : (_deliveryAddress ?? 'Not available'),
-              tint: Colors.green.shade700,
-            ),
-            const SizedBox(height: 6),
-            Divider(height: 28, color: Colors.grey.shade100),
-            detailBlock(
-              icon: Icons.phone_outlined,
-              title: 'Contact',
-              body: _contactNumber ?? 'Not available',
-              tint: Colors.blue.shade700,
-            ),
-            const SizedBox(height: 6),
-            Divider(height: 28, color: Colors.grey.shade100),
-            detailBlock(
-              icon: isPickup
-                  ? Icons.store_mall_directory_outlined
-                  : Icons.schedule_send_outlined,
-              title: 'Method',
-              body: isPickup
-                  ? 'Store pickup'
-                  : (_deliveryOption ?? 'Standard delivery'),
-              tint: Colors.deepPurple.shade700,
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

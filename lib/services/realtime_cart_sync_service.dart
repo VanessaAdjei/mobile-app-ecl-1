@@ -5,6 +5,7 @@ import '../providers/cart_provider.dart';
 import 'auth_service.dart';
 import '../utils/app_error_utils.dart';
 
+/// Keeps the local cart reconciled with the server in the background (not only on add).
 class RealtimeCartSyncService {
   static final RealtimeCartSyncService _instance =
       RealtimeCartSyncService._internal();
@@ -13,103 +14,107 @@ class RealtimeCartSyncService {
 
   Timer? _immediateSyncTimer;
   Timer? _periodicSyncTimer;
+  Timer? _initialSyncTimer;
   bool _isRunning = false;
   CartProvider? _cartProvider;
 
-  // how long to wait before syncing
-  static const Duration _immediateSyncDelay = Duration.zero;
-  /// Backup sync only; cart changes use [triggerImmediateSync].
-  static const Duration _periodicSyncInterval = Duration(minutes: 10);
-  static const Duration _syncTimeout = Duration(seconds: 10);
+  static const Duration _immediateSyncDelay = Duration(milliseconds: 800);
+  static const Duration _periodicSyncInterval = Duration(minutes: 2);
+  static const Duration _initialSyncDelay = Duration(seconds: 15);
 
-  // set up the real-time cart sync service
   Future<void> initialize(CartProvider cartProvider) async {
-    if (_isRunning) return;
+    if (_isRunning) {
+      _cartProvider = cartProvider;
+      return;
+    }
 
     _cartProvider = cartProvider;
     _isRunning = true;
 
-    // Periodic backup only — no sync at startup (avoids competing with UI).
+    _scheduleInitialSync();
     _startPeriodicSync();
+
+    debugPrint(
+      '🛒 RealtimeCartSyncService: started (initial ${_initialSyncDelay.inSeconds}s, '
+      'then every ${_periodicSyncInterval.inMinutes} min)',
+    );
   }
 
-  // start periodic sync as backup
-  void _startPeriodicSync() {
-    _periodicSyncTimer?.cancel();
-
-    _periodicSyncTimer = Timer.periodic(_periodicSyncInterval, (timer) {
+  void _scheduleInitialSync() {
+    _initialSyncTimer?.cancel();
+    _initialSyncTimer = Timer(_initialSyncDelay, () {
       if (_isRunning) {
-        _performPeriodicSync();
+        unawaited(_performImmediateSync());
       }
     });
   }
 
-  /// Trigger immediate cart sync (called when cart changes)
+  void _startPeriodicSync() {
+    _periodicSyncTimer?.cancel();
+    _periodicSyncTimer = Timer.periodic(_periodicSyncInterval, (_) {
+      if (_isRunning) {
+        unawaited(_performPeriodicSync());
+      }
+    });
+  }
+
+  /// Debounced sync after local cart mutations (add, qty change, remove).
   Future<void> triggerImmediateSync() async {
     if (!_isRunning) return;
 
-    // Cancel any pending immediate sync
     _immediateSyncTimer?.cancel();
-
-    // Schedule immediate sync with small delay to batch rapid changes
     _immediateSyncTimer = Timer(_immediateSyncDelay, () {
-      _performImmediateSync();
+      unawaited(_performImmediateSync());
     });
   }
 
-  // do immediate cart sync
+  /// Immediate sync (app resume, manual refresh).
+  static Future<void> checkNow() async {
+    await _instance.forceImmediateSync();
+  }
+
   Future<void> _performImmediateSync() async {
     try {
       if (_cartProvider == null) return;
-
-      // check if theyre logged in
-      final isLoggedIn = await AuthService.isLoggedIn();
-      if (!isLoggedIn) {
-        return;
-      }
-
-      // sync with server right away
+      if (!await _canSyncWithServer()) return;
       await _cartProvider!.syncWithApi();
     } catch (e, st) {
       AppErrorUtils.log('RealtimeCartSyncService._performImmediateSync', e, st);
     }
   }
 
-  /// Perform periodic sync as backup
   Future<void> _performPeriodicSync() async {
     try {
       if (_cartProvider == null) return;
-
-      // Check if user is logged in
-      final isLoggedIn = await AuthService.isLoggedIn();
-      if (!isLoggedIn) {
-        return;
-      }
-
-      // Sync with server
+      if (!await _canSyncWithServer()) return;
+      debugPrint('🛒 RealtimeCartSyncService: periodic cart check');
       await _cartProvider!.syncWithApi();
     } catch (e, st) {
       AppErrorUtils.log('RealtimeCartSyncService._performPeriodicSync', e, st);
     }
   }
 
-  // force an immediate sync (for manual refresh)
+  Future<bool> _canSyncWithServer() async {
+    final token = await AuthService.getToken();
+    return token != null && token.isNotEmpty;
+  }
+
   Future<void> forceImmediateSync() async {
+    _immediateSyncTimer?.cancel();
     await _performImmediateSync();
   }
 
-  /// Stop the real-time cart sync service
   void stop() {
     _isRunning = false;
     _immediateSyncTimer?.cancel();
     _periodicSyncTimer?.cancel();
+    _initialSyncTimer?.cancel();
     _cartProvider = null;
+    debugPrint('🛒 RealtimeCartSyncService: stopped');
   }
 
-  // check if the service is running
   bool get isRunning => _isRunning;
 
-  // get the current sync intervals
   Duration get immediateSyncDelay => _immediateSyncDelay;
   Duration get periodicSyncInterval => _periodicSyncInterval;
 }

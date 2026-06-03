@@ -8,7 +8,9 @@ enum OrderTrackingStage {
   paid,
   pendingConfirmation,
   orderConfirmed,
+  orderDispatched,
   outForDelivery,
+  arrived,
   delivered,
   failed,
 }

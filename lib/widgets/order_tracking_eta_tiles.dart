@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
 import '../models/order_tracking_model.dart';
+import 'post_checkout/post_checkout_design.dart';
 
-/// ETA + destination quick tiles (Bolt-style detail row).
+/// Order placed time + destination quick tiles.
 class OrderTrackingEtaTiles extends StatelessWidget {
   const OrderTrackingEtaTiles({
     super.key,
@@ -21,17 +23,18 @@ class OrderTrackingEtaTiles extends StatelessWidget {
     final shortAddress = address.length > 48
         ? '${address.substring(0, 48)}…'
         : address;
+    final isPickup =
+        order.deliveryOption.toLowerCase().replaceAll('-', '').contains('pickup');
+    final placedAt = DateFormat('MMM d, y · h:mm a').format(order.createdAt);
 
     return Row(
       children: [
         Expanded(
           child: _Tile(
-            icon: Icons.schedule_rounded,
+            icon: Icons.event_rounded,
             iconColor: color,
-            label: 'Estimated arrival',
-            value: order.estimatedDeliveryTime.isNotEmpty
-                ? order.estimatedDeliveryTime
-                : 'Updating…',
+            label: 'Order placed',
+            value: placedAt,
           ),
         ),
         const SizedBox(width: 10),
@@ -39,7 +42,7 @@ class OrderTrackingEtaTiles extends StatelessWidget {
           child: _Tile(
             icon: Icons.place_rounded,
             iconColor: Colors.orange.shade700,
-            label: 'Deliver to',
+            label: isPickup ? 'Pickup at' : 'Deliver to',
             value: shortAddress.isNotEmpty ? shortAddress : '—',
           ),
         ),
@@ -64,19 +67,8 @@ class _Tile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: PostCheckoutDesign.surfaceCard(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -18,4 +18,7 @@ class AppColors {
 
   /// Material green accent (some legacy screens)
   static const Color accent = Color(0xFF2E7D32);
+
+  /// Cart item-count badge (vivid red for green nav bar / headers).
+  static const Color cartBadge = Color(0xFFFF5252);
 }

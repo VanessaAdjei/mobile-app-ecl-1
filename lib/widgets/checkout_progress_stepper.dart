@@ -6,12 +6,16 @@ class CheckoutProgressStepper extends StatelessWidget {
   final Set<int> completedSteps;
   final bool compact;
 
+  /// Green/gray styling for white headers (e.g. post-checkout).
+  final bool lightSurface;
+
   const CheckoutProgressStepper({
     super.key,
     required this.steps,
     required this.activeStep,
     this.completedSteps = const {},
     this.compact = false,
+    this.lightSurface = false,
   });
 
   @override
@@ -32,9 +36,25 @@ class CheckoutProgressStepper extends StatelessWidget {
           final step = index + 1;
           final isActive = step == activeStep;
           final isCompleted = completedSteps.contains(step);
-          final textColor = isCompleted || isActive
-              ? Colors.white
-              : Colors.white.withValues(alpha: 0.7);
+          final textColor = lightSurface
+              ? (isCompleted || isActive
+                  ? const Color(0xFF0D7A4C)
+                  : const Color(0xFF94A3B8))
+              : (isCompleted || isActive
+                  ? Colors.white
+                  : Colors.white.withValues(alpha: 0.7));
+          final circleFill = lightSurface
+              ? (isCompleted || isActive
+                  ? const Color(0xFFE8F5EE)
+                  : const Color(0xFFF1F5F9))
+              : (isCompleted || isActive
+                  ? Colors.white.withValues(alpha: 0.28)
+                  : Colors.white.withValues(alpha: 0.08));
+          final connectorColor = lightSurface
+              ? (isCompleted
+                  ? const Color(0xFF86EFAC)
+                  : const Color(0xFFE2E8F0))
+              : Colors.white.withValues(alpha: 0.35);
 
           return Row(
             children: [
@@ -45,9 +65,7 @@ class CheckoutProgressStepper extends StatelessWidget {
                     width: circleSize,
                     height: circleSize,
                     decoration: BoxDecoration(
-                      color: isCompleted || isActive
-                          ? Colors.white.withValues(alpha: 0.28)
-                          : Colors.white.withValues(alpha: 0.08),
+                      color: circleFill,
                       border: Border.all(
                         color: textColor,
                         width: isActive ? 1.6 : 1.2,
@@ -57,7 +75,10 @@ class CheckoutProgressStepper extends StatelessWidget {
                     child: Center(
                       child: isCompleted
                           ? Icon(Icons.check_rounded,
-                              size: checkIconSize, color: Colors.white)
+                              size: checkIconSize,
+                              color: lightSurface
+                                  ? const Color(0xFF0D7A4C)
+                                  : Colors.white)
                           : Text(
                               step.toString(),
                               style: TextStyle(
@@ -76,7 +97,9 @@ class CheckoutProgressStepper extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: isActive
-                          ? Colors.white.withValues(alpha: 0.22)
+                          ? (lightSurface
+                              ? const Color(0xFFE8F5EE)
+                              : Colors.white.withValues(alpha: 0.22))
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(999),
                     ),
@@ -100,7 +123,7 @@ class CheckoutProgressStepper extends StatelessWidget {
                   height: compact ? 3 : 4,
                   margin: EdgeInsets.symmetric(horizontal: connectorMargin),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.35),
+                    color: connectorColor,
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),

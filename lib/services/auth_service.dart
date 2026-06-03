@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'package:uuid/uuid.dart';
 import '../models/product_model.dart';
 import 'dart:io';
 import '../config/api_config.dart';
@@ -1632,9 +1633,15 @@ class AuthService {
     await prefs.remove('guest_id');
   }
 
-  /// Generate and store a new guest_id in SharedPreferences
+  /// Generate and store a new guest_id in SharedPreferences.
+  /// Falls back to a local ID when the API is unreachable so cart still works offline.
   static Future<String> generateGuestId() async {
     final prefs = await SharedPreferences.getInstance();
+    final existing = prefs.getString('guest_id');
+    if (existing != null && existing.isNotEmpty) {
+      return existing;
+    }
+
     try {
       final response = await HttpClientService.get(
         Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.guestId)),
@@ -1646,20 +1653,26 @@ class AuthService {
             data['id'] ??
             data['guestId'] ??
             data['guestid'];
-        if (guestId != null && guestId is String && guestId.isNotEmpty) {
-          await prefs.setString('guest_id', guestId);
-          debugPrint('[AuthService] Fetched guest_id from API: $guestId');
-          return guestId;
-        } else {
-          throw Exception('Invalid guest_id in API response');
+        if (guestId != null && guestId.toString().trim().isNotEmpty) {
+          final id = guestId.toString().trim();
+          await prefs.setString('guest_id', id);
+          debugPrint('[AuthService] Fetched guest_id from API: $id');
+          return id;
         }
+        debugPrint('[AuthService] Invalid guest_id in API response');
       } else {
-        throw Exception('Failed to fetch guest_id from API');
+        debugPrint(
+          '[AuthService] guest-id API returned ${response.statusCode}',
+        );
       }
     } catch (e) {
       debugPrint('[AuthService] Error fetching guest_id: $e');
-      rethrow;
     }
+
+    final fallback = 'guest-${const Uuid().v4()}';
+    await prefs.setString('guest_id', fallback);
+    debugPrint('[AuthService] Using local guest_id fallback: $fallback');
+    return fallback;
   }
 
   static Future<void> syncCartOnLogin(String userId) async {

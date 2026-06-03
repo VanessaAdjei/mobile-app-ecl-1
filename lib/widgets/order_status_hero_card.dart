@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
 import '../config/api_config.dart';
 import '../models/order_tracking_model.dart';
+import 'post_checkout/post_checkout_design.dart';
 
 class OrderStatusHeroCard extends StatelessWidget {
   const OrderStatusHeroCard({
@@ -30,12 +33,37 @@ class OrderStatusHeroCard extends StatelessWidget {
         return Colors.blue.shade700;
       case OrderTrackingStage.orderConfirmed:
         return Colors.blue.shade600;
+      case OrderTrackingStage.orderDispatched:
+        return Colors.indigo.shade600;
       case OrderTrackingStage.outForDelivery:
         return Colors.deepPurple.shade600;
+      case OrderTrackingStage.arrived:
+        return Colors.teal.shade700;
       case OrderTrackingStage.delivered:
         return Colors.green.shade800;
       case OrderTrackingStage.failed:
         return Colors.red.shade600;
+    }
+  }
+
+  IconData _compactStageIcon(OrderTrackingStage stage) {
+    switch (stage) {
+      case OrderTrackingStage.pendingPayment:
+        return Icons.payments_outlined;
+      case OrderTrackingStage.failed:
+        return Icons.error_outline_rounded;
+      case OrderTrackingStage.orderDispatched:
+        return Icons.inventory_2_outlined;
+      case OrderTrackingStage.outForDelivery:
+        return Icons.delivery_dining_rounded;
+      case OrderTrackingStage.arrived:
+        return Icons.place_rounded;
+      case OrderTrackingStage.delivered:
+        return Icons.check_circle_outline_rounded;
+      case OrderTrackingStage.orderConfirmed:
+        return Icons.verified_outlined;
+      default:
+        return Icons.local_pharmacy_outlined;
     }
   }
 
@@ -56,80 +84,90 @@ class OrderStatusHeroCard extends StatelessWidget {
     final firstItem = order.items.isNotEmpty ? order.items.first : null;
 
     if (compact) {
+      final ref = order.orderNumber.isNotEmpty
+          ? order.orderNumber
+          : order.transactionId;
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.shade100),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
+        padding: const EdgeInsets.all(16),
+        decoration: PostCheckoutDesign.surfaceCard(),
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                _compactStageIcon(order.stage),
+                color: accent,
+                size: 26,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Text(
-                        order.stageLabel,
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade900,
-                          height: 1.2,
+                      Expanded(
+                        child: Text(
+                          order.stageLabel,
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: PostCheckoutDesign.ink,
+                            height: 1.2,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Order #${order.orderNumber}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey.shade600,
+                      if (order.stage != OrderTrackingStage.failed &&
+                          order.stage != OrderTrackingStage.pendingPayment)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: PostCheckoutDesign.accentLight,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${order.totalQuantity} item${order.totalQuantity == 1 ? '' : 's'}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: accent,
+                            ),
+                          ),
                         ),
-                      ),
                     ],
                   ),
-                ),
-                if (order.stage != OrderTrackingStage.failed &&
-                    order.stage != OrderTrackingStage.pendingPayment)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '${order.totalQuantity} item${order.totalQuantity == 1 ? '' : 's'}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: accent,
+                  if (ref.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Order #$ref',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: PostCheckoutDesign.muted,
                       ),
                     ),
+                  ],
+                  const SizedBox(height: 8),
+                  Text(
+                    order.stage == OrderTrackingStage.failed
+                        ? order.stageMessage
+                        : 'Placed ${DateFormat('MMM d, y · h:mm a').format(order.createdAt)} · GHS ${order.totalAmount.toStringAsFixed(2)}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: PostCheckoutDesign.muted,
+                      height: 1.35,
+                    ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              order.stage == OrderTrackingStage.failed
-                  ? order.stageMessage
-                  : 'Arrives in ${order.estimatedDeliveryTime} • GHS ${order.totalAmount.toStringAsFixed(2)}',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-                height: 1.35,
+                ],
               ),
             ),
           ],
@@ -253,7 +291,10 @@ class OrderStatusHeroCard extends StatelessWidget {
               label: 'Delivery fee',
               value: 'GHS ${(order.deliveryFee ?? 0).toStringAsFixed(2)}',
             ),
-          _SummaryLine(label: 'ETA', value: order.estimatedDeliveryTime),
+          _SummaryLine(
+            label: 'Order placed',
+            value: DateFormat('MMM d, y · h:mm a').format(order.createdAt),
+          ),
           _SummaryLine(label: 'Address', value: order.deliveryAddress),
         ],
       ),
