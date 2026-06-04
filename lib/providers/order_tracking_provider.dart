@@ -6,6 +6,7 @@ import '../models/order_tracking_model.dart';
 import '../services/order_notification_service.dart';
 import '../services/order_tracking_service.dart';
 import '../utils/non_ui_error_reporter.dart';
+import '../utils/order_status_notification_copy.dart';
 
 class OrderTrackingProvider extends ChangeNotifier {
   OrderTrackingProvider({
@@ -20,17 +21,30 @@ class OrderTrackingProvider extends ChangeNotifier {
 
   static const Duration _paymentPollInterval = Duration(seconds: 5);
   /// Poll periodically; status comes from GET /orders (no per-order /status route).
-  static const Duration _trackingPollInterval = Duration(seconds: 15);
+  static const Duration _trackingPollInterval = Duration(seconds: 8);
 
   /// Callback for push-driven refresh (e.g. order_status / delivery notification). Set by the tracking screen.
   static void Function()? onOrderStatusUpdateFromPush;
 
+  static final Set<void Function()> _pushRefreshListeners = {};
+
   /// Callback when order reaches [OrderTrackingStage.orderConfirmed] (defer SnackBar until user leaves confirmation).
   static void Function(OrderTrackingModel order)? onOrderConfirmedStageUi;
+
+  static void registerPushRefresh(void Function() listener) {
+    _pushRefreshListeners.add(listener);
+  }
+
+  static void unregisterPushRefresh(void Function() listener) {
+    _pushRefreshListeners.remove(listener);
+  }
 
   /// Call when a push notification indicates order status changed; refreshes immediately if tracking is active.
   static void notifyOrderStatusChanged() {
     onOrderStatusUpdateFromPush?.call();
+    for (final listener in List<void Function()>.from(_pushRefreshListeners)) {
+      listener();
+    }
   }
   static const Duration _manualRefreshDelay = Duration(seconds: 10);
   static const int _maxEmptyResponses = 36;
@@ -47,8 +61,7 @@ class OrderTrackingProvider extends ChangeNotifier {
   String? _errorMessage;
   bool _didHandleSuccessfulOrder = false;
   bool _didNotifyOrderConfirmed = false;
-  bool _didNotifyArrived = false;
-  bool _didNotifyDelivered = false;
+  final Set<OrderTrackingStage> _notifiedStages = {};
   Timer? _paymentPollTimer;
   Timer? _trackingPollTimer;
   Timer? _manualRefreshTimer;
@@ -263,10 +276,16 @@ class OrderTrackingProvider extends ChangeNotifier {
   ) async {
     if (_isDisposed) return;
     final current = _order.stage;
+    if (previousStage == current ||
+        current == OrderTrackingStage.pendingPayment ||
+        current == OrderTrackingStage.failed ||
+        _notifiedStages.contains(current)) {
+      return;
+    }
+    _notifiedStages.add(current);
 
-    if (!_didNotifyOrderConfirmed &&
-        current == OrderTrackingStage.orderConfirmed &&
-        previousStage != OrderTrackingStage.orderConfirmed) {
+    if (current == OrderTrackingStage.orderConfirmed &&
+        !_didNotifyOrderConfirmed) {
       _didNotifyOrderConfirmed = true;
       try {
         await OrderNotificationService.createOrderConfirmedNotification(
@@ -296,54 +315,34 @@ class OrderTrackingProvider extends ChangeNotifier {
           st,
         );
       }
+      return;
     }
 
-    if (!_didNotifyArrived &&
-        previousStage != OrderTrackingStage.arrived &&
-        current == OrderTrackingStage.arrived) {
-      _didNotifyArrived = true;
-      try {
-        await OrderNotificationService.createOrderStatusNotification(
-          orderId: _order.orderId,
-          orderNumber: _order.orderNumber,
-          status: _order.rawStatus,
-          title: 'Order Arrived',
-          message:
-              'Your order #${_order.orderNumber} has arrived at your delivery location.',
-          totalAmount: _order.totalAmount.toStringAsFixed(2),
-          items: _order.items.map((e) => e.toMap()).toList(),
-        );
-      } catch (e, st) {
-        NonUiErrorReporter.report(
-          'OrderTrackingProvider.createOrderStatusNotification.arrived',
-          e,
-          st,
-        );
-      }
-    }
-
-    if (!_didNotifyDelivered &&
-        previousStage != OrderTrackingStage.delivered &&
-        current == OrderTrackingStage.delivered) {
-      _didNotifyDelivered = true;
-      try {
-        await OrderNotificationService.createOrderStatusNotification(
-          orderId: _order.orderId,
-          orderNumber: _order.orderNumber,
-          status: _order.rawStatus,
-          title: 'Order Delivered',
-          message:
-              'Your order #${_order.orderNumber} has been delivered. Thank you for shopping with us!',
-          totalAmount: _order.totalAmount.toStringAsFixed(2),
-          items: _order.items.map((e) => e.toMap()).toList(),
-        );
-      } catch (e, st) {
-        NonUiErrorReporter.report(
-          'OrderTrackingProvider.createOrderStatusNotification.delivered',
-          e,
-          st,
-        );
-      }
+    final orderNumber = _order.orderNumber.isNotEmpty
+        ? _order.orderNumber
+        : _order.transactionId;
+    final (title, message) = orderStatusNotificationContent(
+      orderNumber,
+      _order.rawStatus,
+    );
+    try {
+      await OrderNotificationService.createOrderStatusNotification(
+        orderId: _order.orderId.isNotEmpty
+            ? _order.orderId
+            : _order.transactionId,
+        orderNumber: orderNumber,
+        status: _order.rawStatus,
+        title: title,
+        message: message,
+        totalAmount: _order.totalAmount.toStringAsFixed(2),
+        items: _order.items.map((e) => e.toMap()).toList(),
+      );
+    } catch (e, st) {
+      NonUiErrorReporter.report(
+        'OrderTrackingProvider.createOrderStatusNotification',
+        e,
+        st,
+      );
     }
   }
 

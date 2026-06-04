@@ -1,4 +1,5 @@
 import 'package:eclapp/models/order_tracking_model.dart';
+import 'package:eclapp/services/order_tracking_service.dart';
 import 'package:eclapp/widgets/post_checkout/post_checkout_design.dart';
 import 'package:eclapp/providers/order_tracking_provider.dart';
 import 'package:eclapp/widgets/post_checkout/post_checkout_action_buttons.dart';
@@ -54,6 +55,17 @@ class _PostCheckoutOrderContentState extends State<PostCheckoutOrderContent> {
     );
   }
 
+  /// Prefer the timeline’s current step so the header card stays in sync with it.
+  static OrderTrackingStage _displayStage(OrderTrackingModel order) {
+    for (final step in order.timelineSteps) {
+      if (!step.isCurrent) continue;
+      for (final stage in OrderTrackingStage.values) {
+        if (stage.name == step.id) return stage;
+      }
+    }
+    return order.stage;
+  }
+
   static bool _isPaymentSuccessStage(OrderTrackingStage stage) {
     return stage == OrderTrackingStage.paid ||
         stage == OrderTrackingStage.orderConfirmed ||
@@ -106,6 +118,7 @@ class _PostCheckoutOrderContentState extends State<PostCheckoutOrderContent> {
   Widget build(BuildContext context) {
     final placedAt = DateFormat('MMM d, y · h:mm a').format(order.createdAt);
     final address = order.deliveryAddress.trim();
+    final displayStage = _displayStage(order);
     var index = 0;
 
     final bottomInset = MediaQuery.paddingOf(context).bottom;
@@ -134,14 +147,16 @@ class _PostCheckoutOrderContentState extends State<PostCheckoutOrderContent> {
                     accent: accent,
                     orderRef: _orderRef,
                   )
-                : _isPaymentSuccessStage(order.stage)
+                : _isPaymentSuccessStage(displayStage)
                     ? _PaidStatusCard(
                         order: order,
+                        displayStage: displayStage,
                         accent: accent,
                         orderRef: _orderRef,
                       )
                     : _StatusHeader(
                         order: order,
+                        displayStage: displayStage,
                         accent: accent,
                         orderRef: _orderRef,
                       ),
@@ -471,16 +486,18 @@ class _PostCheckoutPendingContentState extends State<PostCheckoutPendingContent>
 class _PaidStatusCard extends StatelessWidget {
   const _PaidStatusCard({
     required this.order,
+    required this.displayStage,
     required this.accent,
     required this.orderRef,
   });
 
   final OrderTrackingModel order;
+  final OrderTrackingStage displayStage;
   final Color accent;
   final String orderRef;
 
   String get _badgeLabel {
-    switch (order.stage) {
+    switch (displayStage) {
       case OrderTrackingStage.orderConfirmed:
         return 'CONFIRMED';
       case OrderTrackingStage.orderPlaced:
@@ -492,7 +509,7 @@ class _PaidStatusCard extends StatelessWidget {
   }
 
   String get _headline {
-    switch (order.stage) {
+    switch (displayStage) {
       case OrderTrackingStage.orderConfirmed:
         return 'Order confirmed';
       case OrderTrackingStage.orderPlaced:
@@ -505,7 +522,7 @@ class _PaidStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final message = order.stageMessage.trim();
+    final message = OrderTrackingService().stageMessage(displayStage).trim();
 
     return Container(
       width: double.infinity,
@@ -831,16 +848,18 @@ class _PostCheckoutMetricColumn extends StatelessWidget {
 class _StatusHeader extends StatelessWidget {
   const _StatusHeader({
     required this.order,
+    required this.displayStage,
     required this.accent,
     required this.orderRef,
   });
 
   final OrderTrackingModel order;
+  final OrderTrackingStage displayStage;
   final Color accent;
   final String orderRef;
 
   IconData _iconForStage() {
-    switch (order.stage) {
+    switch (displayStage) {
       case OrderTrackingStage.failed:
         return Icons.error_outline_rounded;
       case OrderTrackingStage.orderDispatched:
@@ -858,6 +877,10 @@ class _StatusHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tracking = OrderTrackingService();
+    final stageLabel = tracking.stageLabel(displayStage);
+    final stageMessage = tracking.stageMessage(displayStage);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
@@ -880,7 +903,7 @@ class _StatusHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  order.stageLabel,
+                  stageLabel,
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -893,10 +916,10 @@ class _StatusHeader extends StatelessWidget {
                   const SizedBox(height: 3),
                   _OrderIdRow(reference: orderRef, accent: accent),
                 ],
-                if (order.stageMessage.trim().isNotEmpty) ...[
+                if (stageMessage.trim().isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
-                    order.stageMessage,
+                    stageMessage,
                     style: GoogleFonts.poppins(
                       fontSize: 11,
                       color: PostCheckoutDesign.muted,

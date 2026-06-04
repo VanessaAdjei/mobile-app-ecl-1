@@ -2541,7 +2541,7 @@ class HomePageState extends State<HomePage>
                 ),
                 hideOnEmpty: true,
                 hideOnLoading: false,
-              debounceDuration: const Duration(milliseconds: 350),
+              debounceDuration: const Duration(milliseconds: 250),
                 suggestionsBoxDecoration: SuggestionsBoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(isTablet ? 24 : 18),

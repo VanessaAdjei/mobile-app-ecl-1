@@ -26,6 +26,24 @@ abstract class OrderTrackingRepository {
     String stageId,
     DateTime occurredAt,
   );
+
+  Future<void> upsertStageTimestamp(
+    String orderKey,
+    String stageId,
+    DateTime occurredAt,
+  );
+
+  Future<void> saveStageTimestamps(
+    String orderKey,
+    Map<String, DateTime> timestamps,
+  );
+
+  Future<int> loadHighestTimelineIndex(String orderKey);
+
+  Future<void> saveHighestTimelineIndexIfHigher(
+    String orderKey,
+    int timelineIndex,
+  );
 }
 
 class OrderTrackingRepositoryImpl implements OrderTrackingRepository {
@@ -92,6 +110,43 @@ class OrderTrackingRepositoryImpl implements OrderTrackingRepository {
       orderKey,
       stageId,
       occurredAt,
+    );
+  }
+
+  @override
+  Future<int> loadHighestTimelineIndex(String orderKey) {
+    return _localDataSource.loadHighestTimelineIndex(orderKey);
+  }
+
+  @override
+  Future<void> upsertStageTimestamp(
+    String orderKey,
+    String stageId,
+    DateTime occurredAt,
+  ) {
+    return _localDataSource.upsertStageTimestamp(
+      orderKey,
+      stageId,
+      occurredAt,
+    );
+  }
+
+  @override
+  Future<void> saveStageTimestamps(
+    String orderKey,
+    Map<String, DateTime> timestamps,
+  ) {
+    return _localDataSource.saveStageTimestamps(orderKey, timestamps);
+  }
+
+  @override
+  Future<void> saveHighestTimelineIndexIfHigher(
+    String orderKey,
+    int timelineIndex,
+  ) {
+    return _localDataSource.saveHighestTimelineIndexIfHigher(
+      orderKey,
+      timelineIndex,
     );
   }
 }

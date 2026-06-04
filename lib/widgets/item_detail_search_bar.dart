@@ -294,7 +294,7 @@ class _ItemDetailSearchBarState extends State<ItemDetailSearchBar> {
         onChanged: (_) => setState(() {}),
         onSubmitted: _openSearchResults,
       ),
-      debounceDuration: const Duration(milliseconds: 350),
+      debounceDuration: const Duration(milliseconds: 250),
       hideOnEmpty: true,
       hideOnLoading: false,
       suggestionsBoxVerticalOffset: 6,

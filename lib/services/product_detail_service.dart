@@ -3,11 +3,11 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '../cache/product_detail_cache.dart';
 import '../models/category_fetch_result.dart';
 import '../models/product_model.dart';
 import '../cache/product_catalog_memory.dart';
 import '../repositories/product_detail_repository.dart';
-import 'universal_page_optimization_service.dart';
 import '../utils/app_error_utils.dart';
 import '../utils/product_detail_parser.dart';
 import '../utils/related_products_parser.dart';
@@ -21,30 +21,32 @@ class ProductDetailService {
 
   static final Map<String, Future<Product>> _warmInFlight = {};
 
+  /// Reuses navigation warm-up fetch when [ItemPage] opens (same in-flight request).
+  static Future<Product>? takeWarmFuture(String urlName) {
+    return _warmInFlight[urlName];
+  }
+
   /// Starts loading detail API data before navigation finishes (deduped).
   static void warmProductDetails(String urlName) {
     if (urlName.isEmpty || _warmInFlight.containsKey(urlName)) return;
-    final service = ProductDetailService();
-    final catalog = ProductCatalogMemory.hasProducts
-        ? ProductCatalogMemory.products
-        : const <Product>[];
-    final future = UniversalPageOptimizationService()
-        .fetchData<Product>(
-          'product_details_$urlName',
-          () => service.fetchProductDetails(
-            urlName,
-            catalogFallback: catalog,
-            timeout: const Duration(seconds: 30),
-          ),
-          pageName: 'item_detail',
-          persistToDisk: false,
-        )
-        .then((product) {
-      if (product == null) {
-        throw Exception('Product warm failed for $urlName');
+
+    if (ProductDetailCache.isMemoryFresh(urlName)) {
+      final cached = ProductDetailCache.memoryPeek(urlName);
+      if (cached != null) {
+        final future = Future<Product>.value(cached);
+        _warmInFlight[urlName] = future;
+        unawaited(future.whenComplete(() => _warmInFlight.remove(urlName)));
+        return;
       }
-      return product;
-    });
+    }
+
+    final service = ProductDetailService();
+    final future = service.fetchProductDetails(
+      urlName,
+      catalogFallback: const [],
+      allowCatalogFallback: false,
+      timeout: const Duration(seconds: 15),
+    );
     _warmInFlight[urlName] = future;
     unawaited(future.whenComplete(() => _warmInFlight.remove(urlName)));
   }
@@ -58,10 +60,78 @@ class ProductDetailService {
     return null;
   }
 
+  /// Detail API with memory/disk cache (still API-sourced data, never list preview).
+  ///
+  /// Fresh memory (within [ProductDetailCache.memoryFreshDuration]): no network.
+  /// Stale disk/memory: returns cache immediately, refreshes in background when
+  /// [onStaleRefresh] is set.
   Future<Product> fetchProductDetails(
     String urlName, {
     Iterable<Product> catalogFallback = const [],
     Duration timeout = const Duration(seconds: 30),
+    bool allowCatalogFallback = true,
+    bool forceRefresh = false,
+    void Function(Product product)? onStaleRefresh,
+  }) async {
+    if (urlName.isEmpty) {
+      throw Exception('Product not found');
+    }
+
+    if (!forceRefresh) {
+      final cached = await ProductDetailCache.read(urlName);
+      if (cached != null) {
+        if (ProductDetailCache.isMemoryFresh(urlName)) {
+          if (kDebugMode) {
+            debugPrint('item_detail: memory cache hit "$urlName"');
+          }
+          return cached;
+        }
+
+        if (kDebugMode) {
+          debugPrint('item_detail: stale cache hit "$urlName" — refreshing');
+        }
+        unawaited(
+          _fetchProductDetailsFromNetwork(
+            urlName,
+            catalogFallback: catalogFallback,
+            timeout: timeout,
+            allowCatalogFallback: false,
+          ).then((fresh) {
+            onStaleRefresh?.call(fresh);
+          }).catchError((_) {}),
+        );
+        return cached;
+      }
+    } else {
+      await ProductDetailCache.invalidate(urlName);
+    }
+
+    try {
+      return await _fetchProductDetailsFromNetwork(
+        urlName,
+        catalogFallback: catalogFallback,
+        timeout: timeout,
+        allowCatalogFallback: allowCatalogFallback,
+      );
+    } catch (e) {
+      if (!forceRefresh && AppErrorUtils.isTransientTransportError(e)) {
+        final offline = await ProductDetailCache.read(urlName);
+        if (offline != null) {
+          if (kDebugMode) {
+            debugPrint('item_detail: offline cache fallback "$urlName"');
+          }
+          return offline;
+        }
+      }
+      rethrow;
+    }
+  }
+
+  Future<Product> _fetchProductDetailsFromNetwork(
+    String urlName, {
+    Iterable<Product> catalogFallback = const [],
+    Duration timeout = const Duration(seconds: 30),
+    bool allowCatalogFallback = true,
   }) async {
     try {
       final result = await _repository.fetchProductDetails(
@@ -70,7 +140,8 @@ class ProductDetailService {
       );
       final transportError = result.error;
       if (transportError != null) {
-        if (AppErrorUtils.isTransientTransportError(transportError)) {
+        if (allowCatalogFallback &&
+            AppErrorUtils.isTransientTransportError(transportError)) {
           final catalogProduct = _productFromCatalog(urlName, catalogFallback);
           if (catalogProduct != null) {
             if (kDebugMode) {
@@ -102,6 +173,7 @@ class ProductDetailService {
           urlName,
           catalogFallback: catalogFallback,
         );
+        await ProductDetailCache.put(urlName, product);
         if (kDebugMode) {
           debugPrint(
             'item_detail: loaded "$urlName" → "${product.name}" (${product.price})',

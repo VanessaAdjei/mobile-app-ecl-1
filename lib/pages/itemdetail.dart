@@ -28,7 +28,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/universal_page_optimization_service.dart';
 import '../services/product_detail_service.dart';
 import '../services/prescription_upload_status_service.dart';
-import '../cache/product_catalog_memory.dart';
+import '../services/recently_viewed_service.dart';
 import '../utils/product_detail_parser.dart';
 import '../utils/product_detail_navigation.dart';
 
@@ -40,14 +40,10 @@ class ItemPage extends StatefulWidget {
   final String urlName;
   final bool isPrescribed;
 
-  /// Catalog/list row shown immediately while the detail API loads.
-  final Product? initialProduct;
-
   const ItemPage({
     super.key,
     required this.urlName,
     this.isPrescribed = false,
-    this.initialProduct,
   });
 
   @override
@@ -64,6 +60,12 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   static const double _pageHPad = ItemDetailDesign.pagePadding;
   static const double _relatedCardWidth = 108;
   static const double _relatedListHeight = 148;
+  static const double _relatedSeparatorWidth = 8;
+  static const double _recentCardWidth = 114;
+  static const Color _recentCardImageWell = Color(0xFFF1F5F9);
+  static const int _recentMaxCards = 6;
+  static const int _relatedLoopRepeats = 3;
+  static const int _recentLoopRepeats = 3;
   static const double _galleryHeight = 220;
 
   // Slightly larger type for readability on product detail.
@@ -79,6 +81,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
   late Future<Product> _productFuture;
   late Future<List<Product>> _relatedProductsFuture;
+  List<Product> _recentlyViewedItems = const [];
+  String? _recentlyViewedPreparedSlug;
   int quantity = 1;
   final int maxQuantity = 99; // Maximum quantity limit
   final uuid = Uuid();
@@ -86,11 +90,22 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   PageController? _imagePageController;
   int _currentImageIndex = 0;
   ScrollController? _relatedProductsScrollController;
+  double _relatedLoopSegmentWidth = 0;
+  bool _relatedLoopScrollInitialized = false;
   Timer? _relatedAutoScrollTimer;
   Timer? _relatedAutoScrollResumeTimer;
   bool _relatedAutoScrollPausedByUser = false;
   static const Duration _relatedAutoScrollInterval = Duration(seconds: 3);
   static const double _relatedScrollStep = _relatedCardWidth + 8;
+  ScrollController? _recentlyViewedScrollController;
+  double _recentLoopSegmentWidth = 0;
+  bool _recentLoopScrollInitialized = false;
+  Timer? _recentAutoScrollTimer;
+  Timer? _recentAutoScrollResumeTimer;
+  bool _recentAutoScrollPausedByUser = false;
+  static const Duration _recentAutoScrollInterval = Duration(seconds: 3);
+  static const double _recentScrollStep =
+      _recentCardWidth + _relatedSeparatorWidth;
   final ScrollController _pageScrollController = ScrollController();
   bool _pageCanScroll = false;
   bool _prescriptionUploaded = false;
@@ -111,6 +126,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   final UniversalPageOptimizationService _optimizationService =
       UniversalPageOptimizationService();
   final ProductDetailService _detailService = ProductDetailService();
+  final RecentlyViewedService _recentlyViewedService = RecentlyViewedService();
 
   @override
   void initState() {
@@ -129,42 +145,85 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     _initializeOptimization();
 
     ProductDetailService.warmProductDetails(widget.urlName);
-    _productFuture = _fetchProductDetailsWithCache(widget.urlName);
-    _relatedProductsFuture = Future<List<Product>>.value(const []);
+    _productFuture = _fetchProductDetailsFromApi(widget.urlName);
+    _relatedProductsFuture = _fetchRelatedProductsWithCache(widget.urlName);
     _pageScrollController.addListener(_syncPageScrollbar);
+    unawaited(_loadRecentlyViewedPreview());
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      setState(() {
-        _relatedProductsFuture =
-            _fetchRelatedProductsWithCache(widget.urlName);
-      });
-      _relatedProductsFuture.then((products) {
-        if (mounted) {
-          _scheduleRelatedImagePrecache(products);
-          _schedulePageScrollbarUpdate();
-        }
-      }).catchError((_) {});
-    });
-
-    final preview = _instantPreviewProduct;
-    if (preview != null) {
-      _scheduleProductImagePrecache(preview);
-    }
+    _relatedProductsFuture.then((products) {
+      if (mounted) {
+        _scheduleRelatedImagePrecache(products);
+        _schedulePageScrollbarUpdate();
+      }
+    }).catchError((_) {});
 
     _productFuture.then((product) {
       if (mounted) {
         _scheduleProductImagePrecache(product);
         _schedulePageScrollbarUpdate();
         unawaited(_refreshPrescriptionUploadStatus(product));
+        _ensureRecentlyViewedLoaded(product);
       }
     }).catchError((_) {});
-
   }
 
-  Product? get _instantPreviewProduct =>
-      widget.initialProduct ??
-      ProductCatalogMemory.findByUrlName(widget.urlName);
+  /// Shows prior visits from disk before the current product API finishes.
+  Future<void> _loadRecentlyViewedPreview() async {
+    final slug = widget.urlName.trim();
+    if (slug.isEmpty) return;
+    try {
+      final items = await _recentlyViewedService.getRecent(excludeUrlName: slug);
+      if (!mounted || items.isEmpty) return;
+      if (widget.urlName.trim().toLowerCase() != slug.toLowerCase()) return;
+      _resetRecentlyViewedScroll();
+      setState(() => _recentlyViewedItems = _capRecentItems(items));
+    } catch (_) {}
+  }
+
+  void _ensureRecentlyViewedLoaded(Product product) {
+    final slug = product.urlName.trim();
+    if (slug.isEmpty) return;
+    if (_recentlyViewedPreparedSlug == slug) return;
+    _recentlyViewedPreparedSlug = slug;
+    unawaited(_refreshRecentlyViewed(product));
+  }
+
+  Future<void> _refreshRecentlyViewed(Product product) async {
+    final slug = product.urlName.trim().toLowerCase();
+    if (slug.isEmpty) return;
+    try {
+      final items = await _recentlyViewedService.recordAndLoadOthers(product);
+      if (!mounted) return;
+      if (widget.urlName.trim().toLowerCase() != slug) return;
+      _resetRecentlyViewedScroll();
+      setState(() => _recentlyViewedItems = _capRecentItems(items));
+      if (items.isNotEmpty) {
+        _scheduleRelatedImagePrecache(items);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      if (widget.urlName.trim().toLowerCase() == slug) {
+        _resetRecentlyViewedScroll();
+        setState(() => _recentlyViewedItems = const []);
+      }
+    }
+  }
+
+  List<Product> _capRecentItems(List<Product> items) {
+    if (items.length <= _recentMaxCards) return items;
+    return items.take(_recentMaxCards).toList();
+  }
+
+  void _resetRecentlyViewedScroll() {
+    _stopRecentAutoScroll();
+    _recentAutoScrollResumeTimer?.cancel();
+    _recentlyViewedScrollController?.removeListener(_onRecentScrollChanged);
+    _recentlyViewedScrollController?.dispose();
+    _recentlyViewedScrollController = null;
+    _recentLoopScrollInitialized = false;
+    _recentLoopSegmentWidth = 0;
+    _recentAutoScrollPausedByUser = false;
+  }
 
   void _initializeOptimization() {
     _optimizationService.trackPagePerformance(
@@ -185,11 +244,48 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     _pageScrollController.dispose();
     _stopRelatedAutoScroll();
     _relatedAutoScrollResumeTimer?.cancel();
+    _relatedProductsScrollController?.removeListener(_onRelatedScrollChanged);
     _relatedProductsScrollController?.dispose();
+    _resetRecentlyViewedScroll();
     _fadeController.dispose();
     _scaleController.dispose();
     _headerSearchFocusNode.dispose();
     super.dispose();
+  }
+
+  double _relatedLoopSegmentWidthFor(int itemCount) {
+    if (itemCount <= 0) return 0;
+    return itemCount * _relatedCardWidth +
+        (itemCount - 1) * _relatedSeparatorWidth;
+  }
+
+  void _onRelatedScrollChanged() => _normalizeRelatedScrollOffset();
+
+  void _normalizeRelatedScrollOffset() {
+    final controller = _relatedProductsScrollController;
+    if (controller == null || !controller.hasClients) return;
+    final segment = _relatedLoopSegmentWidth;
+    if (segment <= 0) return;
+
+    final offset = controller.offset;
+    if (offset >= segment * 2 - 2) {
+      controller.jumpTo(offset - segment);
+    } else if (offset < segment * 0.5) {
+      controller.jumpTo(offset + segment);
+    }
+  }
+
+  void _initializeRelatedLoopScroll() {
+    final controller = _relatedProductsScrollController;
+    if (controller == null ||
+        !controller.hasClients ||
+        _relatedLoopScrollInitialized) {
+      return;
+    }
+    final segment = _relatedLoopSegmentWidth;
+    if (segment <= 0) return;
+    controller.jumpTo(segment);
+    _relatedLoopScrollInitialized = true;
   }
 
   ScrollController _relatedProductsScrollControllerFor(int itemCount) {
@@ -197,11 +293,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       return _relatedProductsScrollController!;
     }
     final controller = ScrollController();
+    controller.addListener(_onRelatedScrollChanged);
     _relatedProductsScrollController = controller;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _startRelatedAutoScroll(itemCount);
-    });
     return controller;
   }
 
@@ -225,17 +318,13 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     final controller = _relatedProductsScrollController;
     if (controller == null || !controller.hasClients) return;
 
-    final maxExtent = controller.position.maxScrollExtent;
-    if (maxExtent <= 4) return;
+    final segment = _relatedLoopSegmentWidth;
+    if (segment <= 0) return;
 
     final next = controller.offset + _relatedScrollStep;
     try {
-      if (next >= maxExtent - 2) {
-        controller.animateTo(
-          0,
-          duration: const Duration(milliseconds: 550),
-          curve: Curves.easeInOut,
-        );
+      if (next >= segment * 2) {
+        controller.jumpTo(next - segment);
       } else {
         controller.animateTo(
           next,
@@ -258,6 +347,98 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
   bool _relatedListIsScrollable(int itemCount) => itemCount > 1;
 
+  double _recentLoopSegmentWidthFor(int itemCount) {
+    if (itemCount <= 0) return 0;
+    return itemCount * _recentCardWidth +
+        (itemCount - 1) * _relatedSeparatorWidth;
+  }
+
+  void _onRecentScrollChanged() => _normalizeRecentScrollOffset();
+
+  void _normalizeRecentScrollOffset() {
+    final controller = _recentlyViewedScrollController;
+    if (controller == null || !controller.hasClients) return;
+    final segment = _recentLoopSegmentWidth;
+    if (segment <= 0) return;
+
+    final offset = controller.offset;
+    if (offset >= segment * 2 - 2) {
+      controller.jumpTo(offset - segment);
+    } else if (offset < segment * 0.5) {
+      controller.jumpTo(offset + segment);
+    }
+  }
+
+  void _initializeRecentLoopScroll() {
+    final controller = _recentlyViewedScrollController;
+    if (controller == null ||
+        !controller.hasClients ||
+        _recentLoopScrollInitialized) {
+      return;
+    }
+    final segment = _recentLoopSegmentWidth;
+    if (segment <= 0) return;
+    controller.jumpTo(segment);
+    _recentLoopScrollInitialized = true;
+  }
+
+  ScrollController _recentlyViewedScrollControllerFor(int itemCount) {
+    if (_recentlyViewedScrollController != null) {
+      return _recentlyViewedScrollController!;
+    }
+    final controller = ScrollController();
+    controller.addListener(_onRecentScrollChanged);
+    _recentlyViewedScrollController = controller;
+    return controller;
+  }
+
+  void _stopRecentAutoScroll() {
+    _recentAutoScrollTimer?.cancel();
+    _recentAutoScrollTimer = null;
+  }
+
+  void _startRecentAutoScroll(int itemCount) {
+    _stopRecentAutoScroll();
+    if (!_relatedListIsScrollable(itemCount)) return;
+
+    _recentAutoScrollTimer = Timer.periodic(
+      _recentAutoScrollInterval,
+      (_) => _tickRecentAutoScroll(),
+    );
+  }
+
+  void _tickRecentAutoScroll() {
+    if (!mounted || _recentAutoScrollPausedByUser) return;
+    final controller = _recentlyViewedScrollController;
+    if (controller == null || !controller.hasClients) return;
+
+    final segment = _recentLoopSegmentWidth;
+    if (segment <= 0) return;
+
+    final next = controller.offset + _recentScrollStep;
+    try {
+      if (next >= segment * 2) {
+        controller.jumpTo(next - segment);
+      } else {
+        controller.animateTo(
+          next,
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeInOut,
+        );
+      }
+    } catch (_) {
+      _stopRecentAutoScroll();
+    }
+  }
+
+  void _pauseRecentAutoScrollForUser() {
+    _recentAutoScrollPausedByUser = true;
+    _recentAutoScrollResumeTimer?.cancel();
+    _recentAutoScrollResumeTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) _recentAutoScrollPausedByUser = false;
+    });
+  }
+
   void _syncPageScrollbar() => _updatePageScrollbar();
 
   void _schedulePageScrollbarUpdate() {
@@ -277,24 +458,40 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     }
   }
 
-  Future<Product> _fetchProductDetailsWithCache(String urlName) async {
-    final result = await _optimizationService.fetchData(
-      'product_details_$urlName',
-      () => _detailService.fetchProductDetails(
-        urlName,
-        catalogFallback: ProductCatalogMemory.hasProducts
-            ? ProductCatalogMemory.products
-            : const [],
-        timeout: const Duration(seconds: 30),
-      ),
-      pageName: 'item_detail',
-      persistToDisk: false,
-    );
-    if (result == null) {
-      throw Exception('Product not found');
+  /// Detail body uses product-details API only (cached copies are prior API data).
+  Future<Product> _fetchProductDetailsFromApi(
+    String urlName, {
+    bool forceRefresh = false,
+  }) async {
+    if (!forceRefresh) {
+      final warm = ProductDetailService.takeWarmFuture(urlName);
+      if (warm != null) {
+        try {
+          final product = await warm;
+          _onProductLoaded();
+          return product;
+        } catch (_) {
+          // Warm failed; fetch below.
+        }
+      }
     }
+
+    final product = await _detailService.fetchProductDetails(
+      urlName,
+      catalogFallback: const [],
+      allowCatalogFallback: false,
+      timeout: const Duration(seconds: 15),
+      forceRefresh: forceRefresh,
+      onStaleRefresh: forceRefresh
+          ? null
+          : (fresh) {
+              if (!mounted) return;
+              setState(() => _productFuture = Future.value(fresh));
+              _scheduleProductImagePrecache(fresh);
+            },
+    );
     _onProductLoaded();
-    return result;
+    return product;
   }
 
   Future<List<Product>> _fetchRelatedProductsWithCache(String urlName) async {
@@ -650,7 +847,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return FutureBuilder<Product>(
       future: _productFuture,
-      initialData: _instantPreviewProduct,
       builder: (context, snapshot) {
         if (snapshot.hasError && kDebugMode) {
           debugPrint('item_detail FutureBuilder: ${snapshot.error}');
@@ -677,24 +873,22 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           );
         }
 
-        if (!snapshot.hasData) {
-          if (snapshot.connectionState == ConnectionState.waiting ||
-              snapshot.connectionState == ConnectionState.active) {
-            return Scaffold(
-              backgroundColor: _detailBg,
-              body: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(
-                  parent: BouncingScrollPhysics(),
-                ),
-                slivers: [
-                  _buildItemSliverHeader(),
-                  SliverToBoxAdapter(
-                    child: _buildLoadingSkeleton(),
-                  ),
-                ],
+        if (snapshot.connectionState != ConnectionState.done) {
+          return Scaffold(
+            backgroundColor: _detailBg,
+            body: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
               ),
-            );
-          }
+              slivers: [
+                _buildItemSliverHeader(),
+                SliverToBoxAdapter(child: _buildLoadingSkeleton()),
+              ],
+            ),
+          );
+        }
+
+        if (!snapshot.hasData) {
           return Scaffold(
             backgroundColor: _detailBg,
             appBar: AppBar(
@@ -715,6 +909,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
   Widget _buildProductScaffold(Product product) {
     _schedulePageScrollbarUpdate();
+    _ensureRecentlyViewedLoaded(product);
 
     return Scaffold(
       backgroundColor: _detailBg,
@@ -723,18 +918,30 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           _precachedGallerySig = null;
           _stopRelatedAutoScroll();
           _relatedAutoScrollResumeTimer?.cancel();
+          _relatedProductsScrollController
+              ?.removeListener(_onRelatedScrollChanged);
           _relatedProductsScrollController?.dispose();
           _relatedProductsScrollController = null;
+          _relatedLoopScrollInitialized = false;
+          _relatedLoopSegmentWidth = 0;
           _relatedAutoScrollPausedByUser = false;
           setState(() {
-            _productFuture = _fetchProductDetailsWithCache(widget.urlName);
+            _productFuture = _fetchProductDetailsFromApi(
+              widget.urlName,
+              forceRefresh: true,
+            );
             _relatedProductsFuture =
                 _fetchRelatedProductsWithCache(widget.urlName);
+            _recentlyViewedPreparedSlug = null;
+            _resetRecentlyViewedScroll();
+            _recentlyViewedItems = const [];
           });
           _productFuture.then((p) {
             if (mounted) {
               _scheduleProductImagePrecache(p);
               _schedulePageScrollbarUpdate();
+              _recentlyViewedPreparedSlug = null;
+              _ensureRecentlyViewedLoaded(p);
             }
           }).catchError((_) {});
           _relatedProductsFuture.then((products) {
@@ -781,6 +988,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           _buildProductImageGallery(product),
+                          _buildProductTitleUnderGallery(product),
                           const SizedBox(height: 10),
                           _buildProductHeroSection(product),
                           if (_isPrescriptionProduct(product) &&
@@ -789,6 +997,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                             _buildPrescriptionUploadedBanner(),
                           ],
                           _buildDescriptionSection(product),
+                          _buildRecentlyViewedSection(),
                           _buildRelatedProductsSection(product),
                           const SizedBox(height: 84),
                         ],
@@ -819,6 +1028,14 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               Container(
                 height: _galleryHeight,
                 decoration: ItemDetailDesign.surfaceCard(color: Colors.white),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                height: 18,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
               const SizedBox(height: 12),
               Container(
@@ -878,8 +1095,10 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 ElevatedButton.icon(
                   onPressed: () {
                     setState(() {
-                      _productFuture =
-                          _fetchProductDetailsWithCache(widget.urlName);
+                      _productFuture = _fetchProductDetailsFromApi(
+                        widget.urlName,
+                        forceRefresh: true,
+                      );
                       _relatedProductsFuture =
                           _fetchRelatedProductsWithCache(widget.urlName);
                     });
@@ -1002,8 +1221,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                     height: 22,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor:
-                                          AlwaysStoppedAnimation<Color>(
+                                      valueColor: AlwaysStoppedAnimation<Color>(
                                         AppColors.primary,
                                       ),
                                     ),
@@ -1082,6 +1300,25 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         Icons.medical_services_outlined,
         size: 32,
         color: AppColors.primary.withValues(alpha: 0.35),
+      ),
+    );
+  }
+
+  /// Visible in the body when the sliver header title has collapsed on scroll.
+  Widget _buildProductTitleUnderGallery(Product product) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Text(
+        _productDisplayName(product),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: GoogleFonts.poppins(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: _detailInk,
+          height: 1.25,
+          letterSpacing: -0.2,
+        ),
       ),
     );
   }
@@ -1205,7 +1442,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildDescriptionSection(Product product) {
-    if (product.description.isEmpty) return const SizedBox.shrink();
+    final hasDescription = product.description.trim().isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.only(top: 10),
@@ -1220,11 +1457,22 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               icon: Icons.info_outline_rounded,
             ),
             const SizedBox(height: 8),
-            ProductDescription(
-              description: product.description,
-              fadeColor: ItemDetailDesign.surface,
-              chipBorderColor: _detailBorder,
-            ),
+            if (hasDescription)
+              ProductDescription(
+                description: product.description,
+                fadeColor: ItemDetailDesign.surface,
+                chipBorderColor: _detailBorder,
+              )
+            else
+              Text(
+                'Details coming soon',
+                style: GoogleFonts.poppins(
+                  fontSize: _fsBody,
+                  fontWeight: FontWeight.w500,
+                  color: _detailMuted,
+                  height: 1.4,
+                ),
+              ),
           ],
         ),
       ),
@@ -1534,23 +1782,254 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildRelatedProductsList(List<Product> relatedProducts) {
-    final scrollable = _relatedListIsScrollable(relatedProducts.length);
-    final controller = scrollable
-        ? _relatedProductsScrollControllerFor(relatedProducts.length)
-        : null;
+  Widget _buildRecentlyViewedSection() {
+    if (_recentlyViewedItems.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        decoration: ItemDetailDesign.surfaceCard(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionHeader(
+              'Recently viewed',
+              subtitle: 'Pick up where you left off',
+              icon: Icons.restore_rounded,
+            ),
+            const SizedBox(height: 10),
+            _buildRecentlyViewedList(_recentlyViewedItems),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentlyViewedList(List<Product> items) {
+    final sourceCount = items.length;
+    final scrollable = _relatedListIsScrollable(sourceCount);
+    if (scrollable) {
+      _recentLoopSegmentWidth = _recentLoopSegmentWidthFor(sourceCount);
+      _recentLoopScrollInitialized = false;
+    }
+    final controller =
+        scrollable ? _recentlyViewedScrollControllerFor(sourceCount) : null;
+    final listItemCount =
+        scrollable ? sourceCount * _recentLoopRepeats : sourceCount;
 
     final list = ListView.separated(
       controller: controller,
       scrollDirection: Axis.horizontal,
       padding: EdgeInsets.zero,
       physics: scrollable
-          ? const BouncingScrollPhysics()
+          ? const ClampingScrollPhysics()
           : const NeverScrollableScrollPhysics(),
-      itemCount: relatedProducts.length,
-      separatorBuilder: (_, __) => const SizedBox(width: 8),
+      itemCount: listItemCount,
+      separatorBuilder: (_, __) =>
+          const SizedBox(width: _relatedSeparatorWidth),
+      itemBuilder: (context, index) => _buildRecentlyViewedCard(
+        items[index % sourceCount],
+        context,
+      ),
+    );
+
+    final scrollingList = NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification is UserScrollNotification) {
+          _pauseRecentAutoScrollForUser();
+        }
+        return false;
+      },
+      child: list,
+    );
+
+    if (scrollable) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _initializeRecentLoopScroll();
+        _startRecentAutoScroll(sourceCount);
+      });
+    }
+
+    return SizedBox(height: _relatedListHeight, child: scrollingList);
+  }
+
+  Widget _buildRecentlyViewedCard(Product product, BuildContext context) {
+    final imageUrl = ApiConfig.getProductImageUrl(product.thumbnail);
+    final name = _productDisplayName(product);
+    final price = double.tryParse(product.price) ?? 0.0;
+    final isRx = product.otcpom?.toLowerCase() == 'pom';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          ProductDetailNavigation.pushNamed(
+            context,
+            urlName: product.urlName,
+            product: product,
+          );
+        },
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          width: _recentCardWidth,
+          decoration: BoxDecoration(
+            color: ItemDetailDesign.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: const Color(0xFFCBD5E1),
+              width: 0.8,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF64748B).withValues(alpha: 0.08),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(13),
+                      ),
+                      child: ColoredBox(
+                        color: _recentCardImageWell,
+                        child: product.thumbnail.isNotEmpty
+                            ? Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 10,
+                                ),
+                                child: CachedNetworkImage(
+                                  imageUrl: imageUrl,
+                                  fit: BoxFit.contain,
+                                  width: double.infinity,
+                                  memCacheWidth: 200,
+                                  memCacheHeight: 200,
+                                  errorWidget: (context, url, error) =>
+                                      _galleryPlaceholder(),
+                                ),
+                              )
+                            : _galleryPlaceholder(),
+                      ),
+                    ),
+                    Positioned(
+                      top: 5,
+                      right: 5,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: _detailBorder),
+                        ),
+                        child: Icon(
+                          Icons.history_rounded,
+                          size: 11,
+                          color: _detailMuted.withValues(alpha: 0.9),
+                        ),
+                      ),
+                    ),
+                    if (isRx)
+                      Positioned(
+                        top: 5,
+                        left: 5,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(5),
+                            border:
+                                Border.all(color: const Color(0xFFFECACA)),
+                          ),
+                          child: Text(
+                            'Rx',
+                            style: GoogleFonts.poppins(
+                              color: const Color(0xFF991B1B),
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Container(
+                height: 1,
+                color: _detailBorder.withValues(alpha: 0.7),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(7, 5, 7, 7),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        fontSize: _fsCaption,
+                        height: 1.15,
+                        color: _detailInk,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'GHS ${price.toStringAsFixed(2)}',
+                      style: GoogleFonts.poppins(
+                        color: AppColors.primaryDark,
+                        fontWeight: FontWeight.w700,
+                        fontSize: _fsCaption,
+                        height: 1.1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRelatedProductsList(List<Product> relatedProducts) {
+    final sourceCount = relatedProducts.length;
+    final scrollable = _relatedListIsScrollable(sourceCount);
+    if (scrollable) {
+      _relatedLoopSegmentWidth = _relatedLoopSegmentWidthFor(sourceCount);
+      _relatedLoopScrollInitialized = false;
+    }
+    final controller =
+        scrollable ? _relatedProductsScrollControllerFor(sourceCount) : null;
+    final listItemCount =
+        scrollable ? sourceCount * _relatedLoopRepeats : sourceCount;
+
+    final list = ListView.separated(
+      controller: controller,
+      scrollDirection: Axis.horizontal,
+      padding: EdgeInsets.zero,
+      physics: scrollable
+          ? const ClampingScrollPhysics()
+          : const NeverScrollableScrollPhysics(),
+      itemCount: listItemCount,
+      separatorBuilder: (_, __) =>
+          const SizedBox(width: _relatedSeparatorWidth),
       itemBuilder: (context, index) => _buildRelatedProductCard(
-        relatedProducts[index],
+        relatedProducts[index % sourceCount],
         context,
       ),
     );
@@ -1567,7 +2046,9 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
     if (scrollable) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _startRelatedAutoScroll(relatedProducts.length);
+        if (!mounted) return;
+        _initializeRelatedLoopScroll();
+        _startRelatedAutoScroll(sourceCount);
       });
     }
 
@@ -1602,34 +2083,35 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             ),
             const SizedBox(height: 10),
             FutureBuilder<List<Product>>(
-            future: _relatedProductsFuture,
-            builder: (context, relatedSnapshot) {
-              if (relatedSnapshot.connectionState == ConnectionState.waiting) {
-                return _buildRelatedProductsSkeleton();
-              }
+              future: _relatedProductsFuture,
+              builder: (context, relatedSnapshot) {
+                if (relatedSnapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return _buildRelatedProductsSkeleton();
+                }
 
-              if (relatedSnapshot.hasError) {
-                return _buildEmptyState(
-                  icon: Icons.error_outline,
-                  title: 'Couldn\'t load suggestions',
-                  message: 'Pull down to refresh and try again',
-                  color: Colors.red.shade400,
-                );
-              }
+                if (relatedSnapshot.hasError) {
+                  return _buildEmptyState(
+                    icon: Icons.error_outline,
+                    title: 'Couldn\'t load suggestions',
+                    message: 'Pull down to refresh and try again',
+                    color: Colors.red.shade400,
+                  );
+                }
 
-              final relatedProducts = relatedSnapshot.data ?? [];
-              if (relatedProducts.isEmpty) {
-                return _buildEmptyState(
-                  icon: Icons.local_offer_outlined,
-                  title: 'No suggestions yet',
-                  message: 'Check back later for similar products',
-                  color: Colors.grey.shade400,
-                );
-              }
+                final relatedProducts = relatedSnapshot.data ?? [];
+                if (relatedProducts.isEmpty) {
+                  return _buildEmptyState(
+                    icon: Icons.local_offer_outlined,
+                    title: 'No suggestions yet',
+                    message: 'Check back later for similar products',
+                    color: Colors.grey.shade400,
+                  );
+                }
 
-              return _buildRelatedProductsList(relatedProducts);
-            },
-          ),
+                return _buildRelatedProductsList(relatedProducts);
+              },
+            ),
           ],
         ),
       ),

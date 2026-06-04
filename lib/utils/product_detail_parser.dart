@@ -64,13 +64,12 @@ Product parseProductDetailResponse(
   }
 
   final galleryUrls = galleryUrlsFromProductAndInventory(prodMap, invMap);
-  final extractedName = extractProductNameFromUrlSlug(
-    invMap['url_name']?.toString() ?? '',
-  );
+  final slug = invMap['url_name']?.toString() ?? urlName;
+  final displayName = _productDisplayName(prodMap, invMap, slug);
 
   return Product.fromJson({
     'id': productId,
-    'name': extractedName,
+    'name': displayName,
     'description': prodMap['description'] ?? '',
     'url_name': invMap['url_name'] ?? '',
     'status': invMap['status'] ?? '',
@@ -78,7 +77,7 @@ Product parseProductDetailResponse(
     'thumbnail': galleryUrls.isNotEmpty ? galleryUrls.first : '',
     'gallery_images': galleryUrls,
     'tags': tags,
-    'quantity': invMap['stock']?.toString() ?? '',
+    'quantity': _stockQuantityFromInventory(invMap),
     'category': (prodMap['categories'] is List &&
             (prodMap['categories'] as List).isNotEmpty)
         ? (prodMap['categories'] as List).first['description'] ?? ''
@@ -88,6 +87,27 @@ Product parseProductDetailResponse(
     'batch_no': invMap['batch_no'] ?? '',
     'uom': uom,
   });
+}
+
+String _productDisplayName(
+  Map<String, dynamic> prodMap,
+  Map<String, dynamic> invMap,
+  String slug,
+) {
+  for (final source in [prodMap, invMap]) {
+    final name = source['name']?.toString().trim() ?? '';
+    if (name.isNotEmpty) return name;
+    final title = source['product_name']?.toString().trim() ?? '';
+    if (title.isNotEmpty) return title;
+  }
+  return extractProductNameFromUrlSlug(slug);
+}
+
+/// Aligns with catalog parsing ([Product.fromJson]: qty_in_stock → stock → quantity).
+String _stockQuantityFromInventory(Map<String, dynamic> invMap) {
+  final raw = invMap['qty_in_stock'] ?? invMap['stock'] ?? invMap['quantity'];
+  if (raw == null) return '';
+  return raw.toString().trim();
 }
 
 String extractProductNameFromUrlSlug(String urlName) {

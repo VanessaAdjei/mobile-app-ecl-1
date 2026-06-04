@@ -14,10 +14,12 @@ import 'package:google_fonts/google_fonts.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../providers/order_tracking_provider.dart';
 import '../services/order_tracking_service.dart';
 import '../services/auth_service.dart';
 import '../models/order_tracking_page_details.dart';
 import '../utils/order_tracking_page_resolver.dart';
+import '../utils/order_timestamp_parser.dart';
 import '../config/api_config.dart';
 import 'app_back_button.dart';
 
@@ -46,13 +48,16 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       _actualDeliveryFee; // Store actual delivery fee fetched from API if needed
   /// Current order status for timeline; updated from API so progression can move.
   String? _orderStatus;
+  OrderTrackingStage? _timelineStage;
+  Map<String, DateTime> _stageTimes = const {};
+  DateTime? _placedAt;
 
   /// Full line-item list after merging API rows (multi-product orders).
   List<Map<String, dynamic>>? _resolvedOrderItems;
 
   /// Timer for periodic order status refresh while page is open
   Timer? _refreshTimer;
-  static const Duration _refreshInterval = Duration(seconds: 30);
+  static const Duration _refreshInterval = Duration(seconds: 8);
 
   /// Shown in the track-order sliver header (toolbar + expanded): order id only.
   String _sliverHeaderOrderLabel() {
@@ -155,7 +160,11 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     if (initialItems.isNotEmpty) {
       _resolvedOrderItems = initialItems;
     }
+    unawaited(
+      _orderTrackingService.primeMonotonicCache(_orderStorageKey()),
+    );
     _loadDeliveryInfo();
+    OrderTrackingProvider.registerPushRefresh(_onPushStatusRefresh);
 
     // If delivery fee is missing, try to retrieve it from stored preferences
     final hasDeliveryFee = widget.orderDetails['delivery_fee'] != null ||
@@ -167,16 +176,32 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     }
 
     // Start periodic refresh so order status updates automatically while page is open
+    unawaited(_fetchOrderDetailsFromAPI());
     _refreshTimer = Timer.periodic(_refreshInterval, (_) {
-      if (mounted) _loadDeliveryInfo();
+      if (mounted) unawaited(_fetchOrderDetailsFromAPI());
     });
   }
 
   @override
   void dispose() {
+    OrderTrackingProvider.unregisterPushRefresh(_onPushStatusRefresh);
     _refreshTimer?.cancel();
     _refreshTimer = null;
     super.dispose();
+  }
+
+  void _onPushStatusRefresh() {
+    if (!mounted) return;
+    unawaited(_fetchOrderDetailsFromAPI());
+  }
+
+  String _orderStorageKey() {
+    final o = widget.orderDetails;
+    return o['transaction_id']?.toString() ??
+        o['delivery_id']?.toString() ??
+        o['order_number']?.toString() ??
+        o['id']?.toString() ??
+        '';
   }
 
   Future<void> _loadDeliveryInfo() async {
@@ -318,6 +343,21 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       // if we still dont have delivery info, try shared preferences
       final prefs = await SharedPreferences.getInstance();
 
+      final initialStatus =
+          widget.orderDetails['status']?.toString() ?? 'Processing';
+      final key = _orderStorageKey();
+      final apiStage = _orderTrackingService.normalizeStage(initialStatus);
+      final initialStage = key.isNotEmpty
+          ? _orderTrackingService.coalesceMonotonicStageSync(
+              key,
+              apiStage,
+              rawStatus: initialStatus,
+            )
+          : apiStage;
+      if (key.isNotEmpty) {
+        _orderTrackingService.persistMonotonicIndexAsync(key, apiStage);
+      }
+      if (!mounted) return;
       setState(() {
         _deliveryAddress = notificationAddress ??
             prefs.getString('delivery_address') ??
@@ -328,8 +368,8 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         _deliveryOption = notificationDeliveryOption ??
             prefs.getString('delivery_option') ??
             'Standard Delivery';
-        _orderStatus =
-            widget.orderDetails['status']?.toString() ?? 'Processing';
+        _orderStatus = initialStatus;
+        _timelineStage = initialStage;
         _isLoading = false;
       });
 
@@ -481,7 +521,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     }
   }
 
-  void _applyPageDetails(OrderTrackingPageDetails details) {
+  Future<void> _applyPageDetails(OrderTrackingPageDetails details) async {
     if (!mounted) return;
 
     if (details.orderItems.isNotEmpty) {
@@ -517,8 +557,40 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
 
     if (details.orderStatus != null &&
         details.orderStatus!.isNotEmpty) {
-      setState(() => _orderStatus = details.orderStatus);
+      final key = _orderStorageKey();
+      final apiStage =
+          _orderTrackingService.normalizeStage(details.orderStatus);
+      final displayStage = key.isNotEmpty
+          ? _orderTrackingService.coalesceMonotonicStageSync(
+              key,
+              apiStage,
+              rawStatus: details.orderStatus,
+            )
+          : apiStage;
+      if (key.isNotEmpty) {
+        _orderTrackingService.persistMonotonicIndexAsync(key, apiStage);
+      }
+      if (!mounted) return;
+      setState(() {
+        _orderStatus = details.orderStatus;
+        _timelineStage = displayStage;
+        if (details.stageTimes.isNotEmpty) {
+          _stageTimes = details.stageTimes;
+        }
+        if (details.placedAt != null) {
+          _placedAt = details.placedAt;
+        }
+      });
       debugPrint('🔍 Updated order status from API: ${details.orderStatus}');
+    } else if (details.stageTimes.isNotEmpty || details.placedAt != null) {
+      setState(() {
+        if (details.stageTimes.isNotEmpty) {
+          _stageTimes = details.stageTimes;
+        }
+        if (details.placedAt != null) {
+          _placedAt = details.placedAt;
+        }
+      });
     }
 
     if (!details.foundInOrdersList) {
@@ -659,9 +731,15 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     return quantity == 1 ? '1 item' : '$quantity items';
   }
 
-  String _friendlyStageLabel(String status, bool isPickup) {
-    final stage = _orderTrackingService.normalizeStage(status);
-    var label = _orderTrackingService.stageLabel(stage);
+  /// Same stage as the timeline — avoids the header card jumping on noisy API status.
+  OrderTrackingStage _displayStageForUi(String fallbackStatus) {
+    return _timelineStage ??
+        _orderTrackingService.normalizeStage(_orderStatus ?? fallbackStatus);
+  }
+
+  String _friendlyStageLabel(String fallbackStatus, bool isPickup) {
+    var label =
+        _orderTrackingService.stageLabel(_displayStageForUi(fallbackStatus));
     if (isPickup) {
       if (label == 'Out for Delivery') label = 'Ready for Pickup';
       if (label == 'Arrived') label = 'At store';
@@ -670,9 +748,9 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     return label;
   }
 
-  String _statusBadgeLabel(String status, bool isPickup) {
-    final stage = _orderTrackingService.normalizeStage(status);
-    var label = _orderTrackingService.stageLabel(stage);
+  String _statusBadgeLabel(String fallbackStatus, bool isPickup) {
+    var label =
+        _orderTrackingService.stageLabel(_displayStageForUi(fallbackStatus));
     if (isPickup) {
       if (label == 'Out for Delivery') return 'Ready for Pickup';
       if (label == 'Arrived') return 'At store';
@@ -681,9 +759,8 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     return label;
   }
 
-  bool _isDeliveredStatus(String status) {
-    return _orderTrackingService.normalizeStage(status) ==
-        OrderTrackingStage.delivered;
+  bool _isDeliveredStatus(String fallbackStatus) {
+    return _displayStageForUi(fallbackStatus) == OrderTrackingStage.delivered;
   }
 
   ({
@@ -751,7 +828,9 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       service: _orderTrackingService,
       currentStatus: status,
       isPickup: isPickup,
-      placedAt: orderDate,
+      placedAt: _placedAt ?? orderDate,
+      stageTimes: _stageTimes,
+      displayStage: _timelineStage,
     );
     OrderStepsApiLogger.logBuiltTimeline(
       source: 'track-order page UI',
@@ -830,7 +909,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       debugPrint('🔍 Order details: ${widget.orderDetails}');
 
       final orderDate =
-          DateTime.tryParse(widget.orderDetails['created_at'] ?? '');
+          parseOrderTimestamp(widget.orderDetails['created_at']);
       final status =
           _orderStatus ?? widget.orderDetails['status'] ?? 'Processing';
       final orderItems = getOrderItems();

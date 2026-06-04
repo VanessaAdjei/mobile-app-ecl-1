@@ -1,7 +1,9 @@
 import '../models/order_tracking_page_details.dart';
 import '../services/auth_service.dart';
 import '../services/order_history_transformer.dart';
+import '../services/order_tracking_service.dart';
 import 'order_steps_api_logger.dart';
+import 'order_timestamp_parser.dart';
 
 /// Resolves order list + status API data for the legacy order tracking page.
 Future<OrderTrackingPageDetails> resolveOrderTrackingPageDetails(
@@ -112,19 +114,35 @@ Future<OrderTrackingPageDetails> resolveOrderTrackingPageDetails(
       targetOrder['delivery_method']?.toString() ??
       targetOrder['shipping_type']?.toString();
 
-  var orderStatus = targetOrder['status']?.toString() ??
-      targetOrder['order_status']?.toString();
-  if (orderStatus == null || orderStatus.isEmpty) {
+  final trackingService = OrderTrackingService();
+  var orderStatus = trackingService.resolveAuthoritativeRawStatus(targetOrder);
+  if (orderStatus.isEmpty) {
+    orderStatus = targetOrder['status']?.toString() ??
+        targetOrder['order_status']?.toString() ??
+        '';
+  }
+  if (orderStatus.isEmpty) {
     final dId = targetOrder['delivery_id']?.toString();
     if (dId != null) {
+      final candidates = <String>[];
       for (final o in orders) {
         if (o is! Map) continue;
         if (o['delivery_id']?.toString() != dId) continue;
         final s = o['status']?.toString() ?? o['order_status']?.toString();
-        if (s != null && s.isNotEmpty) {
-          orderStatus = s;
-          break;
+        if (s != null && s.isNotEmpty) candidates.add(s);
+      }
+      if (candidates.isNotEmpty) {
+        var best = candidates.first;
+        var bestStage = trackingService.normalizeStage(best);
+        for (final s in candidates.skip(1)) {
+          final stage = trackingService.normalizeStage(s);
+          if (trackingService.stageTimelineIndex(stage) >
+              trackingService.stageTimelineIndex(bestStage)) {
+            bestStage = stage;
+            best = s;
+          }
         }
+        orderStatus = best;
       }
     }
   }
@@ -133,6 +151,10 @@ Future<OrderTrackingPageDetails> resolveOrderTrackingPageDetails(
     'track-order page (GET /orders match)',
     snapshot: targetOrder,
   );
+
+  final stageTimes =
+      trackingService.parseStageTimestampsFromSnapshot(targetOrder);
+  final placedAt = parseOrderTimestamp(targetOrder['created_at']);
 
   return OrderTrackingPageDetails(
     orderStatus: orderStatus,
@@ -143,6 +165,8 @@ Future<OrderTrackingPageDetails> resolveOrderTrackingPageDetails(
     actualTotalAmount: actualTotalAmount,
     orderItems: orderItems,
     foundInOrdersList: true,
+    stageTimes: stageTimes,
+    placedAt: placedAt,
   );
 }
 

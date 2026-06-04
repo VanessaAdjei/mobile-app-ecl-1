@@ -1,11 +1,11 @@
 import 'package:eclapp/models/order_status_step.dart';
+import 'package:eclapp/utils/order_timestamp_parser.dart';
 import 'package:eclapp/widgets/post_checkout/post_checkout_design.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 
 /// Full vertical timeline — all steps visible with refined styling.
 class PostCheckoutOrderProgressCard extends StatelessWidget {
@@ -314,7 +314,7 @@ class _ProgressStepRowState extends State<_ProgressStepRow> {
 
   void _syncElapsedTimer() {
     if (step.isCurrent) {
-      _elapsedTimer ??= Timer.periodic(const Duration(seconds: 15), (_) {
+      _elapsedTimer ??= Timer.periodic(const Duration(seconds: 30), (_) {
         if (mounted) setState(() {});
       });
     } else {
@@ -375,23 +375,13 @@ class _ProgressStepRowState extends State<_ProgressStepRow> {
 
   static String? _formatCompletedTime(DateTime? at) {
     if (at == null) return null;
-    return DateFormat('h:mm a').format(at);
+    return formatStepClockTime(at);
   }
 
-  static String? _formatActiveElapsed(DateTime? at) {
+  /// How long the order has been in this step (not "ago" from an arbitrary clock).
+  static String? _formatActiveDuration(DateTime? at) {
     if (at == null) return null;
-    final elapsed = DateTime.now().difference(at);
-    final minutes = elapsed.inMinutes;
-    if (minutes < 1) return 'Just now';
-    if (minutes < 60) {
-      return minutes == 1 ? '1 min ago' : '$minutes min ago';
-    }
-    final hours = elapsed.inHours;
-    if (hours < 24) {
-      return hours == 1 ? '1 hr ago' : '$hours hr ago';
-    }
-    final days = elapsed.inDays;
-    return days == 1 ? '1 day ago' : '$days days ago';
+    return formatStepDuration(at);
   }
 
   @override
@@ -401,8 +391,8 @@ class _ProgressStepRowState extends State<_ProgressStepRow> {
     final pending = !done && !current;
     final hint = _hintForStep(step.id);
     final completedTime = done ? _formatCompletedTime(step.occurredAt) : null;
-    final activeElapsed =
-        current ? _formatActiveElapsed(step.occurredAt) : null;
+    final activeDuration =
+        current ? _formatActiveDuration(step.occurredAt) : null;
 
     Widget node = _StepNode(
       done: done,
@@ -513,13 +503,13 @@ class _ProgressStepRowState extends State<_ProgressStepRow> {
                       ],
                     ),
                     if (current &&
-                        (activeElapsed != null || hint.isNotEmpty)) ...[
+                        (activeDuration != null || hint.isNotEmpty)) ...[
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          if (activeElapsed != null) ...[
+                          if (activeDuration != null) ...[
                             Text(
-                              activeElapsed,
+                              activeDuration,
                               style: GoogleFonts.poppins(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,

@@ -252,6 +252,41 @@ Product _productFromFlatMap(Map<String, dynamic> map) {
   return _productFromCatalogRow(map, productData);
 }
 
+/// Minimum catalog size before typeahead filter runs on a background isolate.
+const int kTypeaheadLocalIsolateThreshold = 500;
+
+/// In-memory typeahead filter (name + description + category); used when catalog is cached.
+List<Product> filterProductsForTypeaheadList(
+  List<Product> catalog,
+  String query, {
+  int limit = 7,
+}) {
+  final tokens = query
+      .toLowerCase()
+      .split(RegExp(r'\s+'))
+      .where((t) => t.isNotEmpty)
+      .toList();
+  if (tokens.isEmpty) return const [];
+
+  final results = <Product>[];
+  for (final product in catalog) {
+    final haystack =
+        '${product.name} ${product.description} ${product.category}'
+            .toLowerCase();
+    var matches = true;
+    for (final token in tokens) {
+      if (!haystack.contains(token)) {
+        matches = false;
+        break;
+      }
+    }
+    if (!matches) continue;
+    results.add(product);
+    if (results.length >= limit) break;
+  }
+  return results;
+}
+
 List<Product> productsFromSearchApiList(List<dynamic> items) {
   return items.map<Product>((item) {
     final map =

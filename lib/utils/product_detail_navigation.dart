@@ -7,7 +7,7 @@ import '../models/product_model.dart';
 import '../pages/itemdetail.dart';
 import '../services/product_detail_service.dart';
 
-/// Opens [ItemPage] with catalog preview + API warm-up (used from every product list).
+/// Opens [ItemPage] with detail API warm-up + cache (used from every product list).
 class ProductDetailNavigation {
   ProductDetailNavigation._();
 
@@ -111,7 +111,6 @@ class ProductDetailNavigation {
     return {
       'urlName': urlName,
       'isPrescribed': resolvePrescribed(preview: preview, explicit: isPrescribed),
-      if (preview != null) 'product': preview.toJson(),
     };
   }
 
@@ -129,7 +128,6 @@ class ProductDetailNavigation {
     return ItemPage(
       urlName: urlName,
       isPrescribed: resolvePrescribed(preview: preview, explicit: isPrescribed),
-      initialProduct: preview,
     );
   }
 

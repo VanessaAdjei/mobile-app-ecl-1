@@ -20,19 +20,80 @@ class OnboardingWelcomeSlide extends StatefulWidget {
   State<OnboardingWelcomeSlide> createState() => _OnboardingWelcomeSlideState();
 }
 
-class _OnboardingWelcomeSlideState extends State<OnboardingWelcomeSlide> {
+class _OnboardingWelcomeSlideState extends State<OnboardingWelcomeSlide>
+    with TickerProviderStateMixin {
   int _catalogCount = 0;
+
+  late final AnimationController _entranceController;
+  late final AnimationController _pulseController;
+  late final Animation<double> _buttonFade;
+  late final Animation<Offset> _buttonSlide;
+  late final Animation<double> _buttonPulse;
 
   @override
   void initState() {
     super.initState();
     _catalogCount = ProductCache.catalogProductCount;
     ProductCache.addCatalogListener(_onCatalogUpdated);
+
+    _entranceController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 650),
+    );
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+
+    _buttonFade = CurvedAnimation(
+      parent: _entranceController,
+      curve: Curves.easeOut,
+    );
+    _buttonSlide = Tween<Offset>(
+      begin: const Offset(0, 0.28),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+    _buttonPulse = Tween<double>(begin: 1, end: 1.045).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+
+    _entranceController.forward().then((_) {
+      if (mounted && !widget.isLoading) _startButtonPulse();
+    });
+  }
+
+  void _startButtonPulse() {
+    if (_pulseController.isAnimating) return;
+    _pulseController.repeat(reverse: true);
+  }
+
+  void _stopButtonPulse() {
+    if (_pulseController.isAnimating) {
+      _pulseController.stop();
+    }
+    _pulseController.value = 0;
+  }
+
+  @override
+  void didUpdateWidget(OnboardingWelcomeSlide oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isLoading && !oldWidget.isLoading) {
+      _stopButtonPulse();
+    } else if (!widget.isLoading && oldWidget.isLoading) {
+      _startButtonPulse();
+    }
   }
 
   @override
   void dispose() {
     ProductCache.removeCatalogListener(_onCatalogUpdated);
+    _entranceController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
@@ -145,15 +206,89 @@ class _OnboardingWelcomeSlideState extends State<OnboardingWelcomeSlide> {
                 ),
               ),
             ),
-            OnboardingSlideFooter(
+            _AnimatedGetStartedFooter(
               progressDots: widget.progressDots,
               buttonLabel: 'Get started',
               onPressed: widget.isLoading ? null : widget.onGetStarted,
               isLoading: widget.isLoading,
               bottomPadding: 20,
+              fade: _buttonFade,
+              slide: _buttonSlide,
+              pulse: _buttonPulse,
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Footer with entrance + gentle pulse on the primary CTA (welcome slide only).
+class _AnimatedGetStartedFooter extends StatelessWidget {
+  const _AnimatedGetStartedFooter({
+    required this.progressDots,
+    required this.buttonLabel,
+    required this.onPressed,
+    required this.fade,
+    required this.slide,
+    required this.pulse,
+    this.isLoading = false,
+    this.bottomPadding = 24,
+  });
+
+  final Widget progressDots;
+  final String buttonLabel;
+  final VoidCallback? onPressed;
+  final bool isLoading;
+  final double bottomPadding;
+  final Animation<double> fade;
+  final Animation<Offset> slide;
+  final Animation<double> pulse;
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(24, 0, 24, bottomPadding + bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          progressDots,
+          const SizedBox(height: 16),
+          FadeTransition(
+            opacity: fade,
+            child: SlideTransition(
+              position: slide,
+              child: AnimatedBuilder(
+                animation: pulse,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: isLoading ? 1 : pulse.value,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.2),
+                            blurRadius: 18,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: child,
+                    ),
+                  );
+                },
+                child: OnboardingPrimaryButton(
+                  label: buttonLabel,
+                  onPressed: onPressed,
+                  isLoading: isLoading,
+                  icon: Icons.arrow_forward_rounded,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,9 +1,26 @@
 import 'package:flutter/foundation.dart';
 
+import '../cache/product_cache.dart';
+import '../cache/product_catalog_memory.dart';
 import '../models/category_fetch_result.dart';
 import '../models/product_model.dart';
 import '../repositories/product_repository.dart';
 import '../utils/product_catalog_parser.dart';
+
+class _TypeaheadLocalSearch {
+  const _TypeaheadLocalSearch(this.catalog, this.query, this.limit);
+  final List<Product> catalog;
+  final String query;
+  final int limit;
+}
+
+List<Product> _filterTypeaheadOnIsolate(_TypeaheadLocalSearch msg) {
+  return filterProductsForTypeaheadList(
+    msg.catalog,
+    msg.query,
+    limit: msg.limit,
+  );
+}
 
 /// Homepage / ProductCache catalog use-cases.
 class ProductCatalogService {
@@ -11,6 +28,9 @@ class ProductCatalogService {
       : _repository = repository ?? ProductRepositoryImpl();
 
   final ProductRepository _repository;
+
+  static final Map<String, List<Product>> _typeaheadApiCache = {};
+  static const int _typeaheadApiCacheMax = 64;
 
   /// Fast home subset — [get-home-priority], falling back to [popular-products].
   Future<List<Product>> fetchPriorityProducts({
@@ -72,19 +92,49 @@ class ProductCatalogService {
     return parsed;
   }
 
-  /// Search suggestions for the home typeahead field.
+  /// Typeahead suggestions — local catalog when cached, else `/api/search/{query}`.
   Future<List<Product>> searchForTypeahead(
     String query, {
-    Duration timeout = const Duration(seconds: 10),
+    Duration timeout = const Duration(seconds: 4),
+    int limit = 7,
   }) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return const [];
+
+    List<Product>? catalog;
+    if (ProductCache.hasProductsInMemory) {
+      catalog = ProductCache.cachedProducts;
+    } else if (ProductCache.hasPriorityProducts) {
+      catalog = ProductCache.cachedPriorityProducts;
+    } else if (ProductCatalogMemory.hasProducts) {
+      catalog = ProductCatalogMemory.products;
+    }
+
+    if (catalog != null && catalog.isNotEmpty) {
+      if (catalog.length >= kTypeaheadLocalIsolateThreshold) {
+        return compute(
+          _filterTypeaheadOnIsolate,
+          _TypeaheadLocalSearch(catalog, trimmed, limit),
+        );
+      }
+      return filterProductsForTypeaheadList(catalog, trimmed, limit: limit);
+    }
+
+    final cacheKey = trimmed.toLowerCase();
+    final cached = _typeaheadApiCache[cacheKey];
+    if (cached != null) return cached;
 
     final result =
         await _repository.searchProducts(trimmed, timeout: timeout);
     _rethrowIfTransportError(result);
     if (!result.isHttpOk) return const [];
-    return productsFromSearchApiList(result.data);
+    final parsed = productsFromSearchApiList(result.data);
+    final capped = parsed.length > limit ? parsed.sublist(0, limit) : parsed;
+    if (_typeaheadApiCache.length >= _typeaheadApiCacheMax) {
+      _typeaheadApiCache.remove(_typeaheadApiCache.keys.first);
+    }
+    _typeaheadApiCache[cacheKey] = capped;
+    return capped;
   }
 
   void _rethrowIfTransportError(CategoryFetchResult result) {

@@ -9,6 +9,8 @@ class OrderTrackingPageDetails {
     this.actualTotalAmount,
     this.orderItems = const [],
     this.foundInOrdersList = false,
+    this.stageTimes = const {},
+    this.placedAt,
   });
 
   final String? orderStatus;
@@ -19,4 +21,6 @@ class OrderTrackingPageDetails {
   final double? actualTotalAmount;
   final List<Map<String, dynamic>> orderItems;
   final bool foundInOrdersList;
+  final Map<String, DateTime> stageTimes;
+  final DateTime? placedAt;
 }

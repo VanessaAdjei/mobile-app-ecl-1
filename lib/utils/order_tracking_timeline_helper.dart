@@ -9,11 +9,20 @@ abstract final class OrderTrackingTimelineHelper {
     required String currentStatus,
     required bool isPickup,
     DateTime? placedAt,
+    Map<String, DateTime> stageTimes = const {},
+    OrderTrackingStage? displayStage,
   }) {
-    final stage = service.normalizeStage(currentStatus);
+    final stage = displayStage ?? service.normalizeStage(currentStatus);
+    final createdAt = placedAt ?? DateTime.now();
+    final times = Map<String, DateTime>.from(stageTimes);
+    times.putIfAbsent(
+      OrderTrackingStage.orderPlaced.name,
+      () => createdAt,
+    );
     final steps = service.buildTimeline(
       stage,
-      createdAt: placedAt ?? DateTime.now(),
+      createdAt: createdAt,
+      stageTimes: times,
     );
     if (!isPickup) return steps;
 

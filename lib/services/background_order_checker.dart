@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_service.dart';
 import 'order_notification_service.dart';
+import '../providers/order_tracking_provider.dart';
+import '../utils/order_status_notification_copy.dart';
 
 /// Polls GET /orders and fires local notifications when cached status changes.
 ///
@@ -13,7 +15,7 @@ import 'order_notification_service.dart';
 class BackgroundOrderChecker {
   static Timer? _timer;
   static bool _checkInProgress = false;
-  static const Duration _checkInterval = Duration(minutes: 5);
+  static const Duration _checkInterval = Duration(minutes: 2);
 
   /// Stable id for [user_orders] cache and change detection.
   static String _orderKey(Map<String, dynamic> order) {
@@ -168,7 +170,7 @@ class BackgroundOrderChecker {
           '🔄 Status change: order $orderId "$oldStatus" -> "$newStatus"',
         );
 
-        final (title, message) = _getStatusNotificationContent(
+        final (title, message) = orderStatusNotificationContent(
           orderNumber,
           newStatus,
         );
@@ -182,115 +184,11 @@ class BackgroundOrderChecker {
               order['total_amount']?.toString() ?? order['total']?.toString(),
           items: order['items'] as List<dynamic>?,
         );
+        OrderTrackingProvider.notifyOrderStatusChanged();
       }
     } catch (e, st) {
       debugPrint('🔄 Error tracking order status changes: $e\n$st');
     }
   }
 
-  /// Match [OrderTrackingService.normalizeStage] ordering — specific phrases first.
-  static (String title, String message) _getStatusNotificationContent(
-    String orderNumber,
-    String status,
-  ) {
-    final s = status.toLowerCase();
-
-    if (s.contains('cancel')) {
-      return (
-        'Order Cancelled',
-        'Your order #$orderNumber has been cancelled.',
-      );
-    }
-    if (s == 'arrived' || s.contains('arrived')) {
-      return (
-        'Order Arrived',
-        'Your order #$orderNumber has arrived at your delivery location.',
-      );
-    }
-    if (s.contains('delivered') || s == 'completed') {
-      return (
-        'Order Delivered',
-        'Your order #$orderNumber has been delivered. Thank you for shopping with us!',
-      );
-    }
-    if (s.contains('ready for pickup') ||
-        s.contains('ready_for_pickup') ||
-        s.contains('ready to be picked')) {
-      return (
-        'Ready for Pickup',
-        'Your order #$orderNumber is ready for pickup.',
-      );
-    }
-    if (s.contains('out for delivery') ||
-        s.contains('out_for_delivery') ||
-        s.contains('out for')) {
-      return (
-        'Out for Delivery',
-        'Your order #$orderNumber is out for delivery. It will arrive soon!',
-      );
-    }
-    if (s.contains('ready for dispatch') ||
-        s.contains('ready_for_dispatch') ||
-        s.contains('ready to dispatch')) {
-      return (
-        'Ready for Dispatch',
-        'Your order #$orderNumber is packed and ready for dispatch.',
-      );
-    }
-    if (s.contains('dispatched') ||
-        (s.contains('dispatch') && !s.contains('confirmation'))) {
-      return (
-        'Ready for Dispatch',
-        'Your order #$orderNumber is packed and ready for dispatch.',
-      );
-    }
-    if (s.contains('ship') && !s.contains('out for')) {
-      return (
-        'Out for Delivery',
-        'Your order #$orderNumber has been shipped and is on its way!',
-      );
-    }
-    if (s.contains('pending confirmation') ||
-        s.contains('pending_confirmation') ||
-        s == 'confirming') {
-      return (
-        'Pending Confirmation',
-        'Your order #$orderNumber is awaiting confirmation from the store.',
-      );
-    }
-    if (s.contains('confirm') ||
-        s == 'processing' ||
-        s.contains('preparing') ||
-        s.contains('packing')) {
-      return (
-        'Order Confirmed',
-        'Your order #$orderNumber has been confirmed and is being prepared.',
-      );
-    }
-    if (s.contains('paid') ||
-        s == 'payment received' ||
-        s == 'payment verified') {
-      return (
-        'Payment Received',
-        'Payment for order #$orderNumber has been received. Your order is being confirmed.',
-      );
-    }
-    if (s.contains('order placed') || s == 'placed' || s == 'success') {
-      return (
-        'Order Placed',
-        'Your order #$orderNumber has been placed and is being processed.',
-      );
-    }
-    if (s == 'pending') {
-      return (
-        'Order Placed',
-        'Your order #$orderNumber has been placed and is being processed.',
-      );
-    }
-
-    return (
-      'Order Update',
-      'Your order #$orderNumber status: $status',
-    );
-  }
 }

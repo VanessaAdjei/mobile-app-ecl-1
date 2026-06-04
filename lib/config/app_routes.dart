@@ -4,7 +4,6 @@ import '../pages/cart.dart';
 import '../pages/categories.dart';
 import '../pages/homepage.dart';
 import '../pages/main_tab_shell.dart';
-import '../models/product_model.dart';
 import '../pages/itemdetail.dart';
 import '../pages/notifications.dart';
 import '../pages/pharmacists.dart';
@@ -74,19 +73,10 @@ class AppRouteGenerator {
         final args = settings.arguments as Map<String, dynamic>?;
         final urlName = args?['urlName'] as String? ?? '';
         final isPrescribed = args?['isPrescribed'] as bool? ?? false;
-        Product? initialProduct;
-        final productJson = args?['product'];
-        if (productJson is Map<String, dynamic>) {
-          initialProduct = Product.fromJson(productJson);
-        } else if (productJson is Map) {
-          initialProduct =
-              Product.fromJson(Map<String, dynamic>.from(productJson));
-        }
         return MaterialPageRoute(
           builder: (_) => ItemPage(
             urlName: urlName,
             isPrescribed: isPrescribed,
-            initialProduct: initialProduct,
           ),
         );
       case AppRoutes.categoryPage:

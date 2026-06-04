@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/order_tracking_model.dart';
 import '../../services/order_notification_service.dart';
+import '../../utils/order_timestamp_parser.dart';
 
 abstract class OrderTrackingLocalDataSource {
   Future<void> storeOrderAmounts({
@@ -19,6 +20,24 @@ abstract class OrderTrackingLocalDataSource {
     String orderKey,
     String stageId,
     DateTime occurredAt,
+  );
+
+  Future<void> upsertStageTimestamp(
+    String orderKey,
+    String stageId,
+    DateTime occurredAt,
+  );
+
+  Future<void> saveStageTimestamps(
+    String orderKey,
+    Map<String, DateTime> timestamps,
+  );
+
+  Future<int> loadHighestTimelineIndex(String orderKey);
+
+  Future<void> saveHighestTimelineIndexIfHigher(
+    String orderKey,
+    int timelineIndex,
   );
 }
 
@@ -82,7 +101,7 @@ class OrderTrackingLocalDataSourceImpl implements OrderTrackingLocalDataSource {
       if (decoded is! Map) return {};
       final result = <String, DateTime>{};
       for (final entry in decoded.entries) {
-        final parsed = DateTime.tryParse(entry.value.toString());
+        final parsed = parseOrderTimestamp(entry.value);
         if (parsed != null) {
           result[entry.key.toString()] = parsed;
         }
@@ -110,5 +129,56 @@ class OrderTrackingLocalDataSourceImpl implements OrderTrackingLocalDataSource {
       existing.map((k, v) => MapEntry(k, v.toIso8601String())),
     );
     await prefs.setString(key, encoded);
+  }
+
+  @override
+  Future<void> upsertStageTimestamp(
+    String orderKey,
+    String stageId,
+    DateTime occurredAt,
+  ) async {
+    if (orderKey.isEmpty || stageId.isEmpty) return;
+    final existing = await loadStageTimestamps(orderKey);
+    existing[stageId] = occurredAt.toLocal();
+    await saveStageTimestamps(orderKey, existing);
+  }
+
+  @override
+  Future<void> saveStageTimestamps(
+    String orderKey,
+    Map<String, DateTime> timestamps,
+  ) async {
+    if (orderKey.isEmpty || timestamps.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = json.encode(
+      timestamps.map(
+        (k, v) => MapEntry(k, v.toLocal().toIso8601String()),
+      ),
+    );
+    await prefs.setString(_stageTimestampsKey(orderKey), encoded);
+  }
+
+  static String _highestTimelineIndexKey(String orderKey) =>
+      'order_highest_tl_idx_$orderKey';
+
+  @override
+  Future<int> loadHighestTimelineIndex(String orderKey) async {
+    if (orderKey.isEmpty) return -1;
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_highestTimelineIndexKey(orderKey)) ?? -1;
+  }
+
+  @override
+  Future<void> saveHighestTimelineIndexIfHigher(
+    String orderKey,
+    int timelineIndex,
+  ) async {
+    if (orderKey.isEmpty || timelineIndex < 0) return;
+    final prefs = await SharedPreferences.getInstance();
+    final key = _highestTimelineIndexKey(orderKey);
+    final existing = prefs.getInt(key) ?? -1;
+    if (timelineIndex > existing) {
+      await prefs.setInt(key, timelineIndex);
+    }
   }
 }

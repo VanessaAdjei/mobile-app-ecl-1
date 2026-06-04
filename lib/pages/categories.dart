@@ -812,7 +812,7 @@ class CategoryPageState extends State<CategoryPage> {
       });
     }
 
-    _searchDebounceTimer = Timer(const Duration(milliseconds: 350), () async {
+    _searchDebounceTimer = Timer(const Duration(milliseconds: 250), () async {
       await _performSearch(query);
     });
   }
