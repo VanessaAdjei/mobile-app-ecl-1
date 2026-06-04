@@ -15,6 +15,10 @@ List<Product> decodeStoredProductsJson(String jsonStr) {
       .toList();
 }
 
+String encodeProductsForStorage(List<Product> products) {
+  return json.encode(products.map((p) => p.toJson()).toList());
+}
+
 /// In-memory + disk cache for the full product catalog (get-all-products).
 class ProductCache {
   ProductCache._();
@@ -22,6 +26,7 @@ class ProductCache {
   static List<Product> _cachedProducts = [];
   static List<Product> _cachedPopularProducts = [];
   static List<Product> _priorityProducts = [];
+  static List<dynamic> _cachedRawCatalogItems = [];
   static DateTime? _lastCacheTime;
 
   /// Fresh catalog TTL — network reload only after this unless forced.
@@ -37,6 +42,7 @@ class ProductCache {
   static Future<void>? _priorityLoadFuture;
   static Future<void>? _storageLoadFuture;
   static bool _loggedCatalogReady = false;
+  static bool _catalogApiSucceeded = false;
   static final List<VoidCallback> _catalogListeners = [];
   static final List<VoidCallback> _priorityListeners = [];
   static final ProductCatalogService _catalogService = ProductCatalogService();
@@ -53,6 +59,39 @@ class ProductCache {
       List<Product>.unmodifiable(_priorityProducts);
 
   static int get catalogProductCount => _cachedProducts.length;
+
+  /// True after get-all-products returns `status: "success"` / `success: true`.
+  static bool get catalogApiSucceeded =>
+      _catalogApiSucceeded || hasProductsInMemory;
+
+  static Future<void> waitForCatalogApiSuccess({
+    Duration maxWait = const Duration(seconds: 45),
+  }) async {
+    if (catalogApiSucceeded) return;
+    final deadline = DateTime.now().add(maxWait);
+    void listener() {
+      if (catalogApiSucceeded) {
+        removeCatalogListener(listener);
+      }
+    }
+
+    addCatalogListener(listener);
+    try {
+      while (DateTime.now().isBefore(deadline)) {
+        if (catalogApiSucceeded) return;
+        if (!isCatalogLoadInFlight &&
+            !isPriorityLoadInFlight &&
+            _catalogLoadFuture == null &&
+            _prefetchInFlight == false) {
+          await Future<void>.delayed(const Duration(milliseconds: 200));
+          if (catalogApiSucceeded) return;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+      }
+    } finally {
+      removeCatalogListener(listener);
+    }
+  }
 
   static void addCatalogListener(VoidCallback listener) {
     _catalogListeners.add(listener);
@@ -114,6 +153,9 @@ class ProductCache {
 
   static void cacheProducts(List<Product> products) {
     final hadProducts = _cachedProducts.isNotEmpty;
+    if (products.isNotEmpty) {
+      _catalogApiSucceeded = true;
+    }
     if (products.isNotEmpty && _priorityProducts.isEmpty) {
       _cachePriorityProducts(pickPriorityFromCatalog(products));
       CatalogTimer.mark('priority_from_full_catalog');
@@ -127,21 +169,37 @@ class ProductCache {
     }
   }
 
-  /// Fast home subset — OTC medication first, then any catalog rows.
+  static void _markCatalogApiSucceeded({bool notifyListeners = true}) {
+    if (_catalogApiSucceeded) return;
+    _catalogApiSucceeded = true;
+    if (notifyListeners) _notifyCatalogListeners();
+  }
+
+  static bool isPrescriptionProduct(Product product) =>
+      product.otcpom?.trim().toLowerCase() == 'pom';
+
+  /// Popular / home-priority rows — never include prescription (POM) medicines.
+  static List<Product> withoutPrescriptionProducts(Iterable<Product> products) =>
+      products.where((p) => !isPrescriptionProduct(p)).toList();
+
+  /// Fast home subset — OTC medication first, then other non-POM catalog rows.
   static List<Product> pickPriorityFromCatalog(
     List<Product> catalog, {
     int limit = 24,
   }) {
     if (catalog.isEmpty) return const [];
+    final eligible = withoutPrescriptionProducts(catalog);
+    if (eligible.isEmpty) return const [];
+
     final otc = <Product>[];
-    for (final p in catalog) {
+    for (final p in eligible) {
       if (p.otcpom?.trim().toLowerCase() == 'otc') {
         otc.add(p);
         if (otc.length >= limit) break;
       }
     }
     if (otc.length >= 8) return otc.take(limit).toList();
-    return catalog.take(limit).toList();
+    return eligible.take(limit).toList();
   }
 
   static Future<List<Product>> _waitForCatalogPrioritySlice(
@@ -159,7 +217,7 @@ class ProductCache {
   }
 
   static void cachePopularProducts(List<Product> products) {
-    _cachedPopularProducts = products;
+    _cachedPopularProducts = withoutPrescriptionProducts(products);
     _lastCacheTime = DateTime.now();
     unawaited(_saveToStorage());
   }
@@ -337,10 +395,16 @@ class ProductCache {
   static List<Product> get cachedProducts => _cachedProducts;
   static List<Product> get cachedPopularProducts => _cachedPopularProducts;
 
+  static bool get hasRawCatalogItems => _cachedRawCatalogItems.isNotEmpty;
+
+  static List<dynamic> get cachedRawCatalogItems =>
+      List<dynamic>.from(_cachedRawCatalogItems);
+
   static void clearCache() {
     _cachedProducts.clear();
     _cachedPopularProducts.clear();
     _priorityProducts.clear();
+    _cachedRawCatalogItems = [];
     _lastCacheTime = null;
     _clearFromStorage();
   }
@@ -371,8 +435,9 @@ class ProductCache {
 
       final popularJson = prefs.getString(_popularProductsKey);
       if (popularJson != null && popularJson.isNotEmpty) {
-        _cachedPopularProducts =
-            await compute(decodeStoredProductsJson, popularJson);
+        cachePopularProducts(
+          await compute(decodeStoredProductsJson, popularJson),
+        );
       }
 
       debugPrint(
@@ -381,6 +446,7 @@ class ProductCache {
       );
 
       if (_cachedProducts.isNotEmpty) {
+        _catalogApiSucceeded = true;
         if (_priorityProducts.isEmpty) {
           _cachePriorityProducts(pickPriorityFromCatalog(_cachedProducts));
           CatalogTimer.mark('priority_disk_ready');
@@ -424,10 +490,10 @@ class ProductCache {
       debugPrint(
         'ProductCache: get-all-products OK — ${_cachedProducts.length} products',
       );
-      if (_cachedPopularProducts.isEmpty) {
-        await _fetchAndCachePopularProducts();
-      }
       _fillPopularFromCatalogIfNeeded();
+      if (_cachedPopularProducts.isEmpty) {
+        unawaited(_fetchAndCachePopularProducts());
+      }
       CatalogTimer.mark('network_catalog_ready');
       _notifyCatalogListeners();
       debugPrint(
@@ -443,27 +509,40 @@ class ProductCache {
 
   static void _fillPopularFromCatalogIfNeeded() {
     if (_cachedProducts.isEmpty || _cachedPopularProducts.isNotEmpty) return;
-    final shuffled = List<Product>.from(_cachedProducts)..shuffle();
-    final take = shuffled.length.clamp(0, 20);
-    if (take > 0) {
-      cachePopularProducts(shuffled.take(take).toList());
+    final slice = pickPriorityFromCatalog(_cachedProducts, limit: 20);
+    if (slice.isNotEmpty) {
+      cachePopularProducts(slice);
     }
   }
 
   static Future<void> _fetchAndCacheAllProducts() async {
+    // One long attempt first — slow 1k+ product payloads often exceed 20s;
+    // retrying after a false timeout doubles wall time (~38s → ~60s+).
     const timeouts = <Duration>[
-      Duration(seconds: 20),
-      Duration(seconds: 30),
-      Duration(seconds: 45),
+      Duration(seconds: 50),
+      Duration(seconds: 70),
     ];
     Object? lastError;
     List<Product> products = const [];
 
     for (var i = 0; i < timeouts.length; i++) {
       final timeout = timeouts[i];
+      final sw = Stopwatch()..start();
       try {
-        products = await _catalogService.fetchCatalogProducts(timeout: timeout);
+        final bundle =
+            await _catalogService.fetchCatalogBundle(timeout: timeout);
+        products = bundle.products;
+        if (bundle.apiSuccess) {
+          _markCatalogApiSucceeded(notifyListeners: products.isEmpty);
+        }
+        if (bundle.rawItems.isNotEmpty) {
+          _cachedRawCatalogItems = List<dynamic>.from(bundle.rawItems);
+        }
         lastError = null;
+        debugPrint(
+          'ProductCache: get-all-products parsed ${products.length} products '
+          'in ${sw.elapsedMilliseconds}ms (attempt ${i + 1})',
+        );
         break;
       } on TimeoutException catch (e) {
         lastError = e;
@@ -474,7 +553,7 @@ class ProductCache {
           '(attempt $attempt/${timeouts.length}) after ${timeout.inSeconds}s',
         );
         if (!isLast) {
-          await Future<void>.delayed(Duration(milliseconds: 350 * attempt));
+          await Future<void>.delayed(const Duration(milliseconds: 200));
         }
       }
     }
@@ -503,9 +582,13 @@ class ProductCache {
     if (_cachedProducts.isEmpty || _lastCacheTime == null) return;
     try {
       final prefs = await SharedPreferences.getInstance();
+      final encoded = await compute(
+        encodeProductsForStorage,
+        List<Product>.from(_cachedProducts),
+      );
       await prefs.setString(
         _allProductsKey,
-        json.encode(_cachedProducts.map((p) => p.toJson()).toList()),
+        encoded,
       );
       await prefs.setString(
         _lastCacheTimeKey,

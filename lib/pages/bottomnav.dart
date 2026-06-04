@@ -17,15 +17,26 @@ import '../providers/notification_provider.dart';
 import '../services/order_notification_service.dart';
 import 'notifications.dart';
 import '../utils/app_error_utils.dart';
+import 'main_tab_shell.dart';
 
 class CustomBottomNav extends StatefulWidget {
+  /// Legacy alias — prefer [selectedIndex].
   final int initialIndex;
+
+  /// Visible tab when embedded in [MainTabShell].
+  final int? selectedIndex;
+
+  /// When set, tab taps update the shell instead of replacing routes.
+  final ValueChanged<int>? onTabSelected;
+
   final GlobalKey? tourMenuKey;
   final GlobalKey? tourShopKey;
 
   const CustomBottomNav({
     super.key,
     this.initialIndex = 0,
+    this.selectedIndex,
+    this.onTabSelected,
     this.tourMenuKey,
     this.tourShopKey,
   });
@@ -47,10 +58,14 @@ class _CustomBottomNavState extends State<CustomBottomNav>
   late Map<int, AnimationController> _navItemControllers;
   late Map<int, Animation<double>> _navItemScaleAnimations;
 
+  int get _activeIndex => widget.selectedIndex ?? _selectedIndex;
+
+  bool get _usesShellNavigation => widget.onTabSelected != null;
+
   @override
   void initState() {
     super.initState();
-    _selectedIndex = widget.initialIndex;
+    _selectedIndex = widget.selectedIndex ?? widget.initialIndex;
     _checkLoginStatus();
 
     // Initialize center button animation
@@ -103,6 +118,15 @@ class _CustomBottomNavState extends State<CustomBottomNav>
         _checkForNewNotifications();
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(CustomBottomNav oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedIndex != null &&
+        widget.selectedIndex != _selectedIndex) {
+      _selectedIndex = widget.selectedIndex!;
+    }
   }
 
   @override
@@ -603,7 +627,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                           onTap: () {
                             Navigator.pop(context);
                             _launchWhatsApp(whatsapp,
-                                "Hello! I need help with the ECL app. Can you assist me?");
+                                "Hello! I need help with the Ernest Chemist app. Can you assist me?");
                           },
                         ),
                         const Divider(height: 1),
@@ -615,7 +639,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                           color: Colors.blue.shade600,
                           onTap: () {
                             Navigator.pop(context);
-                            _launchEmail(email, 'ECL App Support & Inquiry');
+                            _launchEmail(email, 'Ernest Chemist Support & Inquiry');
                           },
                         ),
                       ],
@@ -777,23 +801,12 @@ class _CustomBottomNavState extends State<CustomBottomNav>
   }
 
   void _onItemTapped(int index) {
-    debugPrint('🔍 BOTTOM NAV TAPPED ===');
-    debugPrint('Index: $index');
-    debugPrint('Current Index: $_selectedIndex');
-    debugPrint('Current Page: ${_getCurrentPageName()}');
-
-    // Clear any snackbars when user navigates
     if (mounted) {
       ScaffoldMessenger.of(context).clearSnackBars();
     }
 
-    // prevent multiple rapid taps
-    if (_isNavigating) {
-      debugPrint('🔍 ALREADY NAVIGATING - IGNORING TAP ===');
-      return;
-    }
+    if (_isNavigating) return;
 
-    // Animate the tapped item (except center button which has its own animation)
     if (index != 2 && _navItemControllers.containsKey(index)) {
       final controller = _navItemControllers[index]!;
       controller.forward().then((_) {
@@ -801,61 +814,38 @@ class _CustomBottomNavState extends State<CustomBottomNav>
       });
     }
 
-    // Special handling for plus icon (index 2) - show menu and return
     if (index == 2) {
-      debugPrint('🔍 PLUS BUTTON TAPPED - SHOWING MENU ===');
       _showPlusMenu(context);
-      return; // Don't proceed with navigation logic
+      return;
     }
 
-    // Check if we're already on the selected page
-    // For home button (index 0), check if we're already on home page
-    // For other buttons, check if we're already on that page
-    if (index == _selectedIndex) {
-      if (index == 0) {
-        // home button: check if we're already on home page
-        if (_isOnHomePage()) {
-          debugPrint('🔍 ALREADY ON HOME PAGE - STAYING PUT ===');
-          return;
-        }
-      } else {
-        // other buttons: check if we're already on the target page
-        switch (index) {
-          case 1: // Cart
-            if (_isOnPage<Cart>()) {
-              debugPrint('🔍 ALREADY ON CART PAGE - STAYING PUT ===');
-              return;
-            }
-            break;
-          case 2: // Plus icon - no page check needed
-            // Plus icon action will be handled in switch statement
-            break;
-          case 3: // Categories
-            if (_isOnPage<CategoryPage>()) {
-              debugPrint('🔍 ALREADY ON CATEGORIES PAGE - STAYING PUT ===');
-              return;
-            }
-            break;
-          case 4: // Profile
-            if (_isOnPage<Profile>()) {
-              debugPrint('🔍 ALREADY ON PROFILE PAGE - STAYING PUT ===');
-              return;
-            }
-            break;
-        }
+    if (_usesShellNavigation) {
+      if (index == _activeIndex) return;
+      widget.onTabSelected!(index);
+      if (widget.selectedIndex == null) {
+        setState(() => _selectedIndex = index);
+      }
+      return;
+    }
+
+    if (index == _activeIndex) {
+      if (index == 0 && _isOnHomePage()) return;
+      switch (index) {
+        case 1:
+          if (_isOnPage<Cart>()) return;
+          break;
+        case 3:
+          if (_isOnPage<CategoryPage>()) return;
+          break;
+        case 4:
+          if (_isOnPage<Profile>()) return;
+          break;
       }
     }
 
-    // set navigating flag
     _isNavigating = true;
+    setState(() => _selectedIndex = index);
 
-    // Update state immediately (synchronously) - safe in tap handler
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    // Use Future.microtask instead of addPostFrameCallback to avoid frame conflicts
-    // This defers navigation to the next event loop iteration, after the current frame
     Future.microtask(() {
       if (!mounted || _disposed || !context.mounted) {
         _isNavigating = false;
@@ -863,44 +853,26 @@ class _CustomBottomNavState extends State<CustomBottomNav>
       }
 
       try {
+        if (MainTabShell.switchToTab(context, index)) {
+          return;
+        }
         switch (index) {
           case 0:
-            debugPrint('🔍 HOME BUTTON PRESSED ===');
-
-            if (ModalRoute.of(context)?.settings.name != '/home') {
-              Navigator.pushReplacementNamed(
-                context,
-                AppRoutes.home,
-              );
-            } else {
-              debugPrint('Already on home page, staying put');
-            }
+            Navigator.pushReplacementNamed(context, AppRoutes.home);
             break;
           case 1:
-            Navigator.pushReplacementNamed(
-              context,
-              AppRoutes.cart,
-            );
-            break;
-          case 2:
+            Navigator.pushReplacementNamed(context, AppRoutes.cart);
             break;
           case 3:
-            Navigator.pushReplacementNamed(
-              context,
-              AppRoutes.categoryPage,
-            );
+            Navigator.pushReplacementNamed(context, AppRoutes.categoryPage);
             break;
           case 4:
-            Navigator.pushReplacementNamed(
-              context,
-              AppRoutes.profile,
-            );
+            Navigator.pushReplacementNamed(context, AppRoutes.profile);
             break;
         }
       } catch (e) {
-        debugPrint('🔍 NAVIGATION ERROR: $e ===');
+        debugPrint('Bottom nav error: $e');
       } finally {
-        // Reset navigating flag
         if (mounted && !_disposed) {
           _isNavigating = false;
         }
@@ -956,7 +928,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                   selectedItemColor: Colors.white,
                   unselectedItemColor: Colors.white.withValues(alpha: 0.7),
                   elevation: 0,
-                  currentIndex: _selectedIndex,
+                  currentIndex: _activeIndex,
                   onTap: _onItemTapped,
                   selectedFontSize: finalFontSize,
                   unselectedFontSize: finalFontSize,
@@ -979,7 +951,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                     BottomNavigationBarItem(
                       icon: _buildIconWithGlow(
                         icon: Icons.home_rounded,
-                        isSelected: _selectedIndex == 0,
+                        isSelected: _activeIndex == 0,
                         itemIndex: 0,
                       ),
                       label: 'Home',
@@ -987,10 +959,10 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                     BottomNavigationBarItem(
                       icon: _buildIconWithGlow(
                         icon: Icons.shopping_cart_rounded,
-                        isSelected: _selectedIndex == 1,
+                        isSelected: _activeIndex == 1,
                         itemIndex: 1,
                         child: CartNavBadgeIcon(
-                          isSelected: _selectedIndex == 1,
+                          isSelected: _activeIndex == 1,
                         ),
                       ),
                       label: 'Cart',
@@ -1005,13 +977,13 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                               key: widget.tourShopKey,
                               child: _buildIconWithGlow(
                                 icon: Icons.grid_view_rounded,
-                                isSelected: _selectedIndex == 3,
+                                isSelected: _activeIndex == 3,
                                 itemIndex: 3,
                               ),
                             )
                           : _buildIconWithGlow(
                               icon: Icons.grid_view_rounded,
-                              isSelected: _selectedIndex == 3,
+                              isSelected: _activeIndex == 3,
                               itemIndex: 3,
                             ),
                       label: 'Shop',
@@ -1021,7 +993,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                         builder: (context, notificationProvider, child) {
                           return _buildIconWithGlow(
                             icon: Icons.person_rounded,
-                            isSelected: _selectedIndex == 4,
+                            isSelected: _activeIndex == 4,
                             itemIndex: 4,
                             child: Stack(
                               clipBehavior: Clip.none,

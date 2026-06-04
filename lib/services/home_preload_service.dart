@@ -1,6 +1,7 @@
 import 'dart:async';
-
 import 'package:eclapp/cache/product_cache.dart';
+import 'package:eclapp/models/product_model.dart';
+import 'package:eclapp/pages/homepage.dart' show categorizeProductsForHome;
 import 'package:eclapp/services/banner_cache_service.dart';
 import 'package:eclapp/services/category_optimization_service.dart';
 import 'package:eclapp/services/homepage_optimization_service.dart';
@@ -43,6 +44,121 @@ class HomePreloadService {
 
   static bool get isFullyReadyForHome => ProductCache.hasHomeRenderableCatalog;
 
+  static const int _sectionPoolSize = 40;
+  static const int _visiblePerSection = 6;
+
+  static List<Product> _preparedWellness = [];
+  static List<Product> _preparedSelfcare = [];
+  static List<Product> _preparedAccessories = [];
+  static List<Product> _preparedPrescribed = [];
+  static List<Product> _preparedDrugs = [];
+  static bool _homeSectionsPrepared = false;
+
+  static bool get hasPreparedHomeSections => _homeSectionsPrepared;
+
+  static List<Product> _shuffledPool(List<Product> source, {int pool = _sectionPoolSize}) {
+    if (source.isEmpty) return [];
+    if (source.length <= pool) {
+      return List<Product>.from(source)..shuffle();
+    }
+    final copy = List<Product>.from(source)..shuffle();
+    return copy.take(pool).toList();
+  }
+
+  /// Same shuffle home will use — avoids cache miss on different random 6.
+  static void prepareHomeSectionPools() {
+    final catalog = ProductCache.cachedProducts;
+    if (catalog.isEmpty) return;
+    final sections = categorizeProductsForHome(catalog);
+    _preparedWellness = _shuffledPool(sections['wellness']!);
+    _preparedSelfcare = _shuffledPool(sections['selfcare']!);
+    _preparedAccessories = _shuffledPool(sections['accessories']!);
+    _preparedPrescribed = _shuffledPool(sections['prescribed']!);
+    _preparedDrugs = _shuffledPool(sections['drugs']!);
+    _homeSectionsPrepared = true;
+    debugPrint(
+      'HomePreloadService: prepared home sections '
+      '(wellness=${_preparedWellness.length}, selfcare=${_preparedSelfcare.length}, '
+      'accessories=${_preparedAccessories.length})',
+    );
+  }
+
+  /// The 6 cards per grid section + medication row — pre-warmed before home opens.
+  static List<Product> preparedVisibleHomeProducts() {
+    if (!_homeSectionsPrepared) prepareHomeSectionPools();
+    return [
+      ..._preparedDrugs.take(ProductImagePreloadService.homeMedicationVisibleCount),
+      ..._preparedWellness.take(_visiblePerSection),
+      ..._preparedSelfcare.take(_visiblePerSection),
+      ..._preparedAccessories.take(_visiblePerSection),
+      ..._preparedPrescribed.take(_visiblePerSection),
+    ];
+  }
+
+  /// One-shot: returns prepared lists so home does not re-shuffle (images already cached).
+  static bool consumePreparedSectionPools({
+    required void Function(List<Product> drugs) setDrugs,
+    required void Function(List<Product> wellness) setWellness,
+    required void Function(List<Product> selfcare) setSelfcare,
+    required void Function(List<Product> accessories) setAccessories,
+    required void Function(List<Product> prescribed) setPrescribed,
+  }) {
+    if (!_homeSectionsPrepared) return false;
+    setDrugs(List<Product>.from(_preparedDrugs));
+    setWellness(List<Product>.from(_preparedWellness));
+    setSelfcare(List<Product>.from(_preparedSelfcare));
+    setAccessories(List<Product>.from(_preparedAccessories));
+    setPrescribed(List<Product>.from(_preparedPrescribed));
+    _homeSectionsPrepared = false;
+    return true;
+  }
+
+  static Future<void> warmPreparedVisibleSectionImages() async {
+    final products = preparedVisibleHomeProducts();
+    if (products.isEmpty) return;
+    await ProductImagePreloadService.warmProductListImages(
+      products: products,
+      maxWait: const Duration(seconds: 90),
+      maxConcurrent: 20,
+    );
+  }
+
+  /// Before leaving onboarding: full catalog from API + visible section images on disk.
+  static Future<bool> ensureOnboardingReadyForHome({
+    Duration maxWait = const Duration(seconds: 90),
+  }) async {
+    final deadline = DateTime.now().add(maxWait);
+    if (_preloadFuture == null) startOnboardingPreload();
+
+    var remaining = deadline.difference(DateTime.now());
+    if (remaining > Duration.zero && _deferredPreloadFuture != null) {
+      try {
+        await _deferredPreloadFuture!.timeout(remaining);
+      } on TimeoutException {
+        debugPrint('HomePreloadService: onboarding preload timed out');
+      }
+    } else if (remaining > Duration.zero) {
+      await _runDeferredOnboardingPreload().timeout(remaining);
+    }
+
+    if (!ProductCache.hasProductsInMemory) return false;
+    publishCatalogToHomeServices();
+
+    if (!ProductImagePreloadService.isHomeGridWarm) {
+      prepareHomeSectionPools();
+      remaining = deadline.difference(DateTime.now());
+      if (remaining > Duration.zero) {
+        try {
+          await warmPreparedVisibleSectionImages().timeout(remaining);
+        } on TimeoutException {
+          debugPrint('HomePreloadService: section image warm timed out');
+        }
+      }
+    }
+
+    return ProductImagePreloadService.isHomeGridWarm;
+  }
+
   static void startOnboardingPreload() {
     unawaited(_prefetchCatalogIfStale());
     if (_preloadFuture != null) return;
@@ -82,13 +198,12 @@ class HomePreloadService {
         final catalogForImages = ProductCache.hasProductsInMemory
             ? ProductCache.cachedProducts
             : ProductCache.cachedPriorityProducts;
-        unawaited(
-          _safeStep(
-            'priority-images',
-            ProductImagePreloadService.warmPriorityHomeImages(
-              catalog: catalogForImages,
-              maxWait: const Duration(seconds: 6),
-            ),
+        await _safeStep(
+          'priority-images',
+          ProductImagePreloadService.warmPriorityHomeImages(
+            catalog: catalogForImages,
+            maxWait: const Duration(seconds: 10),
+            maxConcurrent: 8,
           ),
         );
       } else {
@@ -116,7 +231,8 @@ class HomePreloadService {
       debugPrint('HomePreloadService: disk catalog still loading');
     }
     if (!ProductCache.shouldRefreshFromNetwork) {
-      debugPrint('HomePreloadService: catalog fresh — skip onboarding prefetch');
+      debugPrint(
+          'HomePreloadService: catalog fresh — skip onboarding prefetch');
       return;
     }
     unawaited(ProductCache.prefetchPriorityFromNetwork());
@@ -131,23 +247,17 @@ class HomePreloadService {
 
   static Future<void> _runDeferredOnboardingPreload() async {
     try {
+      await _safeStep(
+        'full-catalog',
+        ProductCache.ensureCatalogReady(maxWait: const Duration(minutes: 2)),
+      );
+      prepareHomeSectionPools();
+      await _safeStep(
+        'home-section-images',
+        warmPreparedVisibleSectionImages(),
+      );
       await Future.wait([
-        _safeStep(
-          'full-catalog',
-          ProductCache.ensureCatalogReady(
-            maxWait: const Duration(minutes: 2),
-          ),
-        ),
         _safeStep('popular', ProductCache.ensurePopularReady()),
-        _safeStep(
-          'home-grid-images',
-          ProductImagePreloadService.ensureHomeGridImagesReady(
-            catalog: ProductCache.cachedProducts,
-            popular: ProductCache.cachedPopularProducts,
-            maxWait: const Duration(minutes: 2),
-            maxConcurrent: 4,
-          ),
-        ),
         _safeStep(
           'categories',
           ensureCategoriesReady(maxWait: const Duration(minutes: 2)),

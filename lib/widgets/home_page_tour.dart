@@ -50,44 +50,22 @@ class HomePageTour {
     return _targetReady(targets.searchKey) && _targetReady(targets.cartKey);
   }
 
-  /// Returns true if the overlay was shown.
-  static Future<bool> maybeStart({
-    required BuildContext context,
-    required HomePageTourTargets targets,
+  /// Bottom-nav targets live on [MainTabShell]; wait for them before starting.
+  static bool _bottomNavTourTargetsReady(HomePageTourTargets targets) {
+    if (targets.shopKey != null && !_targetReady(targets.shopKey!)) {
+      return false;
+    }
+    if (targets.menuKey != null && !_targetReady(targets.menuKey!)) {
+      return false;
+    }
+    return true;
+  }
+
+  static List<SpotlightStep> _buildSteps(
+    HomePageTourTargets targets,
     ScrollController? scrollController,
-    bool force = false,
-  }) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!force && (prefs.getBool('has_seen_smart_tips') ?? false)) {
-      debugPrint('HomePageTour: skipped — already seen');
-      return false;
-    }
-    if (!(prefs.getBool('hasLaunchedBefore') ?? false)) {
-      debugPrint('HomePageTour: skipped — onboarding not finished');
-      return false;
-    }
-    if (!context.mounted) return false;
-    if (!_isHomePageContext(context)) {
-      debugPrint('HomePageTour: skipped — not on HomePage');
-      return false;
-    }
-
-    if (force) {
-      await prefs.setBool('has_seen_smart_tips', false);
-    }
-
-    for (var i = 0; i < 80; i++) {
-      if (!context.mounted) return false;
-      if (_minimumTargetsReady(targets)) break;
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    }
-
-    if (!_minimumTargetsReady(targets) || !context.mounted) {
-      debugPrint('HomePageTour: skipped — search/cart not laid out');
-      return false;
-    }
-
-    final steps = <SpotlightStep>[
+  ) {
+    return [
       SpotlightStep(
         targetKey: targets.searchKey,
         title: 'Search products',
@@ -135,7 +113,7 @@ class HomePageTour {
           body:
               'See trending products—swipe sideways to browse more picks.',
           align: SpotlightTooltipAlign.below,
-          padding: 6,
+          padding: 8,
           beforeShow: () => _scrollTargetIntoView(
             scrollController,
             targets.popularKey!,
@@ -161,10 +139,78 @@ class HomePageTour {
           beforeShow: () => _scrollToTop(scrollController),
         ),
     ];
+  }
+
+  /// Returns true if the overlay was shown.
+  static Future<bool> maybeStart({
+    required BuildContext context,
+    required HomePageTourTargets targets,
+    ScrollController? scrollController,
+    bool force = false,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!force && (prefs.getBool('has_seen_smart_tips') ?? false)) {
+      debugPrint('HomePageTour: skipped — already seen');
+      return false;
+    }
+    if (!(prefs.getBool('hasLaunchedBefore') ?? false)) {
+      debugPrint('HomePageTour: skipped — onboarding not finished');
+      return false;
+    }
+    if (!context.mounted) return false;
+    if (!_isHomePageContext(context)) {
+      debugPrint('HomePageTour: skipped — not on HomePage');
+      return false;
+    }
+
+    if (force) {
+      await prefs.setBool('has_seen_smart_tips', false);
+    }
+
+    for (var i = 0; i < 100; i++) {
+      if (!context.mounted) return false;
+      if (_minimumTargetsReady(targets) && _bottomNavTourTargetsReady(targets)) {
+        break;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+
+    if (!_minimumTargetsReady(targets) || !context.mounted) {
+      debugPrint('HomePageTour: skipped — search/cart not laid out');
+      return false;
+    }
+
+    final needsBottomNav =
+        targets.shopKey != null || targets.menuKey != null;
+    if (needsBottomNav && !_bottomNavTourTargetsReady(targets)) {
+      debugPrint('HomePageTour: skipped — shop/menu not laid out');
+      return false;
+    }
+
+    if (targets.medicationKey != null || targets.popularKey != null) {
+      for (var i = 0; i < 80; i++) {
+        if (!context.mounted) return false;
+        final medReady = targets.medicationKey == null ||
+            _targetReady(targets.medicationKey!);
+        final popReady = targets.popularKey == null ||
+            _targetReady(targets.popularKey!);
+        if (medReady && popReady) break;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    }
+
+    final steps = _buildSteps(targets, scrollController);
 
     if (steps.isEmpty) return false;
 
-    debugPrint('HomePageTour: showing ${steps.length} step(s)');
+    debugPrint(
+      'HomePageTour: showing ${steps.length} step(s) — '
+      'categories=${_targetReady(targets.categoriesKey)}, '
+      'medication=${targets.medicationKey != null && _targetReady(targets.medicationKey!)}, '
+      'popular=${targets.popularKey != null && _targetReady(targets.popularKey!)}, '
+      'shop=${targets.shopKey != null && _targetReady(targets.shopKey!)}, '
+      'menu=${targets.menuKey != null && _targetReady(targets.menuKey!)}',
+    );
     await SpotlightTour.show(
       context: context,
       steps: steps,

@@ -22,14 +22,14 @@ class ProductDetailRepositoryImpl implements ProductDetailRepository {
   @override
   Future<CategoryFetchResult> fetchProductDetails(
     String urlName, {
-    Duration timeout = const Duration(seconds: 15),
+    Duration timeout = const Duration(seconds: 30),
   }) =>
       _remote.fetchProductDetails(urlName, timeout: timeout);
 
   @override
   Future<CategoryFetchResult> fetchRelatedProducts(
     String urlName, {
-    Duration timeout = const Duration(seconds: 10),
+    Duration timeout = const Duration(seconds: 20),
   }) =>
       _remote.fetchRelatedProducts(urlName, timeout: timeout);
 }

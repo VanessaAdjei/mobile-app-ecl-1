@@ -14,6 +14,7 @@ import '../viewmodels/item_detail_view_model.dart';
 import 'error_display.dart';
 import 'full_screen_image_viewer.dart';
 import '../utils/app_error_utils.dart';
+import '../utils/product_detail_navigation.dart';
 
 class OptimizedItemDetailWidget extends StatefulWidget {
   final String urlName;
@@ -839,10 +840,10 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
         Navigator.pushReplacementNamed(
           context,
           AppRoutes.itemDetail,
-          arguments: {
-            'urlName': product.urlName,
-            'isPrescribed': product.otcpom?.toLowerCase() == 'pom',
-          },
+          arguments: ProductDetailNavigation.routeArguments(
+            urlName: product.urlName,
+            product: product,
+          ),
         );
       },
       child: Container(

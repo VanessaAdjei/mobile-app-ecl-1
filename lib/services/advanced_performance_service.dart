@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../utils/app_error_utils.dart';
+
 class AdvancedPerformanceService {
   static final AdvancedPerformanceService _instance =
       AdvancedPerformanceService._internal();
@@ -28,6 +30,9 @@ class AdvancedPerformanceService {
   final Map<String, List<Completer>> _pendingRequests = {};
   final Map<String, Timer> _batchTimers = {};
   static const Duration _batchTimeout = Duration(milliseconds: 100);
+
+  /// Coalesce concurrent fetches for the same cache key.
+  final Map<String, Future<dynamic>> _inFlightFetches = {};
 
   // Image optimization
   final Map<String, bool> _preloadedImages = {};
@@ -65,6 +70,7 @@ class AdvancedPerformanceService {
     Future<T> Function() fetchFunction, {
     Duration? cacheDuration,
     bool forceRefresh = false,
+    bool persistToDisk = true,
   }) async {
     if (!_isEnabled) return await fetchFunction();
 
@@ -83,25 +89,51 @@ class AdvancedPerformanceService {
       }
     }
 
-    // No fresh cache — fetch from server.
+    // No fresh cache — fetch from server (dedupe concurrent callers).
     _trackEvent('cache_miss', {'key': key});
+    if (_inFlightFetches.containsKey(key)) {
+      return await _inFlightFetches[key] as T?;
+    }
+
+    final fetchFuture = _fetchAndCache<T>(
+      key,
+      fetchFunction,
+      duration,
+      persistToDisk: persistToDisk,
+    );
+    _inFlightFetches[key] = fetchFuture;
+    try {
+      return await fetchFuture;
+    } finally {
+      _inFlightFetches.remove(key);
+    }
+  }
+
+  static bool _canPersistToDisk(Object? data) {
+    return data is Map ||
+        data is List ||
+        data is String ||
+        data is num ||
+        data is bool;
+  }
+
+  Future<T?> _fetchAndCache<T>(
+    String key,
+    Future<T> Function() fetchFunction,
+    Duration duration, {
+    bool persistToDisk = true,
+  }) async {
     try {
       final data = await fetchFunction();
-      await _setPersistentCache(key, data, duration);
+      if (persistToDisk && _canPersistToDisk(data)) {
+        unawaited(_setPersistentCache(key, data, duration));
+      }
       _addToMemoryCache(key, data, duration);
       return data;
     } catch (e) {
       _trackEvent('fetch_error', {'key': key, 'error': e.toString()});
 
-      // Check if this is a connectivity error (offline) vs other API errors
-      final errorString = e.toString();
-      final isConnectivityError = errorString.contains('Connection failed') ||
-          errorString.contains('No internet connection') ||
-          errorString.contains('Unable to connect') ||
-          errorString.contains('Request timeout') ||
-          errorString.contains('SocketException');
-
-      if (isConnectivityError) {
+      if (AppErrorUtils.isTransientTransportError(e)) {
         // Only use cached data when offline (connectivity error)
         debugPrint('Connectivity error detected for $key - using cached data');
 
@@ -126,7 +158,6 @@ class AdvancedPerformanceService {
         }
       }
 
-      // For other errors (auth, server errors, etc.) - don't use cache, rethrow
       rethrow;
     }
   }

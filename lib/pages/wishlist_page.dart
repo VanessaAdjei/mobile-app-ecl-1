@@ -9,6 +9,8 @@ import '../utils/app_error_utils.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_routes.dart';
+import '../pages/main_tab_shell.dart';
+import '../utils/product_detail_navigation.dart';
 import '../models/wishlist_item.dart';
 import '../providers/cart_provider.dart';
 import '../services/auth_service.dart';
@@ -180,13 +182,19 @@ class _WishlistPageState extends State<WishlistPage> {
   }
 
   void _navigateToProductDetail(WishlistItem item) {
-    Navigator.pushNamed(
+    final urlName = item.product.urlName.trim();
+    if (urlName.isEmpty) {
+      _showSnackBar(
+        'This product cannot be opened right now.',
+        const Color(0xFFB91C1C),
+      );
+      return;
+    }
+    ProductDetailNavigation.pushNamed(
       context,
-      AppRoutes.itemDetail,
-      arguments: {
-        'urlName': item.product.urlName,
-        'isPrescribed': item.product.otcpom?.toLowerCase() == 'pom',
-      },
+      urlName: urlName,
+      product: item.product,
+      isPrescribed: item.product.otcpom?.toLowerCase() == 'pom',
     );
   }
 
@@ -454,6 +462,10 @@ class _WishlistPageState extends State<WishlistPage> {
             const SizedBox(height: 24),
             FilledButton.icon(
               onPressed: () {
+                if (MainTabShell.switchToTab(context, 0)) {
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                  return;
+                }
                 Navigator.pushReplacementNamed(context, AppRoutes.home);
               },
               icon: const Icon(Icons.explore_rounded, size: 18),

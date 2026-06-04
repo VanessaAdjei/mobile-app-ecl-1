@@ -2,12 +2,11 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config/api_config.dart';
-import '../config/app_routes.dart';
 import '../models/product_model.dart';
 import '../models/product.dart' as models;
 import '../services/homepage_optimization_service.dart';
+import '../utils/product_detail_navigation.dart';
 import '../services/product_image_preload_service.dart';
-import '../services/stock_utility_service.dart';
 import 'wishlist_button.dart';
 
 class HomeProductCard extends StatelessWidget {
@@ -48,6 +47,28 @@ class HomeProductCard extends StatelessWidget {
     );
   }
 
+  /// Do not pass a custom [cacheKey] with maxWidth/maxHeight — [ImageCacheManager]
+  /// already prefixes `resized_w*h_`; a manual key breaks preload hits.
+  static Widget _homeCachedImage(String imageUrl) {
+    if (imageUrl.isEmpty) return _imagePlaceholder();
+    return CachedNetworkImage(
+      imageUrl: imageUrl,
+      cacheManager: ProductImagePreloadService.cacheManager,
+      fit: BoxFit.cover,
+      memCacheWidth: ProductImagePreloadService.homeThumbDiskSize,
+      memCacheHeight: ProductImagePreloadService.homeThumbDiskSize,
+      maxWidthDiskCache: ProductImagePreloadService.homeThumbDiskSize,
+      maxHeightDiskCache: ProductImagePreloadService.homeThumbDiskSize,
+      fadeInDuration: Duration.zero,
+      fadeOutDuration: Duration.zero,
+      placeholder: (context, url) => _imagePlaceholder(),
+      errorWidget: (_, __, ___) => Container(
+        color: Colors.grey[200],
+        child: const Center(child: Icon(Icons.broken_image, size: 16)),
+      ),
+    );
+  }
+
   // shorten product names so they dont get too long
   String _truncateProductName(String name) {
     if (name.length <= 20) return name;
@@ -56,24 +77,12 @@ class HomeProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isInStock = StockUtilityService.isProductInStock(product.quantity);
-
-    if (isInStock) {
-    } else {}
-
     final screenWidth = MediaQuery.of(context).size.width;
 
     final defaultFontSize =
         fontSize ?? (screenWidth < 400 ? 11 : (screenWidth < 600 ? 13 : 15));
 
-    final imageUrl =
-        HomepageOptimizationService().getProductImageUrl(product.thumbnail);
-    // Only pin cacheKey after preload wrote the resized file; otherwise
-    // CachedNetworkImage loads from the URL immediately on first paint.
-    final imageCacheKey = imageUrl.isNotEmpty &&
-            ProductImagePreloadService.isUrlCached(imageUrl)
-        ? ProductImagePreloadService.diskCacheKeyFor(imageUrl)
-        : null;
+    final imageUrl = ProductImagePreloadService.imageUrlFor(product);
 
     return Container(
       margin: EdgeInsets.zero,
@@ -95,14 +104,10 @@ class HomeProductCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                       onTap: onTap ??
                           () {
-                            Navigator.pushNamed(
+                            ProductDetailNavigation.pushNamed(
                               context,
-                              AppRoutes.itemDetail,
-                              arguments: {
-                                'urlName': product.urlName,
-                                'isPrescribed':
-                                    product.otcpom?.toLowerCase() == 'pom',
-                              },
+                              urlName: product.urlName,
+                              product: product,
                             );
                           },
                       child: ClipRRect(
@@ -113,49 +118,12 @@ class HomeProductCard extends StatelessWidget {
                                     'product-image-${product.id}-${product.urlName}',
                                 child: Container(
                                   color: Colors.grey[100],
-                                  child: CachedNetworkImage(
-                                    imageUrl: imageUrl,
-                                    cacheKey: imageCacheKey,
-                                    fit: BoxFit.cover,
-                                    memCacheWidth: 300,
-                                    memCacheHeight: 300,
-                                    maxWidthDiskCache: 300,
-                                    maxHeightDiskCache: 300,
-                                    fadeInDuration: Duration.zero,
-                                    fadeOutDuration: Duration.zero,
-                                    placeholder: (context, url) =>
-                                        _imagePlaceholder(),
-                                    errorWidget: (_, __, ___) => Container(
-                                      color: Colors.grey[200],
-                                      child: Center(
-                                        child:
-                                            Icon(Icons.broken_image, size: 16),
-                                      ),
-                                    ),
-                                  ),
+                                  child: _homeCachedImage(imageUrl),
                                 ),
                               )
                             : Container(
                                 color: Colors.grey[100],
-                                child: CachedNetworkImage(
-                                  imageUrl: imageUrl,
-                                  cacheKey: imageCacheKey,
-                                  fit: BoxFit.cover,
-                                  memCacheWidth: 300,
-                                  memCacheHeight: 300,
-                                  maxWidthDiskCache: 300,
-                                  maxHeightDiskCache: 300,
-                                  fadeInDuration: Duration.zero,
-                                  fadeOutDuration: Duration.zero,
-                                  placeholder: (context, url) =>
-                                      _imagePlaceholder(),
-                                  errorWidget: (_, __, ___) => Container(
-                                    color: Colors.grey[200],
-                                    child: Center(
-                                      child: Icon(Icons.broken_image, size: 16),
-                                    ),
-                                  ),
-                                ),
+                                child: _homeCachedImage(imageUrl),
                               ),
                       ),
                     ),
@@ -181,53 +149,6 @@ class HomeProductCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                    // stock indicator - only show for out of stock or low stock items
-                    // print stuff to help diagnose stock tag issues
-                    Builder(
-                      builder: (context) {
-                        final isOutOfStock =
-                            !StockUtilityService.isProductInStock(
-                                product.quantity);
-                        final isLowStock =
-                            StockUtilityService.isLowStock(product.quantity);
-                        final shouldShowStockTag = isOutOfStock || isLowStock;
-
-                        if (shouldShowStockTag) {
-                          return Positioned(
-                            top: 4,
-                            right: 4,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isOutOfStock
-                                    ? Colors.red[600]
-                                    : Colors.orange[600],
-                                borderRadius: BorderRadius.circular(4),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.2),
-                                    blurRadius: 2,
-                                    offset: Offset(0, 1),
-                                  ),
-                                ],
-                              ),
-                              child: Text(
-                                isOutOfStock ? 'OUT OF STOCK' : 'LIMITED STOCK',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      },
-                    ),
                     // Wishlist button
                     if (showWishlistButton)
                       Positioned(
@@ -357,13 +278,12 @@ class GenericProductCard extends StatelessWidget {
                 borderRadius: BorderRadius.zero,
                 onTap: onTap ??
                     () {
-                      Navigator.pushNamed(
+                      ProductDetailNavigation.pushNamed(
                         context,
-                        AppRoutes.itemDetail,
-                        arguments: {
-                          'urlName': urlName,
-                          'isPrescribed': isPrescribed,
-                        },
+                        urlName: urlName,
+                        product: product is Product ? product : null,
+                        raw: product,
+                        isPrescribed: isPrescribed,
                       );
                     },
                 child: ClipRRect(

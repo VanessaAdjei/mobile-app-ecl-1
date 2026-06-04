@@ -199,6 +199,23 @@ class AppErrorUtils {
 
   // ── Product detail / catalog ────────────────────────────────────────────────
 
+  /// True for dropped connections, timeouts, and other retryable transport faults.
+  static bool isTransientTransportError(Object error) {
+    if (error is TimeoutException || error is SocketException) return true;
+    if (error is http.ClientException) return true;
+
+    final text = error.toString().toLowerCase();
+    return text.contains('connection closed') ||
+        text.contains('connection failed') ||
+        text.contains('connection reset') ||
+        text.contains('clientexception') ||
+        text.contains('socketexception') ||
+        text.contains('handshake') ||
+        text.contains('broken pipe') ||
+        text.contains('unable to connect') ||
+        text.contains('no internet');
+  }
+
   static ProductDetailErrorKind classifyProductError(Object? error) {
     if (error == null) return ProductDetailErrorKind.unavailable;
     if (error is TimeoutException) return ProductDetailErrorKind.offline;

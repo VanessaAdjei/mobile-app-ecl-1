@@ -477,8 +477,8 @@ class PaymentPageState extends State<PaymentPage> {
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
     const bottomLift = 10.0;
-    // Pay bar: top padding (10) + slide (44) + small bottom lift.
-    const payBarHeight = 54.0 + bottomLift;
+    // Pay bar: top padding (10) + slide (56) + small bottom lift.
+    const payBarHeight = 66.0 + bottomLift;
     final payBarInset = payBarHeight;
 
     return Scaffold(
@@ -854,7 +854,7 @@ class PaymentPageState extends State<PaymentPage> {
 
   Widget _buildSlideToPay(CartProvider cart) {
     final double containerWidth = MediaQuery.of(context).size.width - 28;
-    final double handleSize = 38.0;
+    final double handleSize = 50.0;
     final double maxSlideDistance = containerWidth - handleSize;
     final double threshold = maxSlideDistance * 0.8;
     final bool isCompleted = _slidePosition >= threshold;
@@ -897,10 +897,10 @@ class PaymentPageState extends State<PaymentPage> {
         }
       },
       child: Container(
-        height: 44,
+        height: 56,
         decoration: BoxDecoration(
           color: const Color(0xFFF4FAF7),
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(28),
           border: Border.all(
             color: AppColors.primary,
             width: 1.5,
@@ -921,8 +921,8 @@ class PaymentPageState extends State<PaymentPage> {
                 decoration: BoxDecoration(
                   color: AppColors.primary,
                   borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(22),
-                    bottomLeft: Radius.circular(22),
+                    topLeft: Radius.circular(28),
+                    bottomLeft: Radius.circular(28),
                   ),
                 ),
               ),
@@ -936,8 +936,8 @@ class PaymentPageState extends State<PaymentPage> {
                   children: [
                     if (_isProcessingPayment) ...[
                       SizedBox(
-                        width: 14,
-                        height: 14,
+                        width: 16,
+                        height: 16,
                         child: CircularProgressIndicator(
                           color: AppColors.primary,
                           strokeWidth: 2,
@@ -949,13 +949,13 @@ class PaymentPageState extends State<PaymentPage> {
                         style: TextStyle(
                           color: Colors.grey.shade800,
                           fontWeight: FontWeight.w600,
-                          fontSize: 12,
+                          fontSize: 14,
                         ),
                       ),
                     ] else ...[
                       Icon(
                         Icons.lock_outline,
-                        size: 14,
+                        size: 16,
                         color: Colors.grey.shade600,
                       ),
                       const SizedBox(width: 6),
@@ -964,7 +964,7 @@ class PaymentPageState extends State<PaymentPage> {
                         style: TextStyle(
                           color: Colors.grey.shade800,
                           fontWeight: FontWeight.w600,
-                          fontSize: 12,
+                          fontSize: 14,
                         ),
                       ),
                     ],
@@ -983,7 +983,7 @@ class PaymentPageState extends State<PaymentPage> {
                 width: handleSize,
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(22),
+                  borderRadius: BorderRadius.circular(28),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.12),
@@ -995,8 +995,8 @@ class PaymentPageState extends State<PaymentPage> {
                 child: Center(
                   child: _isProcessingPayment
                       ? SizedBox(
-                          width: 18,
-                          height: 18,
+                          width: 22,
+                          height: 22,
                           child: CircularProgressIndicator(
                             color: AppColors.primary,
                             strokeWidth: 2,
@@ -1009,7 +1009,7 @@ class PaymentPageState extends State<PaymentPage> {
                           color: isCompleted
                               ? AppColors.primary
                               : Colors.grey.shade700,
-                          size: 20,
+                          size: 24,
                         ),
                 ),
               ),

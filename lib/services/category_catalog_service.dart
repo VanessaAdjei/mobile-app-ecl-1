@@ -1,6 +1,8 @@
+import '../cache/product_cache.dart';
 import '../models/category_fetch_result.dart';
 import '../repositories/category_repository.dart';
 import '../utils/product_detail_parser.dart';
+import 'package:flutter/foundation.dart';
 
 /// Catalog use-cases for categories, subcategories, products, and search.
 /// Pages call this service instead of making HTTP requests directly.
@@ -57,12 +59,42 @@ class CategoryCatalogService {
   }
 
   /// Raw `data` array from get-all-products (each item has nested `product`).
+  /// Reuses [ProductCache] — never starts a parallel download while catalog loads.
   Future<List<dynamic>> getRawCatalogItems({
     Duration timeout = const Duration(seconds: 15),
   }) async {
+    if (ProductCache.hasRawCatalogItems) {
+      debugPrint(
+        'CategoryCatalog: ${ProductCache.cachedRawCatalogItems.length} '
+        'raw rows from ProductCache',
+      );
+      return ProductCache.cachedRawCatalogItems;
+    }
+
+    if (ProductCache.isCatalogLoadInFlight || ProductCache.hasProductsInMemory) {
+      debugPrint(
+        'CategoryCatalog: waiting on ProductCache get-all-products...',
+      );
+      await ProductCache.ensureCatalogReady(maxWait: timeout);
+      if (ProductCache.hasRawCatalogItems) {
+        return ProductCache.cachedRawCatalogItems;
+      }
+    }
+
+    if (!ProductCache.hasProductsInMemory && !ProductCache.isCatalogLoadInFlight) {
+      debugPrint('CategoryCatalog: awaiting shared ProductCache prefetch...');
+      await ProductCache.prefetchFromNetwork();
+      if (ProductCache.hasRawCatalogItems) {
+        return ProductCache.cachedRawCatalogItems;
+      }
+    }
+
+    debugPrint(
+      'CategoryCatalog: direct get-all-products (no raw cache — legacy path)',
+    );
     final result = await _repository.fetchAllProducts(timeout: timeout);
     if (!result.isHttpOk) return const [];
-    return result.data;
+    return List<dynamic>.from(result.data);
   }
 
   /// Flattened products with category/subcategory context for search indexing.
@@ -96,7 +128,6 @@ class CategoryCatalogService {
         'url_name': map['url_name'] ?? '',
         'otcpom': map['otcpom'],
         'thumbnail': map['thumbnail'] ?? map['image'] ?? '',
-        'price': map['price'] ?? map['selling_price'] ?? 0,
       };
     }).toList();
   }

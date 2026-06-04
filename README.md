@@ -1,6 +1,6 @@
-# ECL Pharmacy App 🏥
+# Ernest Chemist 🏥
 
-A modern, high-performance Flutter mobile application for ECL Pharmacy, featuring advanced e-commerce capabilities, prescription management, and seamless user experience.
+A modern, high-performance Flutter mobile application for Ernest Chemist, featuring advanced e-commerce capabilities, prescription management, and seamless user experience.
 
 ## 🌟 Features
 
@@ -285,4 +285,4 @@ For support and questions:
 
 ---
 
-**Built with ❤️ by the ECL Pharmacy Development Team**
+**Built with ❤️ by the Ernest Chemist Development Team**

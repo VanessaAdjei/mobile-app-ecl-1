@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../utils/app_error_utils.dart';
 import 'bottomnav.dart';
+import 'main_tab_shell.dart';
 import '../config/app_routes.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
@@ -20,7 +21,9 @@ import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 
 class Profile extends StatefulWidget {
-  const Profile({super.key});
+  const Profile({super.key, this.showBottomNav = true});
+
+  final bool showBottomNav;
 
   @override
   ProfileState createState() => ProfileState();
@@ -429,7 +432,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
               if (Navigator.canPop(context)) {
                 Navigator.pop(context);
               } else {
-                Navigator.pushReplacementNamed(context, AppRoutes.home);
+                MainTabShell.goToTab(context, 0);
               }
             },
             actions: [
@@ -908,7 +911,8 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
           ),
         ],
       ),
-      bottomNavigationBar: CustomBottomNav(initialIndex: 4),
+      bottomNavigationBar:
+          widget.showBottomNav ? const CustomBottomNav(selectedIndex: 4) : null,
     );
   }
 

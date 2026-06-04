@@ -2,7 +2,8 @@
 import 'package:flutter/material.dart';
 import '../models/product_model.dart';
 import 'app_back_button.dart';
-import 'itemdetail.dart';
+import '../services/product_detail_service.dart';
+import '../utils/product_detail_navigation.dart';
 
 import 'package:animations/animations.dart';
 
@@ -376,9 +377,10 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
                       closedShape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      openBuilder: (context, _) => ItemPage(
+                      openBuilder: (context, _) =>
+                          ProductDetailNavigation.itemPage(
                         urlName: product.urlName,
-                        isPrescribed: product.otcpom?.toLowerCase() == 'pom',
+                        product: product,
                       ),
                       closedBuilder: (context, openContainer) => Container(
                         decoration: BoxDecoration(
@@ -399,6 +401,9 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
                             color: Colors.transparent,
                             child: InkWell(
                               onTap: () {
+                                ProductDetailService.warmProductDetails(
+                                  product.urlName,
+                                );
                                 WidgetsBinding.instance.addPostFrameCallback((_) {
                                   openContainer();
                                 });

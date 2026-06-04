@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/product_model.dart';
-import 'itemdetail.dart';
+import '../utils/product_detail_navigation.dart';
 import '../widgets/product_card.dart';
 import '../widgets/app_header_bar.dart';
 
@@ -215,16 +215,10 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                               curve: Curves.easeIn,
                               child: GestureDetector(
                                 onTap: () {
-                                  Navigator.push(
+                                  ProductDetailNavigation.push(
                                     context,
-                                    MaterialPageRoute(
-                                      builder: (context) => ItemPage(
-                                        urlName: product.urlName,
-                                        isPrescribed:
-                                            product.otcpom?.toLowerCase() ==
-                                                'pom',
-                                      ),
-                                    ),
+                                    urlName: product.urlName,
+                                    product: product,
                                   );
                                 },
                                 child: Stack(

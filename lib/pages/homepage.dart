@@ -39,6 +39,7 @@ import '../widgets/home/home_promo_banner_carousel.dart';
 import '../widgets/home/home_popular_products_strip.dart';
 import '../services/category_optimization_service.dart';
 import '../services/product_catalog_service.dart';
+import '../utils/product_detail_navigation.dart';
 import '../utils/app_error_utils.dart';
 import 'categories.dart';
 import '../cache/product_cache.dart';
@@ -80,6 +81,10 @@ class ImagePreloader {
 
   static bool isPreloaded(String imageUrl) {
     return _preloadedImages.containsKey(imageUrl);
+  }
+
+  static void markPreloaded(String imageUrl) {
+    if (imageUrl.isNotEmpty) _preloadedImages[imageUrl] = true;
   }
 }
 
@@ -287,7 +292,19 @@ class SliverSearchBarDelegate extends SliverPersistentHeaderDelegate {
 }
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({
+    super.key,
+    this.showBottomNav = true,
+    this.tourMenuKey,
+    this.tourShopKey,
+  });
+
+  /// When false, [MainTabShell] owns the bottom bar (tab state is preserved).
+  final bool showBottomNav;
+
+  /// When set (tab shell), these keys are attached on the shell [CustomBottomNav].
+  final GlobalKey? tourMenuKey;
+  final GlobalKey? tourShopKey;
 
   @override
   HomePageState createState() => HomePageState();
@@ -329,6 +346,9 @@ class HomePageState extends State<HomePage>
   final GlobalKey _tourMenuKey = GlobalKey();
   final ProductCatalogService _catalogService = ProductCatalogService();
 
+  GlobalKey get tourMenuKey => widget.tourMenuKey ?? _tourMenuKey;
+  GlobalKey get tourShopKey => widget.tourShopKey ?? _tourShopKey;
+
   bool _isScrolled = false;
 
   List<dynamic> _categories = [];
@@ -353,7 +373,16 @@ class HomePageState extends State<HomePage>
   bool _hasBeenLoaded = false;
   bool _isPartialCatalog = false;
   bool _isLoadingContent = false;
+  bool _isBackgroundRefreshing = false;
+  Future<void>? _refreshFuture;
   bool _homeGridImagesReady = false;
+  bool _homeWarmStarted = false;
+  int _homeImageWarmGeneration = 0;
+
+  /// Categorize on a worker when the catalog is large enough to jank the UI.
+  static const int _isolateProcessThreshold = 50;
+  /// Grid sections on home (Wellness, Selfcare, etc.) show up to this many cards.
+  static const int _homeGridSectionVisibleCount = 6;
   bool _spotlightTourScheduled = false;
   bool _isRoutePushInProgress = false;
   bool _hasMarkedHomeHydrated = false;
@@ -404,15 +433,28 @@ class HomePageState extends State<HomePage>
       _hasBeenLoaded = true;
       _isPartialCatalog = false;
       HomePreloadService.publishCatalogToHomeServices();
-      _applyCacheToState();
+      // Sync hydrate already seeded sections — avoid a second reshuffle via setState.
+    } else if (ProductCache.hasPriorityProducts) {
+      _hydrateFromPriorityProducts();
+      _hasBeenLoaded = true;
+      _isPartialCatalog = true;
     }
     ProductCache.addCatalogListener(_onProductCacheUpdated);
+    ProductCache.addPriorityListener(_onPriorityCacheUpdated);
     _seedOptimizationFromProductCache();
     unawaited(_bootHomeProducts());
 
-    if (ProductCache.hasProductsInMemory) {
+    if (ProductCache.hasProductsInMemory || _products.isNotEmpty) {
       _scheduleSpotlightTourDelayed();
     }
+
+    if (ProductImagePreloadService.isHomeGridWarm) {
+      _homeGridImagesReady = true;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _products.isEmpty) return;
+      unawaited(_precacheVisibleHomeImages());
+    });
 
     if (_categories.isEmpty && HomePreloadService.cachedCategories.isNotEmpty) {
       _hydrateCategoriesSync();
@@ -442,9 +484,52 @@ class HomePageState extends State<HomePage>
 
   void _markHomeHydratedOnce() {
     if (_hasMarkedHomeHydrated) return;
-    if (_products.isEmpty && !ProductCache.hasProductsInMemory) return;
+    if (_products.isEmpty) return;
     _hasMarkedHomeHydrated = true;
     CatalogTimer.mark('home_hydrated');
+  }
+
+  /// Paint home from the fast priority slice while get-all-products finishes.
+  void _hydrateFromPriorityProducts() {
+    if (!ProductCache.hasPriorityProducts) return;
+    if (ProductCache.hasProductsInMemory) return;
+
+    final priorityProducts =
+        List<Product>.from(ProductCache.cachedPriorityProducts);
+    _products = priorityProducts;
+    filteredProducts = List<Product>.from(priorityProducts);
+    _applySectionBuckets(priorityProducts);
+    _isLoading = false;
+    _error = null;
+    _isPartialCatalog = true;
+
+    final cachedPopular = ProductCache.cachedPopularProducts;
+    if (cachedPopular.isNotEmpty) {
+      popularProducts = List<Product>.from(cachedPopular);
+      _isLoadingPopular = false;
+    } else {
+      popularProducts = List<Product>.from(priorityProducts);
+      _isLoadingPopular = false;
+    }
+
+    _markHomeHydratedOnce();
+    debugPrint(
+      'HomePage: displayed ${priorityProducts.length} priority products (partial catalog)',
+    );
+  }
+
+  void _onPriorityCacheUpdated() {
+    if (!mounted) return;
+    if (ProductCache.hasProductsInMemory) return;
+    if (_products.isNotEmpty) return;
+
+    setState(() {
+      _hydrateFromPriorityProducts();
+      _hasBeenLoaded = true;
+      _isPartialCatalog = true;
+    });
+    _scheduleHomeWarmOnce();
+    unawaited(_syncPopularFromCache());
   }
 
   /// Apply preloaded get-all-products catalog before the first frame.
@@ -477,7 +562,18 @@ class HomePageState extends State<HomePage>
     return copy.take(pool).toList();
   }
 
+  bool _tryApplyPreparedSectionPools() {
+    return HomePreloadService.consumePreparedSectionPools(
+      setDrugs: (list) => drugsSectionProducts = list,
+      setWellness: (list) => wellnessProducts = list,
+      setSelfcare: (list) => selfcareProducts = list,
+      setAccessories: (list) => accessoriesProducts = list,
+      setPrescribed: (list) => prescribedProducts = list,
+    );
+  }
+
   void _applySectionBuckets(List<Product> allProducts) {
+    if (_tryApplyPreparedSectionPools()) return;
     final sections = categorizeProductsForHome(allProducts);
     drugsSectionProducts = _shuffledSectionPool(sections['drugs']!);
     prescribedProducts = _shuffledSectionPool(sections['prescribed']!);
@@ -486,18 +582,103 @@ class HomePageState extends State<HomePage>
     accessoriesProducts = _shuffledSectionPool(sections['accessories']!);
   }
 
+  bool _sectionPoolUnderfilled(List<Product> section) =>
+      section.length < _homeGridSectionVisibleCount;
+
+  bool _nonDrugSectionsNeedMoreProducts() =>
+      _sectionPoolUnderfilled(wellnessProducts) ||
+      _sectionPoolUnderfilled(selfcareProducts) ||
+      _sectionPoolUnderfilled(accessoriesProducts) ||
+      _sectionPoolUnderfilled(prescribedProducts);
+
+  /// After priority preload, top up section pools from the full catalog.
+  /// Refills when a section has fewer than [_homeGridSectionVisibleCount] items
+  /// (priority slice often leaves 1–3 per bucket).
+  void _fillNonDrugSectionsFromCatalog(
+    List<Product> allProducts, {
+    Map<String, List<Product>>? sections,
+  }) {
+    if (!_nonDrugSectionsNeedMoreProducts()) return;
+    final buckets = sections ?? categorizeProductsForHome(allProducts);
+    if (_sectionPoolUnderfilled(wellnessProducts) &&
+        buckets['wellness']!.isNotEmpty) {
+      wellnessProducts = _shuffledSectionPool(buckets['wellness']!);
+    }
+    if (_sectionPoolUnderfilled(selfcareProducts) &&
+        buckets['selfcare']!.isNotEmpty) {
+      selfcareProducts = _shuffledSectionPool(buckets['selfcare']!);
+    }
+    if (_sectionPoolUnderfilled(accessoriesProducts) &&
+        buckets['accessories']!.isNotEmpty) {
+      accessoriesProducts = _shuffledSectionPool(buckets['accessories']!);
+    }
+    if (_sectionPoolUnderfilled(prescribedProducts) &&
+        buckets['prescribed']!.isNotEmpty) {
+      prescribedProducts = _shuffledSectionPool(buckets['prescribed']!);
+    }
+  }
+
+  void _topUpMedicationSectionFromCatalog(List<Product> allProducts) {
+    final minCount = ProductImagePreloadService.homeMedicationVisibleCount;
+    if (drugsSectionProducts.length >= minCount) return;
+    final drugs = categorizeProductsForHome(allProducts)['drugs']!;
+    if (drugs.isEmpty) return;
+    drugsSectionProducts = _shuffledSectionPool(drugs);
+  }
+
   void _onProductCacheUpdated() {
     if (!mounted) return;
     CatalogTimer.mark('listener_fired');
-    _applyCacheToState();
+
+    if (!ProductCache.hasProductsInMemory) return;
+
+    // Full catalog finished loading after priority slice — expand backing list only.
+    if (_isPartialCatalog && _products.isNotEmpty) {
+      _upgradeToFullCatalogPreservingSections();
+      _scheduleHomeWarmOnce();
+      _scheduleSpotlightTourDelayed();
+      CatalogTimer.summaryOnce();
+      return;
+    }
+
+    if (_products.isNotEmpty &&
+        _products.length == ProductCache.catalogProductCount) {
+      return;
+    }
+
+    _applyCacheToState(reshuffleSections: _products.isEmpty);
     if (_products.isNotEmpty) {
-      _isPartialCatalog = false;
       if (!_hasBeenLoaded) _hasBeenLoaded = true;
-      unawaited(_warmMedicationSectionImages());
-      unawaited(_ensureHomeGridImages());
+      _scheduleHomeWarmOnce();
       _scheduleSpotlightTourDelayed();
       CatalogTimer.summaryOnce();
     }
+  }
+
+  /// Keeps visible medication/popular rows stable when get-all-products completes.
+  void _upgradeToFullCatalogPreservingSections() {
+    final cachedAll = ProductCache.cachedProducts;
+    final cachedPopular = ProductCache.cachedPopularProducts;
+    if (cachedAll.isEmpty) return;
+
+    _seedOptimizationFromProductCache();
+    setState(() {
+      _products = List<Product>.from(cachedAll);
+      filteredProducts = List<Product>.from(cachedAll);
+      _topUpMedicationSectionFromCatalog(cachedAll);
+      _fillNonDrugSectionsFromCatalog(cachedAll);
+      _isPartialCatalog = false;
+      _isLoading = false;
+      _hasBeenLoaded = true;
+      _error = null;
+      if (cachedPopular.isNotEmpty) {
+        popularProducts = List<Product>.from(cachedPopular);
+        _isLoadingPopular = false;
+      }
+    });
+    _markHomeHydratedOnce();
+    _persistSnapshot();
+    _warmGridSectionImages();
   }
 
   /// Instantly populate state from whatever is already in ProductCache.
@@ -549,18 +730,34 @@ class HomePageState extends State<HomePage>
     }
   }
 
-  void _applyCacheToState() {
+  void _applyCacheToState({bool reshuffleSections = true}) {
     final cachedAll = ProductCache.cachedProducts;
     final cachedPopular = ProductCache.cachedPopularProducts;
     _seedOptimizationFromProductCache();
+
+    final shouldShuffle =
+        reshuffleSections && (drugsSectionProducts.isEmpty || _forceSectionShuffleOnce);
+    final shouldFillOthers = !shouldShuffle &&
+        cachedAll.isNotEmpty &&
+        (_nonDrugSectionsNeedMoreProducts() ||
+            drugsSectionProducts.length <
+                ProductImagePreloadService.homeMedicationVisibleCount);
 
     setState(() {
       if (cachedAll.isNotEmpty) {
         _products = List<Product>.from(cachedAll);
         filteredProducts = List<Product>.from(cachedAll);
-        _applySectionBuckets(_products);
+        if (shouldShuffle) {
+          _applySectionBuckets(_products);
+        } else if (shouldFillOthers) {
+          _topUpMedicationSectionFromCatalog(_products);
+          _fillNonDrugSectionsFromCatalog(_products);
+        }
         _isPartialCatalog = false;
         _isLoading = false;
+        _hasBeenLoaded = true;
+      } else if (_products.isEmpty && ProductCache.hasPriorityProducts) {
+        _hydrateFromPriorityProducts();
         _hasBeenLoaded = true;
       } else if (_products.isEmpty) {
         _isLoading = true;
@@ -575,19 +772,27 @@ class HomePageState extends State<HomePage>
 
       _error = null;
     });
-    if (cachedAll.isNotEmpty) {
+    if (cachedAll.isNotEmpty || _products.isNotEmpty) {
       _markHomeHydratedOnce();
     }
     _persistSnapshot();
+    if (shouldFillOthers || shouldShuffle) {
+      _warmGridSectionImages();
+    }
+  }
+
+  void _scheduleHomeWarmOnce() {
+    if (_homeWarmStarted) return;
+    _homeWarmStarted = true;
+    unawaited(_warmMedicationRowThenRest());
   }
 
   /// Network only when preloaded catalog was not applied.
   Future<void> _bootHomeProducts() async {
     if (_hasBeenLoaded && _products.isNotEmpty) {
       _scheduleSpotlightTourDelayed();
-      unawaited(_ensureHomeGridImages());
+      _startHomeContentAfterCatalog();
       _schedulePostInitHomeWork();
-      unawaited(_syncPopularFromCache());
       return;
     }
 
@@ -606,13 +811,27 @@ class HomePageState extends State<HomePage>
 
     if (ProductCache.hasProductsInMemory) {
       HomePreloadService.publishCatalogToHomeServices();
-      _applyCacheToState();
+      if (_products.isEmpty) {
+        _applyCacheToState(reshuffleSections: true);
+      }
       _hasBeenLoaded = true;
       _startHomeContentAfterCatalog();
       if (ProductCache.shouldRefreshFromNetwork) {
         unawaited(_refreshCatalogInBackground());
       }
       return;
+    }
+
+    if (ProductCache.hasPriorityProducts && _products.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _hydrateFromPriorityProducts();
+          _hasBeenLoaded = true;
+          _isPartialCatalog = true;
+        });
+      }
+      _scheduleHomeWarmOnce();
+      unawaited(_syncPopularFromCache());
     }
 
     if (ProductCache.shouldRefreshFromNetwork) {
@@ -631,7 +850,11 @@ class HomePageState extends State<HomePage>
     if (ready && ProductCache.hasProductsInMemory) {
       ProductCache.warmPopularFromCatalog();
       HomePreloadService.publishCatalogToHomeServices();
-      _applyCacheToState();
+      if (_isPartialCatalog) {
+        _upgradeToFullCatalogPreservingSections();
+      } else if (_products.isEmpty) {
+        _applyCacheToState(reshuffleSections: true);
+      }
       _hasBeenLoaded = true;
       _startHomeContentAfterCatalog();
       return;
@@ -645,36 +868,112 @@ class HomePageState extends State<HomePage>
   void _startHomeContentAfterCatalog() {
     ProductCache.warmPopularFromCatalog();
     final warmedPopular = ProductCache.cachedPopularProducts;
-    if (warmedPopular.isNotEmpty && mounted) {
+    if (warmedPopular.isNotEmpty &&
+        mounted &&
+        (popularProducts.isEmpty ||
+            popularProducts.length != warmedPopular.length)) {
       setState(() {
         popularProducts = List<Product>.from(warmedPopular);
         _isLoadingPopular = false;
       });
     }
-    unawaited(_warmMedicationSectionImages());
-    unawaited(_ensureHomeGridImages());
+    _scheduleHomeWarmOnce();
     _schedulePostInitHomeWork();
     unawaited(_syncPopularFromCache());
     _scheduleSpotlightTourDelayed();
   }
 
-  Future<void> _warmMedicationSectionImages() async {
-    if (_products.isEmpty) return;
-    final visible = drugsSectionProducts.isNotEmpty
-        ? drugsSectionProducts.take(6).toList()
-        : _products.take(6).toList();
-    unawaited(
-      ProductImagePreloadService.warmHomeGridImages(
-        catalog: _products,
-        visibleProducts: visible,
-        maxWait: const Duration(seconds: 8),
-        maxConcurrent: 6,
-      ),
-    );
-    if (!mounted) return;
-    if (!_homeGridImagesReady) {
-      setState(() => _homeGridImagesReady = true);
+  /// Ensures the 8 medication cards on home have disk-cached thumbnails.
+  Future<void> _ensureMedicationRowImagesReady() async {
+    if (_products.isEmpty || !mounted) return;
+    if (drugsSectionProducts.isEmpty) {
+      _applySectionBuckets(_products);
     }
+    final row = drugsSectionProducts
+        .take(ProductImagePreloadService.homeMedicationVisibleCount)
+        .toList();
+    if (row.isNotEmpty) {
+      await ProductImagePreloadService.warmMedicationRowImages(
+        products: row,
+        maxWait: const Duration(seconds: 10),
+        maxConcurrent: 8,
+      );
+    } else {
+      await ProductImagePreloadService.warmPriorityHomeImages(
+        catalog: _products,
+        maxWait: const Duration(seconds: 10),
+        maxConcurrent: 8,
+      );
+    }
+  }
+
+  List<Product> _gridSectionProductsForImageWarm() => [
+        ...wellnessProducts.take(_homeGridSectionVisibleCount),
+        ...selfcareProducts.take(_homeGridSectionVisibleCount),
+        ...accessoriesProducts.take(_homeGridSectionVisibleCount),
+        ...prescribedProducts.take(_homeGridSectionVisibleCount),
+      ];
+
+  Future<void> _warmMedicationRowThenRest() async {
+    final gridProducts = _gridSectionProductsForImageWarm();
+    if (ProductImagePreloadService.isHomeGridWarm &&
+        gridProducts.isNotEmpty &&
+        await ProductImagePreloadService.areProductsCached(gridProducts)) {
+      if (mounted) {
+        await _precacheVisibleHomeImages();
+        setState(() {
+          _homeGridImagesReady = true;
+          _homeImageWarmGeneration++;
+        });
+      }
+      final popularSlice = popularProducts.take(8).toList();
+      if (popularSlice.isNotEmpty && mounted) {
+        unawaited(_preloadImages(popularSlice));
+      }
+      return;
+    }
+
+    await Future.wait([
+      _ensureMedicationRowImagesReady(),
+      _warmGridSectionsAwaitable(),
+    ]);
+    if (mounted) {
+      setState(() {
+        _homeGridImagesReady = true;
+        _homeImageWarmGeneration++;
+      });
+    }
+    final popularSlice = popularProducts.take(8).toList();
+    if (popularSlice.isNotEmpty) {
+      await ProductImagePreloadService.warmProductListImages(
+        products: popularSlice,
+        maxWait: const Duration(seconds: 12),
+        maxConcurrent: 8,
+      );
+      if (mounted) unawaited(_preloadImages(popularSlice));
+    }
+  }
+
+  Future<void> _warmGridSectionsAwaitable() async {
+    if (_products.isEmpty || !mounted) return;
+    final gridProducts = _gridSectionProductsForImageWarm();
+    if (gridProducts.isEmpty) return;
+    if (await ProductImagePreloadService.areProductsCached(gridProducts)) {
+      if (mounted) await _precacheVisibleHomeImages();
+      return;
+    }
+    await ProductImagePreloadService.warmProductListImages(
+      products: gridProducts,
+      maxWait: const Duration(seconds: 20),
+      maxConcurrent: 18,
+    );
+    if (mounted) await _precacheVisibleHomeImages();
+  }
+
+  /// Warms thumbnails for the exact products in each visible home section row.
+  Future<void> _startHomeImageWarm({bool skipMedicationRow = false}) async {
+    if (_products.isEmpty || !mounted) return;
+    await _warmMedicationRowThenRest();
   }
 
   void _scheduleSpotlightTourDelayed() {
@@ -685,29 +984,47 @@ class HomePageState extends State<HomePage>
 
   List<Product> _visibleHomeProductsForImageWarm() {
     return [
-      ...drugsSectionProducts.take(6),
-      ...prescribedProducts.take(6),
-      ...wellnessProducts.take(6),
-      ...selfcareProducts.take(6),
-      ...accessoriesProducts.take(6),
+      ...drugsSectionProducts
+          .take(ProductImagePreloadService.homeMedicationVisibleCount),
+      ...prescribedProducts.take(_homeGridSectionVisibleCount),
+      ...wellnessProducts.take(_homeGridSectionVisibleCount),
+      ...selfcareProducts.take(_homeGridSectionVisibleCount),
+      ...accessoriesProducts.take(_homeGridSectionVisibleCount),
       ...popularProducts.take(12),
     ];
   }
 
+  /// Wellness / Selfcare / Accessories — warm exact row products (await if not done yet).
+  void _warmGridSectionImages() {
+    if (!mounted || _products.isEmpty) return;
+    if (_homeGridImagesReady) return;
+    unawaited(() async {
+      await _warmGridSectionsAwaitable();
+      if (!mounted) return;
+      setState(() {
+        _homeGridImagesReady = true;
+        _homeImageWarmGeneration++;
+      });
+    }());
+  }
+
   Future<void> _ensureHomeGridImages() async {
-    if (_homeGridImagesReady || _products.isEmpty) return;
-    unawaited(_warmVisibleHomeImages());
-    if (mounted) setState(() => _homeGridImagesReady = true);
+    await _startHomeImageWarm();
   }
 
   Future<void> _syncPopularFromCache() async {
     if (!mounted) return;
+    if (popularProducts.isNotEmpty &&
+        ProductCache.cachedPopularProducts.isNotEmpty &&
+        popularProducts.length == ProductCache.cachedPopularProducts.length) {
+      return;
+    }
     ProductCache.warmPopularFromCatalog();
     var cached = ProductCache.cachedPopularProducts;
     if (cached.isEmpty) {
       try {
         await ProductCache.ensurePopularReady().timeout(
-          const Duration(seconds: 6),
+          const Duration(seconds: 15),
         );
       } on TimeoutException {
         ProductCache.warmPopularFromCatalog();
@@ -724,15 +1041,20 @@ class HomePageState extends State<HomePage>
   }
 
   Future<void> _refreshCatalogInBackground() async {
-    if (_isLoadingContent || !mounted) return;
-    if (!ProductCache.shouldRefreshFromNetwork) return;
-    _isLoadingContent = true;
+    if (!mounted || !ProductCache.shouldRefreshFromNetwork) return;
+    if (_isBackgroundRefreshing || ProductCache.isCatalogLoadInFlight) return;
+    _isBackgroundRefreshing = true;
+    if (mounted) setState(() {});
     try {
       await ProductCache.prefetchFromNetwork();
       if (!mounted) return;
-      _applyCacheToState();
+      _applyCacheToState(reshuffleSections: false);
     } finally {
-      _isLoadingContent = false;
+      if (mounted) {
+        setState(() => _isBackgroundRefreshing = false);
+      } else {
+        _isBackgroundRefreshing = false;
+      }
     }
   }
 
@@ -825,7 +1147,7 @@ class HomePageState extends State<HomePage>
       if (!mounted) return;
     }
 
-    final maxAttempts = justFinished ? 12 : 8;
+    final maxAttempts = justFinished ? 16 : 12;
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
       if (!mounted) return;
       if (_products.isEmpty) {
@@ -845,8 +1167,8 @@ class HomePageState extends State<HomePage>
           searchKey: _tourSearchKey,
           cartKey: _tourCartKey,
           categoriesKey: _tourCategoriesKey,
-          menuKey: _tourMenuKey,
-          shopKey: _tourShopKey,
+          menuKey: tourMenuKey,
+          shopKey: tourShopKey,
           medicationKey: _tourMedicationKey,
           popularKey: _tourPopularKey,
         ),
@@ -950,37 +1272,51 @@ class HomePageState extends State<HomePage>
         ProductCache.hasProductsInMemory &&
         ProductCache.isCacheValid) {
       final cached = ProductCache.cachedProducts;
-        if (mounted) {
-          setState(() {
+      if (mounted) {
+        setState(() {
           _products = cached;
           filteredProducts = cached;
           _seedSectionsFromProducts(cached);
-            _isLoading = false;
-            _error = null;
-          });
+          _isLoading = false;
+          _error = null;
+        });
         _persistSnapshot();
       }
       unawaited(_processProducts(cached));
       return;
     }
 
+    if (forceRefresh &&
+        ProductCache.hasProductsInMemory &&
+        ProductCache.isCacheValid) {
+      final cached = ProductCache.cachedProducts;
+      if (mounted) {
+        setState(() {
+          _products = List<Product>.from(cached);
+          filteredProducts = List<Product>.from(cached);
+          _isLoading = false;
+          _error = null;
+        });
+        _persistSnapshot();
+      }
+      await _processProducts(cached);
+      return;
+    }
+
     try {
       if (mounted) setState(() => _error = null);
 
-      final allProducts = await _catalogService.fetchCatalogProducts(
-        timeout: Duration(seconds: forceRefresh ? 6 : 10),
-      );
+      await ProductCache.prefetchFromNetwork(forceRefresh: forceRefresh);
 
-      if (allProducts.isNotEmpty) {
-        ProductCache.cacheProducts(allProducts);
-
+      if (ProductCache.hasProductsInMemory) {
+        final allProducts = ProductCache.cachedProducts;
         _preloadImages(allProducts.take(8).toList());
 
         final reshufflePending = _forceSectionShuffleOnce;
         if (mounted) {
           setState(() {
-            _products = allProducts;
-            filteredProducts = allProducts;
+            _products = List<Product>.from(allProducts);
+            filteredProducts = List<Product>.from(allProducts);
             if (!reshufflePending) {
               _seedSectionsFromProducts(allProducts);
             }
@@ -1031,12 +1367,43 @@ class HomePageState extends State<HomePage>
         }
       }
 
-  /// Re-buckets products — isolate only on pull-to-refresh (initial load uses sync buckets).
+  /// Re-buckets products; large catalogs always categorize on a worker isolate.
   Future<void> _processProducts(List<Product> allProducts) async {
     if (!mounted) return;
 
+    if (!_forceSectionShuffleOnce && drugsSectionProducts.isNotEmpty) {
+      final medicationUnderfilled = drugsSectionProducts.length <
+          ProductImagePreloadService.homeMedicationVisibleCount;
+      if (!_nonDrugSectionsNeedMoreProducts() && !medicationUnderfilled) {
+        return;
+      }
+      final Map<String, List<Product>> sections;
+      if (allProducts.length > _isolateProcessThreshold) {
+        sections = await compute(_processProductsIsolate, allProducts);
+      } else {
+        sections = categorizeProductsForHome(allProducts);
+      }
+      if (!mounted) return;
+      setState(() {
+        if (medicationUnderfilled && sections['drugs']!.isNotEmpty) {
+          drugsSectionProducts = _shuffledSectionPool(sections['drugs']!);
+        }
+        _fillNonDrugSectionsFromCatalog(allProducts, sections: sections);
+      });
+      _warmGridSectionImages();
+      if (medicationUnderfilled) {
+        unawaited(_ensureMedicationRowImagesReady().then((_) {
+          if (mounted) setState(() {});
+        }));
+      }
+      return;
+    }
+
+    final useIsolate = _forceSectionShuffleOnce ||
+        allProducts.length > _isolateProcessThreshold;
+
     final Map<String, List<Product>> sections;
-    if (_forceSectionShuffleOnce || drugsSectionProducts.isEmpty) {
+    if (useIsolate) {
       sections = await compute(_processProductsIsolate, allProducts);
     } else {
       sections = categorizeProductsForHome(allProducts);
@@ -1070,18 +1437,7 @@ class HomePageState extends State<HomePage>
   }
 
   Future<void> _warmVisibleHomeImages() async {
-    if (_products.isEmpty) return;
-
-    await ProductImagePreloadService.warmHomeGridImages(
-      catalog: _products,
-      popular: popularProducts,
-      visibleProducts: _visibleHomeProductsForImageWarm(),
-      maxWait: const Duration(seconds: 20),
-      maxConcurrent: 6,
-    );
-
-    if (!mounted) return;
-    setState(() {});
+    await _startHomeImageWarm();
   }
 
   Future<void> _fetchPopularProducts({bool forceRefresh = false}) async {
@@ -1111,20 +1467,29 @@ class HomePageState extends State<HomePage>
       if (!mounted) return;
 
       if (list.isEmpty && ProductCache.cachedProducts.isNotEmpty) {
-        final shuffled = List<Product>.from(ProductCache.cachedProducts)
-          ..shuffle();
-        list = shuffled.take(20).toList();
+        ProductCache.warmPopularFromCatalog();
+        list = List<Product>.from(ProductCache.cachedPopularProducts);
       }
 
       if (list.isNotEmpty) {
         ProductCache.cachePopularProducts(list);
+        if (ProductCache.cachedPopularProducts.isEmpty) {
+          ProductCache.warmPopularFromCatalog();
+        }
+      }
 
+      if (ProductCache.cachedPopularProducts.isNotEmpty) {
         setState(() {
-          popularProducts = list;
+          popularProducts = ProductCache.cachedPopularProducts;
           _isLoadingPopular = false;
         });
         _persistSnapshot();
         WidgetsBinding.instance.addPostFrameCallback((_) {
+        });
+      } else if (list.isNotEmpty) {
+        setState(() {
+          popularProducts = const [];
+          _isLoadingPopular = false;
         });
       } else {
         _fallbackToPopularCache(error: AppErrorUtils.oopsTitle);
@@ -1164,18 +1529,77 @@ class HomePageState extends State<HomePage>
   }
 
   // ─── Refresh ───────────────────────────────────────────────────────────────
-  /// Pull-to-refresh: soft revalidate. Fetches fresh data while keeping the
-  /// existing cache (memory + disk) intact as a fallback. The fetchers only
-  /// overwrite the cache on a successful response and fall back to the current
-  /// cache on failure, so a failed refresh never wipes what's on screen.
+  /// Pull-to-refresh: reshuffles when cache is fresh; revalidates from network
+  /// only when [ProductCache.shouldRefreshFromNetwork]. Coalesces rapid pulls.
   Future<void> _handleRefresh() async {
+    if (_refreshFuture != null) {
+      await _refreshFuture;
+      _completePullRefresh();
+      return;
+    }
+
+    _refreshFuture = _runPullRefresh();
+    try {
+      await _refreshFuture;
+    } finally {
+      _refreshFuture = null;
+      _completePullRefresh();
+    }
+  }
+
+  void _completePullRefresh() {
+    if (mounted && _refreshController.isRefresh) {
+      _refreshController.refreshCompleted();
+    }
+  }
+
+  Future<void> _runPullRefresh() async {
     if (_isLoadingContent) return;
     _isLoadingContent = true;
-    // Manual refresh bypasses the hourly catalog gate.
     _forceSectionShuffleOnce = true;
+
+    final needsNetwork = ProductCache.shouldRefreshFromNetwork;
+
     try {
-      unawaited(_fetchPopularProducts(forceRefresh: true));
-      await loadProducts(forceRefresh: true);
+      if (!needsNetwork && ProductCache.hasProductsInMemory) {
+        final cached = ProductCache.cachedProducts;
+        ProductCache.warmPopularFromCatalog();
+        if (mounted) {
+          setState(() {
+            _products = List<Product>.from(cached);
+            filteredProducts = List<Product>.from(cached);
+            _isLoading = false;
+            _error = null;
+          });
+        }
+        await _processProducts(cached);
+        if (ProductCache.cachedPopularProducts.isNotEmpty && mounted) {
+          setState(() {
+            popularProducts =
+                List<Product>.from(ProductCache.cachedPopularProducts);
+            _isLoadingPopular = false;
+            _popularError = null;
+          });
+          _persistSnapshot();
+        } else {
+          await _fetchPopularProducts(forceRefresh: false);
+        }
+        _hasBeenLoaded = true;
+        return;
+      }
+
+      final popularFuture = _fetchPopularProducts(forceRefresh: needsNetwork);
+      await ProductCache.prefetchFromNetwork(forceRefresh: true);
+      if (!mounted) return;
+      if (ProductCache.hasProductsInMemory) {
+        _applyCacheToState();
+        await _processProducts(_products);
+        _preloadImages(_products.take(8).toList());
+        _persistSnapshot();
+      } else {
+        _fallbackToCache();
+      }
+      await popularFuture;
       _hasBeenLoaded = true;
     } catch (e) {
       debugPrint('HomePage: refresh error: $e');
@@ -1194,14 +1618,38 @@ class HomePageState extends State<HomePage>
   Future<void> reloadHomePage() => _handleRefresh();
 
   // ─── Image preload ─────────────────────────────────────────────────────────
-  void _preloadImages(List<Product> products) {
-    final urls = products
-        .map((p) => ApiConfig.getImageOrStorageUrl(p.thumbnail))
-        .where((u) => u.isNotEmpty)
-        .toList();
-    for (final url in urls) {
+  List<Product> _visibleGridAndMedicationProducts() => [
+        ...drugsSectionProducts
+            .take(ProductImagePreloadService.homeMedicationVisibleCount),
+        ..._gridSectionProductsForImageWarm(),
+      ];
+
+  Future<void> _precacheVisibleHomeImages() async {
+    if (!mounted) return;
+    await _preloadImages(_visibleGridAndMedicationProducts());
+  }
+
+  Future<void> _preloadImages(List<Product> products) async {
+    if (!mounted) return;
+    final cache = ProductImagePreloadService.cacheManager;
+    for (final p in products) {
+      final url = ProductImagePreloadService.imageUrlFor(p);
       if (url.isEmpty || ImagePreloader.isPreloaded(url)) continue;
-      ImagePreloader.preloadImage(url, context);
+
+      final diskKey = ProductImagePreloadService.diskCacheKeyFor(url);
+      final fileEntry = await cache.getFileFromCache(diskKey);
+      if (!mounted) return;
+      if (fileEntry != null) {
+        try {
+          await precacheImage(FileImage(fileEntry.file), context);
+          ImagePreloader.markPreloaded(url);
+        } catch (e) {
+          debugPrint('HomePage: disk precache failed for $url ($e)');
+          ImagePreloader.preloadImage(url, context);
+        }
+      } else {
+        ImagePreloader.preloadImage(url, context);
+      }
     }
   }
 
@@ -1209,6 +1657,7 @@ class HomePageState extends State<HomePage>
   @override
   void dispose() {
     ProductCache.removeCatalogListener(_onProductCacheUpdated);
+    ProductCache.removePriorityListener(_onPriorityCacheUpdated);
     WidgetsBinding.instance.removeObserver(this);
     searchController.dispose();
     _searchController.dispose();
@@ -1400,7 +1849,7 @@ class HomePageState extends State<HomePage>
                   onTap: () {
                     Navigator.pop(context);
                     _launchWhatsApp(phoneNumber,
-                        "Hello! I need help with the ECL app. Can you assist me?");
+                        "Hello! I need help with the Ernest Chemist app. Can you assist me?");
                   },
                 ),
                 const SizedBox(height: 8),
@@ -1413,7 +1862,7 @@ class HomePageState extends State<HomePage>
                   onTap: () {
                     Navigator.pop(context);
                 _launchEmail(
-                    'support@ernestchemists.com', 'ECL App Support & Inquiry');
+                    'support@ernestchemists.com', 'Ernest Chemist Support & Inquiry');
                   },
                 ),
           ]),
@@ -1607,11 +2056,13 @@ class HomePageState extends State<HomePage>
                   _products.isNotEmpty && !_homeGridImagesReady,
             )
           : _buildMainContent(),
-      bottomNavigationBar: CustomBottomNav(
-        initialIndex: 0,
-        tourMenuKey: _tourMenuKey,
-        tourShopKey: _tourShopKey,
-      ),
+      bottomNavigationBar: widget.showBottomNav
+          ? CustomBottomNav(
+              selectedIndex: 0,
+              tourMenuKey: tourMenuKey,
+              tourShopKey: tourShopKey,
+            )
+          : null,
     );
   }
 
@@ -1677,6 +2128,8 @@ class HomePageState extends State<HomePage>
       );
     }
 
+    final primary = Theme.of(context).colorScheme.primary;
+
     return Material(
       color: Colors.white,
       child: LayoutBuilder(builder: (context, constraints) {
@@ -1688,7 +2141,9 @@ class HomePageState extends State<HomePage>
         final cardImageHeight =
             isTablet ? 70.0 : (screenWidth < 400 ? 55.0 : 75.0);
 
-        return SmartRefresher(
+        return Stack(
+          children: [
+            SmartRefresher(
           controller: _refreshController,
           onRefresh: _handleRefresh,
           child: CustomScrollView(
@@ -1762,55 +2217,76 @@ class HomePageState extends State<HomePage>
                   isTablet: isTablet,
                 ),
               ),
-              // Popular right now header
+              // Popular right now — tour highlights heading + horizontal strip
               SliverToBoxAdapter(
                 child: KeyedSubtree(
                   key: _tourPopularKey,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 16, horizontal: 16),
-                    child: Container(
-                    width: double.infinity,
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 4, horizontal: 10),
-            decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Colors.green[600]!, Colors.green[700]!]),
-                      borderRadius: BorderRadius.circular(6),
-              boxShadow: [
-                BoxShadow(
-                            color: Colors.green.withValues(alpha: 0.3),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1))
-                      ],
-                    ),
-                    child: Row(children: [
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(6)),
-                        child: const Icon(Icons.local_fire_department,
-                            color: Colors.orange, size: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 16, horizontal: 16),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 4, horizontal: 10),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Colors.green[600]!,
+                                Colors.green[700]!,
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(6),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.green.withValues(alpha: 0.3),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Icon(
+                                  Icons.local_fire_department,
+                                  color: Colors.orange,
+                                  size: 16,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Popular right now',
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.1,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text('Popular right now',
-                            style: GoogleFonts.poppins(
-                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.1)),
-              ),
-                    ]),
-            ),
-          ),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _buildPopularProducts(isTablet: isTablet),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              SliverToBoxAdapter(
-                  child: _buildPopularProducts(isTablet: isTablet)),
               SliverToBoxAdapter(
                 child: _buildProductSection(
                   'Selfcare',
@@ -1850,6 +2326,20 @@ class HomePageState extends State<HomePage>
                 ),
             ],
           ),
+        ),
+            if (_isBackgroundRefreshing)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: LinearProgressIndicator(
+                  backgroundColor: Colors.transparent,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    primary.withValues(alpha: 0.55),
+                  ),
+                ),
+              ),
+          ],
         );
       }),
     );
@@ -1966,12 +2456,13 @@ class HomePageState extends State<HomePage>
                         } else {
                         _pushOnce(
                             MaterialPageRoute(
-                              builder: (context) => ItemPage(
-                                  urlName: m.urlName.isNotEmpty
-                                      ? m.urlName
-                                      : suggestion.urlName,
-                                isPrescribed:
-                                      m.otcpom?.toLowerCase() == 'pom')),
+                              builder: (context) =>
+                                  ProductDetailNavigation.itemPage(
+                                    urlName: m.urlName.isNotEmpty
+                                        ? m.urlName
+                                        : suggestion.urlName,
+                                    product: m,
+                                  )),
                           ).then((_) => _clearSearch());
                         }
                       },
@@ -2012,16 +2503,6 @@ class HomePageState extends State<HomePage>
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600,
                                         color: Colors.black87)),
-                                  if (suggestion.price.isNotEmpty &&
-                                      suggestion.price != '0')
-                                    Padding(
-                                    padding: const EdgeInsets.only(top: 2),
-                                    child: Text('GH₵ ${suggestion.price}',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w500,
-                                            color: Colors.green[700])),
-                                  ),
                               ]),
                         ),
                       ]),
@@ -2043,11 +2524,13 @@ class HomePageState extends State<HomePage>
                   } else {
                   _pushOnce(
                       MaterialPageRoute(
-                        builder: (context) => ItemPage(
-                            urlName: m.urlName.isNotEmpty
-                                ? m.urlName
-                                : suggestion.urlName,
-                            isPrescribed: m.otcpom?.toLowerCase() == 'pom')),
+                        builder: (context) =>
+                            ProductDetailNavigation.itemPage(
+                              urlName: m.urlName.isNotEmpty
+                                  ? m.urlName
+                                  : suggestion.urlName,
+                              product: m,
+                            )),
                     ).then((_) => _clearSearch());
                   }
                 },
@@ -2395,7 +2878,11 @@ class HomePageState extends State<HomePage>
           crossAxisSpacing: isTablet ? 8 : 0,
         ),
         itemBuilder: (context, index) => AnimatedVisibilityProductCard(
-              key: ValueKey(products[index].id),
+              key: ValueKey(
+                'home-$_homeImageWarmGeneration-'
+                '${products[index].id}-'
+                '${ProductImagePreloadService.imageUrlFor(products[index])}',
+              ),
               product: products[index],
               fontSize: fontSize * 1.1,
               padding: padding * 0.8,
@@ -2842,9 +3329,9 @@ class _AnimatedVisibilityProductCardState
         transitionDuration: const Duration(milliseconds: 200),
         closedShape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.all(Radius.circular(8))),
-        openBuilder: (context, _) => ItemPage(
+        openBuilder: (context, _) => ProductDetailNavigation.itemPage(
           urlName: widget.product.urlName,
-          isPrescribed: widget.product.otcpom?.toLowerCase() == 'pom',
+          product: widget.product,
         ),
         closedBuilder: (context, openContainer) => HomeProductCard(
           product: widget.product,
@@ -2852,8 +3339,14 @@ class _AnimatedVisibilityProductCardState
           padding: widget.padding,
           imageHeight: widget.imageHeight,
           showWishlistButton: true,
-          onTap: () => WidgetsBinding.instance
-              .addPostFrameCallback((_) => openContainer()),
+          onTap: () {
+            ProductDetailNavigation.routeArguments(
+              urlName: widget.product.urlName,
+              product: widget.product,
+            );
+            WidgetsBinding.instance
+                .addPostFrameCallback((_) => openContainer());
+          },
           showHero: false,
         ),
       ),

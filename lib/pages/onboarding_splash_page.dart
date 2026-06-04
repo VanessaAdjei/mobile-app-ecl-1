@@ -106,10 +106,10 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage> {
     if (mounted) setState(() => _isCompletingOnboarding = true);
 
     try {
-      final catalogReady = await HomePreloadService.ensureReadyForHome(
-        maxWait: const Duration(seconds: 3),
+      final ready = await HomePreloadService.ensureOnboardingReadyForHome(
+        maxWait: const Duration(seconds: 90),
       );
-      debugPrint('Onboarding: gate resolved, catalogReady=$catalogReady');
+      debugPrint('Onboarding: API + section images ready=$ready');
     } finally {
       if (mounted) setState(() => _isCompletingOnboarding = false);
     }

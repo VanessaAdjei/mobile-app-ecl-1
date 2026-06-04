@@ -11,16 +11,29 @@ import 'package:eclapp/config/api_config.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import '../utils/app_error_utils.dart';
 import '../utils/product_detail_parser.dart';
+import '../utils/product_detail_navigation.dart';
+import '../services/product_detail_service.dart';
 import '../widgets/error_display.dart';
 import 'package:eclapp/pages/bulk_purchase_page.dart';
 import 'package:eclapp/pages/bottomnav.dart';
+import 'package:eclapp/pages/main_tab_shell.dart';
 import '../services/category_optimization_service.dart';
 import '../services/category_catalog_service.dart';
+import '../services/product_catalog_service.dart';
 import '../services/stock_utility_service.dart';
+import '../models/product_model.dart';
+import 'search_results_page.dart';
 import '../config/app_colors.dart';
 import '../cache/product_catalog_memory.dart';
+import '../cache/product_cache.dart';
 import 'package:flutter/foundation.dart';
 import 'package:animations/animations.dart';
+
+/// Safe price label for category/search rows (`price` may be String or num).
+String formatCategoryProductPrice(dynamic price) {
+  final parsed = double.tryParse(price?.toString() ?? '');
+  return parsed?.toStringAsFixed(2) ?? '0.00';
+}
 
 /// List/subcategory APIs often send `url_name` or `slug`; [ItemPage] needs that slug.
 /// Skips full `http` URLs so we do not pass an image URL as [urlName].
@@ -310,6 +323,10 @@ class _CategoryProductDetailRouteState
         widget.product is Map ? widget.product['name']?.toString() : null;
     _isPrescribed = widget.product is Map &&
         widget.product['otcpom']?.toString().toLowerCase() == 'pom';
+    final earlySlug = resolveProductDetailUrlName(widget.product);
+    if (earlySlug != null && earlySlug.isNotEmpty) {
+      ProductDetailService.warmProductDetails(earlySlug);
+    }
     _openResultFuture = _resolveProduct();
   }
 
@@ -323,7 +340,11 @@ class _CategoryProductDetailRouteState
     String? slug = resolveProductDetailUrlName(widget.product);
     if (slug != null && slug.isNotEmpty) {
       return _ProductOpenResult(
-        page: ItemPage(urlName: slug, isPrescribed: _isPrescribed),
+        page: ProductDetailNavigation.itemPage(
+          urlName: slug,
+          raw: widget.product,
+          isPrescribed: _isPrescribed,
+        ),
         kind: ProductDetailErrorKind.unknown,
       );
     }
@@ -333,7 +354,11 @@ class _CategoryProductDetailRouteState
       slug = resolveProductDetailUrlName(widget.product);
       if (slug != null && slug.isNotEmpty) {
         return _ProductOpenResult(
-          page: ItemPage(urlName: slug, isPrescribed: _isPrescribed),
+          page: ProductDetailNavigation.itemPage(
+            urlName: slug,
+            raw: widget.product,
+            isPrescribed: _isPrescribed,
+          ),
           kind: ProductDetailErrorKind.unknown,
         );
       }
@@ -350,7 +375,11 @@ class _CategoryProductDetailRouteState
         slug = resolveProductDetailUrlName(list.first);
         if (slug != null && slug.isNotEmpty) {
           return _ProductOpenResult(
-            page: ItemPage(urlName: slug, isPrescribed: _isPrescribed),
+            page: ProductDetailNavigation.itemPage(
+              urlName: slug,
+              raw: widget.product,
+              isPrescribed: _isPrescribed,
+            ),
             kind: ProductDetailErrorKind.unknown,
           );
         }
@@ -580,8 +609,13 @@ class CategoryImagePreloader {
 
 class CategoryPage extends StatefulWidget {
   final bool isBulkPurchase;
+  final bool showBottomNav;
 
-  const CategoryPage({super.key, this.isBulkPurchase = false});
+  const CategoryPage({
+    super.key,
+    this.isBulkPurchase = false,
+    this.showBottomNav = true,
+  });
 
   @override
   CategoryPageState createState() => CategoryPageState();
@@ -595,18 +629,16 @@ class CategoryPageState extends State<CategoryPage> {
   String _errorMessage = '';
   final Map<int, bool> _categoryHasSubcategories = {};
   Timer? _highlightTimer;
-  List<dynamic> _allProducts = [];
   bool _showSearchDropdown = false;
-  List<dynamic> _searchResults = [];
+  List<Product> _searchResults = [];
   final FocusNode _searchFocusNode = FocusNode();
   Timer? _searchDebounceTimer;
   final ScrollController _searchScrollController = ScrollController();
   final CategoryOptimizationService _categoryService =
       CategoryOptimizationService();
   final CategoryCatalogService _catalogService = CategoryCatalogService();
+  final ProductCatalogService _productCatalogService = ProductCatalogService();
   final GlobalKey _searchBarKey = GlobalKey();
-  final List<Map<String, dynamic>> _searchIndex = [];
-  Future<void>? _searchIndexWarmupFuture;
 
   @override
   void initState() {
@@ -617,8 +649,7 @@ class CategoryPageState extends State<CategoryPage> {
     }
     _initializeCategoryService();
     debugPrint('🔍 Calling _prefetchAllProducts()...');
-    _searchIndexWarmupFuture =
-        _prefetchAllProducts(); // Prefetch all products on page load
+    unawaited(_prefetchAllProducts());
     _loadCategoriesOptimized();
 
     _searchFocusNode.addListener(() {
@@ -781,9 +812,81 @@ class CategoryPageState extends State<CategoryPage> {
       });
     }
 
-    // Reduced debounce for faster response
-    _searchDebounceTimer = Timer(const Duration(milliseconds: 150), () async {
+    _searchDebounceTimer = Timer(const Duration(milliseconds: 350), () async {
       await _performSearch(query);
+    });
+  }
+
+  List<Product> _catalogProductsForSearch() {
+    if (ProductCache.hasProductsInMemory) {
+      return ProductCache.cachedProducts;
+    }
+    return const [];
+  }
+
+  Product _matchingCatalogProduct(Product suggestion) {
+    return _catalogProductsForSearch().firstWhere(
+      (p) => p.id == suggestion.id || p.name == suggestion.name,
+      orElse: () => suggestion,
+    );
+  }
+
+  static Product _typeaheadViewMoreRow() {
+    return Product(
+      id: -1,
+      name: '__VIEW_MORE__',
+      description: '',
+      urlName: '',
+      status: '',
+      price: '',
+      thumbnail: '',
+      quantity: '',
+      batch_no: '',
+      category: '',
+      route: '',
+    );
+  }
+
+  /// Same API path as home search: GET /api/search/{query} via [ProductCatalogService].
+  Future<List<Product>> _fetchTypeaheadSuggestions(String query) async {
+    if (query.trim().isEmpty) return [];
+    try {
+      final products = await _productCatalogService.searchForTypeahead(
+        query,
+        timeout: const Duration(seconds: 10),
+      );
+      if (products.length > 1) {
+        return [_typeaheadViewMoreRow(), ...products.take(6)];
+      }
+      return products;
+    } on TimeoutException {
+      return [];
+    } catch (e) {
+      debugPrint('🔍 Category typeahead search error: $e');
+      return [];
+    }
+  }
+
+  void _openSearchResults(String query) {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SearchResultsPage(
+          query: trimmed,
+          products: _catalogProductsForSearch(),
+        ),
+      ),
+    ).then((_) {
+      if (!mounted) return;
+      _searchController.clear();
+      setState(() {
+        _showSearchDropdown = false;
+        _searchResults = [];
+        _filteredCategories = _categories;
+      });
+      _searchFocusNode.unfocus();
     });
   }
 
@@ -796,13 +899,13 @@ class CategoryPageState extends State<CategoryPage> {
     }
 
     try {
-      debugPrint('🔍 Starting search for: $query');
+      debugPrint('🔍 Starting typeahead search for: $query');
 
-      final results = await _searchAllCategories(query);
+      final results = await _fetchTypeaheadSuggestions(query);
       if (!mounted || _searchController.text.trim() != query.trim()) return;
 
       setState(() {
-        _searchResults = results.take(30).toList();
+        _searchResults = results;
       });
 
       debugPrint('🔍 Search completed: Found ${_searchResults.length} results');
@@ -814,439 +917,12 @@ class CategoryPageState extends State<CategoryPage> {
     }
   }
 
-  Future<List<dynamic>> _searchAllCategories(String query) async {
-    if (query.isEmpty) return [];
-
-    final searchQuery = query.toLowerCase().trim();
-    final tokens =
-        searchQuery.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
-    if (tokens.isEmpty) return [];
-
-    final stopwatch = Stopwatch()..start();
-    await _ensureSearchIndexReady();
-
-    // Local index unavailable (prefetch failed / catalog empty) — fall back to
-    // the server search so the user still gets results.
-    if (_searchIndex.isEmpty) {
-      final serverResults = await _searchViaServer(query);
-      debugPrint(
-          '🔍 Search via server fallback: ${serverResults.length} results');
-      return serverResults;
-    }
-
-    final allResults = <dynamic>[];
-    for (final indexed in _searchIndex) {
-      // Pre-built lowercase haystack (name + description) — every typed word
-      // must appear, so multi-word queries like "para tablet" match.
-      final haystack = indexed['haystack'] as String;
-      var matchesAll = true;
-      for (final token in tokens) {
-        if (!haystack.contains(token)) {
-          matchesAll = false;
-          break;
-        }
-      }
-      if (matchesAll) {
-        allResults.add(indexed['product']);
-        if (allResults.length >= 30) break;
-      }
-    }
-
-    stopwatch.stop();
-    debugPrint(
-        '🔍 Search index lookup: Found ${allResults.length} products in ${stopwatch.elapsedMilliseconds}ms');
-    return allResults;
-  }
-
-  Future<void> _ensureSearchIndexReady() async {
-    if (_searchIndex.isNotEmpty) return;
-
-    final cachedProducts = CategoryCache.cachedAllProducts;
-    if (cachedProducts.isNotEmpty) {
-      _buildSearchIndex(cachedProducts);
-      return;
-    }
-
-    _searchIndexWarmupFuture ??= _prefetchAllProducts();
-    await _searchIndexWarmupFuture;
-
-    // If the catalog arrived but the index wasn't built yet, build it now.
-    if (_searchIndex.isEmpty && CategoryCache.cachedAllProducts.isNotEmpty) {
-      _buildSearchIndex(CategoryCache.cachedAllProducts);
-    }
-
-    // The attempt produced nothing (e.g. network failure). Clear the cached
-    // future so the next search retries instead of awaiting a dead result.
-    if (_searchIndex.isEmpty && CategoryCache.cachedAllProducts.isEmpty) {
-      _searchIndexWarmupFuture = null;
-    }
-  }
-
-  /// Server-side search fallback (same endpoint as the home search) used when
-  /// the in-memory catalog index is unavailable.
-  Future<List<dynamic>> _searchViaServer(String query) async {
-    try {
-      return await _catalogService.searchProducts(query);
-    } catch (e) {
-      debugPrint('🔍 Server search fallback error: $e');
-      return [];
-    }
-  }
-
-  void _buildSearchIndex(List<dynamic> products) {
-    _searchIndex
-      ..clear()
-      ..addAll(products.map<Map<String, dynamic>>((product) {
-        final name = product['name']?.toString() ?? '';
-        final description = product['description']?.toString() ?? '';
-        return {
-          'product': product,
-          // Pre-lowercased combined text so each keystroke is a plain substring
-          // scan with no repeated allocations.
-          'haystack': '$name $description'.toLowerCase(),
-        };
-      }));
-  }
-
-  Future<Map<String, dynamic>?> _findProductInAllCategories(
-      String productName) async {
-    debugPrint('🔍🔍 FAST COMPREHENSIVE SEARCH for: $productName');
-
-    try {
-      if (CategoryCache.cachedAllProducts.isNotEmpty) {
-        debugPrint('🔍🔍 Checking cached products first...');
-
-        final searchQueryLower = productName.toLowerCase();
-
-        // try exact match first (fastest)
-        for (final product in CategoryCache.cachedAllProducts) {
-          final productNameLower =
-              product['name']?.toString().toLowerCase() ?? '';
-
-          if (productNameLower == searchQueryLower) {
-            final categoryId = product['category_id'];
-            final categoryName = product['category_name'];
-            final subcategoryId = product['subcategory_id'];
-            final subcategoryName = product['subcategory_name'];
-
-            if (categoryId != null && categoryName != null) {
-              return {
-                'product': product,
-                'category_id': categoryId,
-                'category_name': categoryName,
-                'subcategory_id': subcategoryId,
-                'subcategory_name': subcategoryName,
-                'found_in_category': true,
-                'found_in_subcategory': subcategoryId != null,
-              };
-            }
-          }
-        }
-
-        for (final product in CategoryCache.cachedAllProducts) {
-          final productNameLower =
-              product['name']?.toString().toLowerCase() ?? '';
-
-          if (productNameLower.contains(searchQueryLower) ||
-              searchQueryLower.contains(productNameLower)) {
-            final categoryId = product['category_id'];
-            final categoryName = product['category_name'];
-            final subcategoryId = product['subcategory_id'];
-            final subcategoryName = product['subcategory_name'];
-
-            if (categoryId != null && categoryName != null) {
-              debugPrint(
-                  '🔍🔍 ULTRA-EXTREME SPEED: Partial match in cache under 20ms!');
-              return {
-                'product': product,
-                'category_id': categoryId,
-                'category_name': categoryName,
-                'subcategory_id': subcategoryId,
-                'subcategory_name': subcategoryName,
-                'found_in_category': true,
-                'found_in_subcategory': subcategoryId != null,
-              };
-            }
-          }
-        }
-      }
-
-      debugPrint(
-          '🔍🔍 Not in cache, doing EXTREME-SPEED parallel search through ALL categories...');
-
-      // get all categories
-      final categories = await _categoryService.getCategories();
-      debugPrint(
-          '🔍🔍 EXTREME-SPEED parallel searching through ALL ${categories.length} categories');
-
-      try {
-        debugPrint('🔍🔍 ULTRA-EXTREME SPEED: Attempting batch API call...');
-        final batchResult = await _tryBatchProductSearch(productName)
-            .timeout(Duration(seconds: 3)); // Reasonable timeout for batch API
-
-        if (batchResult != null) {
-          debugPrint(
-              '🔍🔍 ULTRA-EXTREME SPEED: Batch API success in under 150ms!');
-          return batchResult;
-        }
-      } catch (e) {
-        debugPrint('🔍🔍 Batch API failed, falling back to parallel search...');
-      }
-
-      final prioritizedCategories =
-          _prioritizeCategories(categories, productName);
-      debugPrint('🔍🔍 Categories prioritized by relevance to: $productName');
-
-      List<Future<Map<String, dynamic>?>> allFutures = [];
-
-      for (final category in prioritizedCategories) {
-        final categoryId = category['id'];
-        final categoryName = category['name'];
-        final hasSubcategories = _categoryHasSubcategories[categoryId] ?? false;
-
-        debugPrint(
-            '🔍🔍 Starting search in category: $categoryName (ID: $categoryId)');
-
-        if (hasSubcategories) {
-          try {
-            final subcategories = await _catalogService.getSubcategories(
-              categoryId,
-              timeout: const Duration(seconds: 3),
-            );
-
-            final subcategoryFutures = subcategories.map((subcategory) async {
-              final subcategoryId = subcategory['id'];
-              final subcategoryName = subcategory['name'];
-
-              try {
-                final products = await _catalogService.getSubcategoryProducts(
-                  subcategoryId,
-                  timeout: const Duration(seconds: 3),
-                );
-
-                for (final product in products) {
-                  final productNameLower =
-                      product['name']?.toString().toLowerCase() ?? '';
-                  final searchQueryLower = productName.toLowerCase();
-
-                  if (productNameLower == searchQueryLower ||
-                      productNameLower.contains(searchQueryLower) ||
-                      searchQueryLower.contains(productNameLower)) {
-                    debugPrint(
-                        '🔍🔍 FOUND: ${product['name']} in $categoryName > $subcategoryName');
-
-                    return {
-                      'product': product,
-                      'category_id': categoryId,
-                      'category_name': categoryName,
-                      'subcategory_id': subcategoryId,
-                      'subcategory_name': subcategoryName,
-                      'found_in_category': true,
-                      'found_in_subcategory': true,
-                    };
-                  }
-                }
-              } catch (e) {
-                // skip subcategories that failed
-              }
-              return null;
-            });
-
-            allFutures.addAll(subcategoryFutures);
-          } catch (e) {
-            debugPrint('🔍🔍 Error in category $categoryId: $e');
-          }
-        } else {
-          // search directly in category super fast
-          final categoryFuture = (() async {
-            try {
-              final products = await _catalogService.getSubcategoryProducts(
-                categoryId,
-                timeout: const Duration(seconds: 3),
-              );
-
-              if (products.isNotEmpty) {
-                for (final product in products) {
-                  final productNameLower =
-                      product['name']?.toString().toLowerCase() ?? '';
-                  final searchQueryLower = productName.toLowerCase();
-
-                  if (productNameLower == searchQueryLower ||
-                      productNameLower.contains(searchQueryLower) ||
-                      searchQueryLower.contains(productNameLower)) {
-                    debugPrint(
-                        '🔍🔍 FOUND: ${product['name']} in $categoryName');
-
-                    return {
-                      'product': product,
-                      'category_id': categoryId,
-                      'category_name': categoryName,
-                      'found_in_category': true,
-                      'found_in_subcategory': false,
-                    };
-                  }
-                }
-              }
-            } catch (e) {
-              debugPrint('🔍🔍 Error in category $categoryId: $e');
-            }
-            return null;
-          })();
-
-          allFutures.add(categoryFuture);
-        }
-      }
-
-      // now wait for any result from any category/subcategory super fast
-      debugPrint(
-          '🔍🔍 Waiting for ANY result from ${allFutures.length} parallel searches...');
-
-      // use Future.any to get the fastest result with a super short timeout
-      try {
-        final result = await Future.any(allFutures)
-            .timeout(
-                Duration(seconds: 5)); // Reasonable timeout for parallel search
-        if (result != null) {
-          debugPrint('🔍🔍 EXTREME SPEED: Result found in under 500ms!');
-          return result;
-        }
-      } catch (e) {
-        debugPrint(
-            '🔍🔍 EXTREME SPEED: Future.any timeout, trying sequential fallback...');
-      }
-
-      // if that didnt work, check each future with minimal wait
-      for (final future in allFutures) {
-        try {
-          final result = await future
-              .timeout(Duration(seconds: 2)); // Reasonable timeout per future
-          if (result != null) {
-            debugPrint(
-                '🔍🔍 EXTREME SPEED: Result found in sequential fallback!');
-            return result;
-          }
-        } catch (e) {
-          // Continue to next future
-        }
-      }
-
-      debugPrint('🔍🔍 FAST COMPREHENSIVE SEARCH COMPLETED: Product not found');
-      return null;
-    } catch (e) {
-      debugPrint('🔍🔍 FAST COMPREHENSIVE SEARCH ERROR: $e');
-      return null;
-    }
-  }
-
-  // Smart category prioritization for faster search results
-  List<dynamic> _prioritizeCategories(
-      List<dynamic> categories, String productName) {
-    final productNameLower = productName.toLowerCase();
-    final prioritized = List<dynamic>.from(categories);
-
-    // Sort categories by relevance to the product name
-    prioritized.sort((a, b) {
-      final aName = a['name']?.toString().toLowerCase() ?? '';
-      final bName = b['name']?.toString().toLowerCase() ?? '';
-
-      // Check for exact matches first
-      if (aName.contains(productNameLower) && !bName.contains(productNameLower))
-        return -1;
-      if (!aName.contains(productNameLower) && bName.contains(productNameLower))
-        return 1;
-
-      // Check for partial matches
-      if (aName.contains(productNameLower.substring(0, 3)) &&
-          !bName.contains(productNameLower.substring(0, 3))) return -1;
-      if (!aName.contains(productNameLower.substring(0, 3)) &&
-          bName.contains(productNameLower.substring(0, 3))) return 1;
-
-      // Prioritize common categories that usually have products
-      final commonCategories = [
-        'medicines',
-        'personal care',
-        'health care devices',
-        'mother & baby'
-      ];
-      final aIsCommon = commonCategories.any((cat) => aName.contains(cat));
-      final bIsCommon = commonCategories.any((cat) => bName.contains(cat));
-
-      if (aIsCommon && !bIsCommon) return -1;
-      if (!aIsCommon && bIsCommon) return 1;
-
-      return 0;
-    });
-
-    debugPrint(
-        '🔍🔍 Category priority: ${prioritized.map((c) => c['name']).toList()}');
-    return prioritized;
-  }
-
-  // EXTREME SPEED: Batch API search for instant results
-  Future<Map<String, dynamic>?> _tryBatchProductSearch(
-      String productName) async {
-    try {
-      final dataList = await _catalogService.getRawCatalogItems(
-        timeout: const Duration(seconds: 3),
-      );
-      final searchQuery = productName.toLowerCase();
-
-      for (final item in dataList) {
-        final productData = item['product'] as Map<String, dynamic>;
-        final productNameLower =
-            productData['name']?.toString().toLowerCase() ?? '';
-
-        if (productNameLower == searchQuery ||
-            productNameLower.contains(searchQuery) ||
-            searchQuery.contains(productNameLower)) {
-          final categoryId = item['category_id'];
-          final categoryName = item['category_name'];
-          final subcategoryId = item['subcategory_id'];
-          final subcategoryName = item['subcategory_name'];
-
-          if (categoryId != null && categoryName != null) {
-            debugPrint(
-                '🔍🔍 EXTREME SPEED: Batch API found: ${productData['name']} in $categoryName');
-            return {
-              'product': productData,
-              'category_id': categoryId,
-              'category_name': categoryName,
-              'subcategory_id': subcategoryId,
-              'subcategory_name': subcategoryName,
-              'found_in_category': true,
-              'found_in_subcategory': subcategoryId != null,
-            };
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('🔍🔍 Batch API error: $e');
-    }
-    return null;
-  }
 
   String _getCategoryImageUrl(String imagePath) {
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
       return imagePath;
     }
     return ApiConfig.getStorageUrl(imagePath);
-  }
-
-  String _formatPrice(dynamic price) {
-    if (price == null) return '0.00';
-
-    // Convert to double if it's a string
-    double? numericPrice;
-    if (price is String) {
-      numericPrice = double.tryParse(price);
-    } else if (price is int) {
-      numericPrice = price.toDouble();
-    } else if (price is double) {
-      numericPrice = price;
-    }
-
-    if (numericPrice == null) return '0.00';
-    return numericPrice.toStringAsFixed(2);
   }
 
   IconData _getCategoryIcon(String categoryName) {
@@ -1403,10 +1079,7 @@ class CategoryPageState extends State<CategoryPage> {
         } else if (Navigator.canPop(context)) {
           Navigator.pop(context);
         } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => HomePage()),
-          );
+          MainTabShell.goToTab(context, 0);
         }
       },
       child: Scaffold(
@@ -1436,10 +1109,7 @@ class CategoryPageState extends State<CategoryPage> {
                     } else if (Navigator.canPop(context)) {
                       Navigator.pop(context);
                     } else {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (context) => HomePage()),
-                      );
+                      MainTabShell.goToTab(context, 0);
                     }
                   },
                   actions: [
@@ -1500,6 +1170,8 @@ class CategoryPageState extends State<CategoryPage> {
                             child: TextField(
                               controller: _searchController,
                               focusNode: _searchFocusNode,
+                              textInputAction: TextInputAction.search,
+                              onSubmitted: _openSearchResults,
                               onChanged: (value) {
                                 setState(() {}); // Update for clear button
                                 _searchProduct(value);
@@ -1753,7 +1425,9 @@ class CategoryPageState extends State<CategoryPage> {
               ),
           ],
         ),
-        bottomNavigationBar: CustomBottomNav(initialIndex: 3),
+        bottomNavigationBar: widget.showBottomNav
+            ? const CustomBottomNav(selectedIndex: 3)
+            : null,
       ),
     );
   }
@@ -1854,84 +1528,70 @@ class CategoryPageState extends State<CategoryPage> {
     );
   }
 
-  Widget _buildSearchResultItem(dynamic item) {
-    final productName = item['name']?.toString() ?? 'Unknown Product';
-    final productImage = item['thumbnail']?.toString() ?? '';
-    final productPrice = item['price']?.toString() ?? '0.00';
-    final categoryName = item['category_name'];
-    final subcategoryName = item['subcategory_name'];
+  Widget _buildSearchResultItem(Product suggestion) {
+    if (suggestion.name == '__VIEW_MORE__') {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _openSearchResults(_searchController.text),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF20AF67).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.list, color: Colors.green.shade700),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'View All Results',
+                    style: TextStyle(
+                      color: Colors.green.shade700,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final matching = _matchingCatalogProduct(suggestion);
+    final imageUrl = getProductImageUrl(
+      matching.thumbnail.isNotEmpty ? matching.thumbnail : suggestion.thumbnail,
+    );
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () {
-          // FAST NAVIGATION: Use category/subcategory info already in search results
-          final categoryId = item['category_id'];
-          final categoryName = item['category_name'];
-          final subcategoryId = item['subcategory_id'];
-          final subcategoryName = item['subcategory_name'];
-          final productId = item['id'];
-          final productName = item['name'];
-          final slug = item['url_name']?.toString() ?? '';
-
-          // Clear search and hide dropdown
           setState(() {
             _searchResults = [];
             _showSearchDropdown = false;
-            _searchFocusNode.unfocus();
           });
-
-          // Fastest path: open the product detail directly (no category list to
-          // load) when we have its slug.
-          if (slug.isNotEmpty) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ItemPage(
-                  urlName: slug,
-                  isPrescribed:
-                      item['otcpom']?.toString().toLowerCase() == 'pom',
-                ),
+          _searchFocusNode.unfocus();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProductDetailNavigation.itemPage(
+                urlName: matching.urlName.isNotEmpty
+                    ? matching.urlName
+                    : suggestion.urlName,
+                product: matching,
               ),
-            );
-            return;
-          }
-
-          // Navigate instantly - no need to search again!
-          if (categoryId != null && categoryName != null) {
-            if (subcategoryId != null && subcategoryName != null) {
-              // Navigate to subcategory page
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => SubcategoryPage(
-                    categoryId: categoryId,
-                    categoryName: categoryName,
-                    targetSubcategoryId: subcategoryId,
-                    searchedProductId: productId,
-                    searchedProductName: productName,
-                  ),
-                ),
-              );
-            } else {
-              // Navigate to product list page
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ProductListPage(
-                    categoryId: categoryId,
-                    categoryName: categoryName,
-                    searchedProductId: productId,
-                    searchedProductName: productName,
-                  ),
-                ),
-              );
-            }
-          } else {
-            // Fallback: If category info is missing, use the slower search method
-            _navigateToProductFallback(productName);
-          }
+            ),
+          ).then((_) {
+            if (!mounted) return;
+            _searchController.clear();
+          });
         },
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -1939,10 +1599,7 @@ class CategoryPageState extends State<CategoryPage> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.grey.shade200,
-              width: 1,
-            ),
+            border: Border.all(color: Colors.grey.shade200),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),
@@ -1953,16 +1610,14 @@ class CategoryPageState extends State<CategoryPage> {
           ),
           child: Row(
             children: [
-              // Product image
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Container(
+                child: SizedBox(
                   width: 50,
                   height: 50,
-                  color: Colors.grey.shade100,
-                  child: productImage.isNotEmpty
+                  child: imageUrl.isNotEmpty
                       ? CachedNetworkImage(
-                          imageUrl: productImage,
+                          imageUrl: imageUrl,
                           fit: BoxFit.cover,
                           memCacheWidth: 120,
                           memCacheHeight: 120,
@@ -1974,13 +1629,10 @@ class CategoryPageState extends State<CategoryPage> {
                               ),
                             ),
                           ),
-                          errorWidget: (context, url, error) => Container(
-                            color: Colors.grey.shade200,
-                            child: Icon(
-                              Icons.image_not_supported,
-                              color: Colors.grey.shade400,
-                              size: 24,
-                            ),
+                          errorWidget: (context, url, error) => Icon(
+                            Icons.image_not_supported,
+                            color: Colors.grey.shade400,
+                            size: 24,
                           ),
                         )
                       : Icon(
@@ -1991,85 +1643,19 @@ class CategoryPageState extends State<CategoryPage> {
                 ),
               ),
               const SizedBox(width: 10),
-              // Product details
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      productName,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade900,
-                        height: 1.2,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 6),
-                    if (categoryName != null) ...[
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.category_rounded,
-                            size: 13,
-                            color: const Color(0xFF20AF67),
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              categoryName,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: const Color(0xFF20AF67),
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (subcategoryName != null) ...[
-                        const SizedBox(height: 3),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.arrow_right_rounded,
-                              size: 12,
-                              color: Colors.grey.shade500,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                subcategoryName,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey.shade600,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                      const SizedBox(height: 4),
-                    ],
-                    Text(
-                      'GH₵ ${_formatPrice(productPrice)}',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF20AF67),
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  suggestion.name,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade900,
+                    height: 1.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(width: 6),
-              // Arrow icon
               Icon(
                 Icons.chevron_right_rounded,
                 color: Colors.grey.shade400,
@@ -2080,84 +1666,6 @@ class CategoryPageState extends State<CategoryPage> {
         ),
       ),
     );
-  }
-
-  // Fallback method only used if category info is missing from search results
-  Future<void> _navigateToProductFallback(String productName) async {
-    // Show loading indicator
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            ),
-            SizedBox(width: 12),
-            Text('Searching...'),
-          ],
-        ),
-        duration: Duration(seconds: 30),
-        backgroundColor: Colors.green.shade700,
-      ),
-    );
-
-    try {
-      debugPrint('🔍🔍 Fallback: Searching for: $productName');
-      final searchResult = await _findProductInAllCategories(productName);
-
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-      if (searchResult != null) {
-        final foundProduct = searchResult['product'];
-        final foundCategoryId = searchResult['category_id'];
-        final foundCategoryName = searchResult['category_name'];
-        final foundSubcategoryId = searchResult['subcategory_id'];
-        final foundInSubcategory =
-            searchResult['found_in_subcategory'] ?? false;
-
-        _storeSearchResultsForNavigation(foundProduct);
-
-        if (foundInSubcategory && foundSubcategoryId != null) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => SubcategoryPage(
-                categoryId: foundCategoryId,
-                categoryName: foundCategoryName,
-                targetSubcategoryId: foundSubcategoryId,
-                searchedProductId: foundProduct['id'],
-                searchedProductName: foundProduct['name'],
-              ),
-            ),
-          );
-        } else {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ProductListPage(
-                categoryId: foundCategoryId,
-                categoryName: foundCategoryName,
-                searchedProductId: foundProduct['id'],
-                searchedProductName: foundProduct['name'],
-              ),
-            ),
-          );
-        }
-      } else {
-        AppErrorUtils.showSnack(
-          context,
-          'We couldn\'t find "$productName". Try another search or browse categories.',
-          isError: true,
-        );
-      }
-    } catch (e) {
-      AppErrorUtils.showErrorSnack(context, e);
-    }
   }
 
   Widget _buildCategoriesGrid() {
@@ -2219,6 +1727,7 @@ class CategoryPageState extends State<CategoryPage> {
                   return SubcategoryPage(
                     categoryName: category['name'],
                     categoryId: category['id'],
+                    showBottomNav: widget.showBottomNav,
                   );
                 } else {
                   return ProductListPage(
@@ -2316,25 +1825,20 @@ class CategoryPageState extends State<CategoryPage> {
           CategoryCache.isCacheValid) {
         debugPrint(
             '🔍 Prefetch: reusing ${CategoryCache.cachedAllProducts.length} cached products (skipping network)');
-        _allProducts = CategoryCache.cachedAllProducts;
-        _buildSearchIndex(_allProducts);
         return;
       }
 
-      // IMPORTANT:
-      // For search we need products in a FLATTENED format that already contains
-      // category_id / category_name / subcategory_id / subcategory_name so that
-      // search can be done entirely in memory without any extra API calls.
-      //
-      // The CategoryOptimizationService.getProducts() call returns a different
-      // shape (otcpom, drug, wellness, etc.) without those IDs, so we make a
-      // single direct call to the get-all-products API here and build the
-      // flattened index for CategoryCache.
-      debugPrint(
-          '🔍 Prefetching products for search index via get-all-products...');
+      // Build flattened search rows from the same in-flight ProductCache load
+      // as home (MainTabShell mounts this tab immediately — no parallel HTTP).
+      if (ProductCache.isCatalogLoadInFlight) {
+        debugPrint(
+          '🔍 Prefetch: waiting on ProductCache get-all-products (no duplicate)',
+        );
+      }
+      debugPrint('🔍 Prefetch: building search index from shared catalog...');
 
       final flattenedProducts = await _catalogService.getFlattenedCatalog(
-        timeout: const Duration(seconds: 12),
+        timeout: const Duration(minutes: 2),
       );
 
       if (flattenedProducts.isEmpty) {
@@ -2345,11 +1849,9 @@ class CategoryPageState extends State<CategoryPage> {
       debugPrint(
           '🔍 Prefetch: received ${flattenedProducts.length} items from get-all-products');
 
-      _allProducts = flattenedProducts;
       CategoryCache.cacheAllProducts(flattenedProducts);
-      _buildSearchIndex(flattenedProducts);
       debugPrint(
-          '🔍 Prefetch: cached ${flattenedProducts.length} flattened products for instant search');
+          '🔍 Prefetch: cached ${flattenedProducts.length} flattened products');
 
       if (mounted) {
         setState(() {});
@@ -2363,13 +1865,6 @@ class CategoryPageState extends State<CategoryPage> {
     debugPrint('🔍 ==========================================');
   }
 
-  // Store search results for navigation persistence
-  void _storeSearchResultsForNavigation(dynamic searchedProduct) {
-    // Store the searched product for navigation persistence
-    SearchResultCache.storeSearchedProduct(searchedProduct);
-    debugPrint(
-        '🔍 Stored searched product for navigation: ${searchedProduct['name']}');
-  }
 }
 
 // Skeleton screen for category page
@@ -2699,6 +2194,7 @@ class SubcategoryPage extends StatefulWidget {
   final String? searchedProductName;
   final int? searchedProductId;
   final int? targetSubcategoryId;
+  final bool showBottomNav;
 
   const SubcategoryPage({
     super.key,
@@ -2707,6 +2203,7 @@ class SubcategoryPage extends StatefulWidget {
     this.searchedProductName,
     this.searchedProductId,
     this.targetSubcategoryId,
+    this.showBottomNav = true,
   });
 
   @override
@@ -3267,7 +2764,9 @@ class SubcategoryPageState extends State<SubcategoryPage> {
         ],
       ),
       floatingActionButton: _buildAnimatedScrollToTopButton(),
-      bottomNavigationBar: CustomBottomNav(initialIndex: 2),
+      bottomNavigationBar: widget.showBottomNav
+          ? const CustomBottomNav(selectedIndex: 3)
+          : null,
     );
   }
 
@@ -4082,7 +3581,10 @@ class ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final data = Map<String, dynamic>.from(product as Map);
+    if (product is! Map) {
+      return const SizedBox.shrink();
+    }
+    final data = Map<String, dynamic>.from(product);
     final productName = data['name']?.toString() ?? 'Product';
     final brandName = data['brand_name']?.toString().trim() ?? '';
     final isPrescribed = _isPrescribed(data);
@@ -5073,20 +4575,12 @@ class ProductSearchDelegate extends SearchDelegate<String> {
             product['name'] ?? 'Unknown Product',
             style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
           ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'GHS ${product['price']?.toStringAsFixed(2) ?? '0.00'}',
-                style: TextStyle(color: Colors.green.shade700, fontSize: 14),
-              ),
-              if (categoryName != null)
-                Text(
+          subtitle: categoryName != null
+              ? Text(
                   'Category: $categoryName',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-            ],
-          ),
+                )
+              : null,
           trailing: const Icon(Icons.chevron_right),
           onTap: () {
             close(context, '');

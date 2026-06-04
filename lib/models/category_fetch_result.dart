@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../utils/product_catalog_parser.dart';
+
 /// Result of a category/catalog HTTP call (decoded JSON body + status).
 class CategoryFetchResult {
   final int statusCode;
@@ -16,7 +18,8 @@ class CategoryFetchResult {
 
   bool get isHttpOk => statusCode == 200 && body != null;
 
-  bool get isApiSuccess => isHttpOk && body!['success'] == true;
+  bool get isApiSuccess =>
+      isHttpOk && body != null && isCatalogApiBodySuccess(body!);
 
   List<dynamic> get data =>
       body?['data'] is List ? List<dynamic>.from(body!['data'] as List) : const [];

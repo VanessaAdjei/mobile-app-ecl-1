@@ -39,6 +39,7 @@ class UniversalPageOptimizationService {
     Future<T> Function() fetchFunction, {
     Duration? cacheDuration,
     bool forceRefresh = false,
+    bool persistToDisk = true,
     String? pageName,
   }) async {
     final timerName = '${pageName ?? 'page'}_fetch_$cacheKey';
@@ -50,6 +51,7 @@ class UniversalPageOptimizationService {
         fetchFunction,
         cacheDuration: cacheDuration ?? _defaultCacheDuration,
         forceRefresh: forceRefresh,
+        persistToDisk: persistToDisk,
       );
 
       _performanceService.stopTimer(timerName);

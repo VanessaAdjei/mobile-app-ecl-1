@@ -3,6 +3,8 @@ import '../pages/aboutus.dart';
 import '../pages/cart.dart';
 import '../pages/categories.dart';
 import '../pages/homepage.dart';
+import '../pages/main_tab_shell.dart';
+import '../models/product_model.dart';
 import '../pages/itemdetail.dart';
 import '../pages/notifications.dart';
 import '../pages/pharmacists.dart';
@@ -53,11 +55,17 @@ class AppRouteGenerator {
   static Route<dynamic>? generate(RouteSettings settings) {
     switch (settings.name) {
       case AppRoutes.home:
-        return MaterialPageRoute(builder: (_) => const HomePage());
+        return MaterialPageRoute(
+          builder: (_) => const MainTabShell(initialIndex: 0),
+        );
       case AppRoutes.cart:
-        return MaterialPageRoute(builder: (_) => const Cart());
+        return MaterialPageRoute(
+          builder: (_) => const MainTabShell(initialIndex: 1),
+        );
       case AppRoutes.profile:
-        return MaterialPageRoute(builder: (_) => Profile());
+        return MaterialPageRoute(
+          builder: (_) => const MainTabShell(initialIndex: 4),
+        );
       case AppRoutes.wallet:
         return MaterialPageRoute(builder: (_) => WalletPage());
       case AppRoutes.wishlist:
@@ -66,17 +74,28 @@ class AppRouteGenerator {
         final args = settings.arguments as Map<String, dynamic>?;
         final urlName = args?['urlName'] as String? ?? '';
         final isPrescribed = args?['isPrescribed'] as bool? ?? false;
+        Product? initialProduct;
+        final productJson = args?['product'];
+        if (productJson is Map<String, dynamic>) {
+          initialProduct = Product.fromJson(productJson);
+        } else if (productJson is Map) {
+          initialProduct =
+              Product.fromJson(Map<String, dynamic>.from(productJson));
+        }
         return MaterialPageRoute(
           builder: (_) => ItemPage(
             urlName: urlName,
             isPrescribed: isPrescribed,
+            initialProduct: initialProduct,
           ),
         );
       case AppRoutes.categoryPage:
         final args = settings.arguments as Map<String, dynamic>?;
         final isBulkPurchase = args?['isBulkPurchase'] as bool? ?? false;
         return MaterialPageRoute(
-          builder: (_) => CategoryPage(isBulkPurchase: isBulkPurchase),
+          builder: (_) => isBulkPurchase
+              ? CategoryPage(isBulkPurchase: true)
+              : const MainTabShell(initialIndex: 3),
         );
       case AppRoutes.storeSelection:
         return MaterialPageRoute(

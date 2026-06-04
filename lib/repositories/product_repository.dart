@@ -2,6 +2,8 @@ import '../database/product/product_remote_data_source.dart';
 import '../models/category_fetch_result.dart';
 
 abstract class ProductRepository {
+  Future<CatalogRawHttpResult> fetchAllProductsRaw({Duration timeout});
+
   Future<CategoryFetchResult> fetchAllProducts({Duration timeout});
   Future<CategoryFetchResult> fetchHomePriorityProducts({Duration timeout});
   Future<CategoryFetchResult> fetchPopularProducts({Duration timeout});
@@ -13,6 +15,12 @@ class ProductRepositoryImpl implements ProductRepository {
       : _remote = remote ?? ProductRemoteDataSourceImpl();
 
   final ProductRemoteDataSource _remote;
+
+  @override
+  Future<CatalogRawHttpResult> fetchAllProductsRaw({
+    Duration timeout = const Duration(seconds: 30),
+  }) =>
+      _remote.fetchAllProductsRaw(timeout: timeout);
 
   @override
   Future<CategoryFetchResult> fetchAllProducts({

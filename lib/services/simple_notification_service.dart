@@ -29,7 +29,7 @@ class SimpleNotificationService {
   static Future<void> testNotification() async {
     await showNotification(
       title: 'Test Notification 📱',
-      body: 'This is a test notification from ECL Pharmacy App!',
+      body: 'This is a test notification from Ernest Chemist!',
       payload: 'test',
     );
   }

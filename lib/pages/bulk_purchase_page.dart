@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../services/product_catalog_service.dart';
 import '../config/api_config.dart';
 import '../config/app_routes.dart';
+import '../utils/product_detail_navigation.dart';
 import '../providers/cart_provider.dart';
 import '../models/cart_item.dart';
 import '../utils/app_error_utils.dart';
@@ -359,18 +360,20 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
                                 final product = filteredProducts[index];
                                 return InkWell(
                                   onTap: () {
-                                    Navigator.pushNamed(
+                                    final slug = product['product']
+                                            ?['url_name']
+                                        ?.toString() ??
+                                        '';
+                                    if (slug.isEmpty) return;
+                                    ProductDetailNavigation.pushNamed(
                                       context,
-                                      AppRoutes.itemDetail,
-                                      arguments: {
-                                        'urlName': product['product']
-                                            ['url_name'],
-                                        'isPrescribed': product['product']
-                                                    ['otcpom']
-                                                ?.toString()
-                                                .toLowerCase() ==
-                                            'pom',
-                                      },
+                                      urlName: slug,
+                                      raw: product,
+                                      isPrescribed: product['product']
+                                              ?['otcpom']
+                                          ?.toString()
+                                          .toLowerCase() ==
+                                          'pom',
                                     );
                                   },
                                   child: Container(

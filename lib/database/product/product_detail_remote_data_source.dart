@@ -5,12 +5,12 @@ import '../../services/http_client_service.dart';
 abstract class ProductDetailRemoteDataSource {
   Future<CategoryFetchResult> fetchProductDetails(
     String urlName, {
-    Duration timeout = const Duration(seconds: 10),
+    Duration timeout = const Duration(seconds: 30),
   });
 
   Future<CategoryFetchResult> fetchRelatedProducts(
     String urlName, {
-    Duration timeout = const Duration(seconds: 8),
+    Duration timeout = const Duration(seconds: 20),
   });
 }
 
@@ -32,7 +32,7 @@ class ProductDetailRemoteDataSourceImpl implements ProductDetailRemoteDataSource
   @override
   Future<CategoryFetchResult> fetchProductDetails(
     String urlName, {
-    Duration timeout = const Duration(seconds: 10),
+    Duration timeout = const Duration(seconds: 30),
   }) {
     return _get(Uri.parse(ApiConfig.getProductDetailsUrl(urlName)), timeout);
   }
@@ -40,7 +40,7 @@ class ProductDetailRemoteDataSourceImpl implements ProductDetailRemoteDataSource
   @override
   Future<CategoryFetchResult> fetchRelatedProducts(
     String urlName, {
-    Duration timeout = const Duration(seconds: 8),
+    Duration timeout = const Duration(seconds: 20),
   }) {
     return _get(Uri.parse(ApiConfig.getRelatedProductsUrl(urlName)), timeout);
   }

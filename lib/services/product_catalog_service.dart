@@ -37,10 +37,18 @@ class ProductCatalogService {
   Future<List<Product>> fetchCatalogProducts({
     Duration timeout = const Duration(seconds: 10),
   }) async {
-    final result = await _repository.fetchAllProducts(timeout: timeout);
-    _rethrowIfTransportError(result);
-    if (!result.isHttpOk) return const [];
-    return compute(productsFromApiDataList, List<dynamic>.from(result.data));
+    final bundle = await fetchCatalogBundle(timeout: timeout);
+    return bundle.products;
+  }
+
+  /// One HTTP call — parsed [Product]s plus raw `data` rows for category search.
+  Future<CatalogParseBundle> fetchCatalogBundle({
+    Duration timeout = const Duration(seconds: 50),
+  }) async {
+    final raw = await _repository.fetchAllProductsRaw(timeout: timeout);
+    if (raw.error != null) throw raw.error!;
+    if (!raw.isHttpOk) return const CatalogParseBundle([], []);
+    return compute(parseCatalogBodyBundle, raw.body);
   }
 
   /// Fetches and parses popular products.

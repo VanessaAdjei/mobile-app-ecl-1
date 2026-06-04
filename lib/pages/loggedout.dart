@@ -193,7 +193,7 @@ class _LoggedOutScreenState extends State<LoggedOutScreen>
                           child: Column(
                             children: [
                               Text(
-                                'Welcome to ECLAPP',
+                                'Welcome to Ernest Chemist',
                                 style: Theme.of(context)
                                     .textTheme
                                     .headlineSmall

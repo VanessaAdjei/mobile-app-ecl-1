@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:eclapp/cache/product_cache.dart';
 import 'package:eclapp/config/app_colors.dart';
 import 'package:eclapp/services/home_preload_service.dart';
 import 'package:flutter/material.dart';
@@ -30,12 +31,20 @@ class _BrandLaunchSplashPageState extends State<BrandLaunchSplashPage>
   late final Animation<double> _exitFade;
 
   bool _isExiting = false;
-  Timer? _autoTimer;
+  Timer? _maxWaitTimer;
+  DateTime? _shownSince;
+  bool _catalogExitScheduled = false;
+
+  static const Duration _minBrandDisplay = Duration(milliseconds: 1200);
+  static const Duration _maxBrandWait = Duration(seconds: 30);
 
   @override
   void initState() {
     super.initState();
+    _shownSince = DateTime.now();
     HomePreloadService.startOnboardingPreload();
+    ProductCache.addCatalogListener(_onCatalogReady);
+    unawaited(_waitForCatalogThenExit());
 
     _logoController = AnimationController(
       vsync: this,
@@ -81,14 +90,39 @@ class _BrandLaunchSplashPageState extends State<BrandLaunchSplashPage>
       if (mounted) _textController.forward();
     });
 
-    _autoTimer = Timer(const Duration(milliseconds: 2400), () {
+    _maxWaitTimer = Timer(_maxBrandWait, () {
       if (mounted && !_isExiting) _finish();
     });
   }
 
+  void _onCatalogReady() {
+    if (!mounted || _isExiting || _catalogExitScheduled) return;
+    if (!ProductCache.catalogApiSucceeded) return;
+    _catalogExitScheduled = true;
+    unawaited(_exitAfterMinDisplay());
+  }
+
+  Future<void> _waitForCatalogThenExit() async {
+    await ProductCache.waitForCatalogApiSuccess(maxWait: _maxBrandWait);
+    if (!mounted || _isExiting || _catalogExitScheduled) return;
+    _catalogExitScheduled = true;
+    await _exitAfterMinDisplay();
+  }
+
+  Future<void> _exitAfterMinDisplay() async {
+    final shownSince = _shownSince ?? DateTime.now();
+    final elapsed = DateTime.now().difference(shownSince);
+    if (elapsed < _minBrandDisplay) {
+      await Future<void>.delayed(_minBrandDisplay - elapsed);
+    }
+    if (!mounted || _isExiting) return;
+    await _finish();
+  }
+
   @override
   void dispose() {
-    _autoTimer?.cancel();
+    ProductCache.removeCatalogListener(_onCatalogReady);
+    _maxWaitTimer?.cancel();
     _logoController.dispose();
     _textController.dispose();
     _exitController.dispose();
@@ -99,7 +133,7 @@ class _BrandLaunchSplashPageState extends State<BrandLaunchSplashPage>
   Future<void> _finish() async {
     if (_isExiting) return;
     _isExiting = true;
-    _autoTimer?.cancel();
+    _maxWaitTimer?.cancel();
 
     await _exitController.forward();
     if (!mounted) return;

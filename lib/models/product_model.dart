@@ -53,6 +53,27 @@ class Product {
         .toList();
   }
 
+  static String _asString(dynamic value, [String fallback = '']) {
+    if (value == null) return fallback;
+    if (value is String) return value;
+    if (value is Map) {
+      return value['description']?.toString() ??
+          value['name']?.toString() ??
+          fallback;
+    }
+    return value.toString();
+  }
+
+  static int _asInt(dynamic value) {
+    if (value is int) return value;
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static List<String> _asStringList(dynamic value) {
+    if (value == null || value is! List) return const [];
+    return value.map((e) => e.toString()).toList();
+  }
+
   factory Product.fromJson(Map<String, dynamic> json) {
     final uomValue = json['uom'];
     String? finalUom;
@@ -63,27 +84,28 @@ class Product {
     }
 
     return Product(
-      id: json['id'] ?? 0,
-      name: json['name'] ?? '',
-      description: json['description'] ?? '',
-      urlName: json['url_name'] ?? '',
-      status: json['status'] ?? '',
-      price: json['price']?.toString() ?? '0.00',
-      thumbnail: json['thumbnail'] ?? '',
-      quantity: json['stock']?.toString() ??
-          json['qty_in_stock']?.toString() ??
-          json['quantity']?.toString() ??
-          '',
-      batch_no: json['batch_no'] ?? '',
-      category: json['category'] ?? '',
-      route: json['route'] ?? '',
-      tags: json['tags'] != null ? List<String>.from(json['tags']) : [],
-      otcpom: json['otcpom'],
-      drug: json['drug'],
-      wellness: json['wellness'],
-      selfcare: json['selfcare'],
-      accessories: json['accessories'],
-      categoryId: json['category_id'],
+      id: _asInt(json['id'] ?? json['product_id']),
+      name: _asString(json['name']),
+      description: _asString(json['description']),
+      urlName: _asString(json['url_name'] ?? json['urlname']),
+      status: _asString(json['status']),
+      price: _asString(json['price'] ?? json['unit_price'], '0.00'),
+      thumbnail: _asString(
+        json['thumbnail'] ?? json['image'] ?? json['product_img'],
+      ),
+      quantity: _asString(
+        json['stock'] ?? json['qty_in_stock'] ?? json['quantity'],
+      ),
+      batch_no: _asString(json['batch_no']),
+      category: _asString(json['category']),
+      route: _asString(json['route']),
+      tags: _asStringList(json['tags']),
+      otcpom: json['otcpom']?.toString(),
+      drug: json['drug']?.toString(),
+      wellness: json['wellness']?.toString(),
+      selfcare: json['selfcare']?.toString(),
+      accessories: json['accessories']?.toString(),
+      categoryId: _asInt(json['category_id']),
       uom: finalUom,
       galleryImages: _galleryImagesFromJson(json['gallery_images']),
     );

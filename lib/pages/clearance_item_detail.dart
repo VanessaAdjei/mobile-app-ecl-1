@@ -79,15 +79,21 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
 
     _initializeOptimization();
 
-    _relatedProductsFuture =
-        _fetchRelatedProductsWithCache(widget.product.urlName);
-    _relatedProductsFuture.whenComplete(() {
-      if (mounted) {
-        _optimizationService.stopPagePerformanceTracking(
-          'clearance_item_detail_${widget.product.id}',
-          'load',
-        );
-      }
+    _relatedProductsFuture = Future<List<Product>>.value(const []);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _relatedProductsFuture =
+            _fetchRelatedProductsWithCache(widget.product.urlName);
+      });
+      _relatedProductsFuture.whenComplete(() {
+        if (mounted) {
+          _optimizationService.stopPagePerformanceTracking(
+            'clearance_item_detail_${widget.product.id}',
+            'load',
+          );
+        }
+      });
     });
 
     if (widget.product.isPrescribed == true) {
@@ -214,8 +220,12 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
   Future<List<Product>> _fetchRelatedProductsWithCache(String urlName) async {
     final result = await _optimizationService.fetchData(
       'related_products_$urlName',
-      () => _detailService.fetchRelatedProducts(urlName),
+      () => _detailService.fetchRelatedProducts(
+        urlName,
+        timeout: const Duration(seconds: 20),
+      ),
       pageName: 'clearance_item_detail',
+      persistToDisk: false,
     );
     return result ?? [];
   }

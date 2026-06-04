@@ -69,11 +69,6 @@ class HomepageOptimizationService {
   }
 
   // ==================== PRODUCTS OPTIMIZATION ====================
-  static const List<Duration> _catalogRequestTimeouts = <Duration>[
-    Duration(seconds: 12),
-    Duration(seconds: 20),
-    Duration(seconds: 30),
-  ];
 
   /// Seeds in-memory cache from [ProductCache] (see homepage boot).
   void seedFromCatalog({
@@ -114,7 +109,9 @@ class HomepageOptimizationService {
     if (!forceRefresh && _cachedProducts.isNotEmpty) {
       if (ProductCache.shouldRefreshFromNetwork &&
           !ProductCatalogMemory.hasProducts) {
-        unawaited(_fetchProducts().catchError((_) => _cachedProducts));
+        unawaited(
+          ProductCache.prefetchFromNetwork().catchError((_) => null),
+        );
       }
       _optimizationService.endTimer('HomepageService_GetProducts');
       return _cachedProducts;
@@ -142,87 +139,27 @@ class HomepageOptimizationService {
     }
   }
 
+  /// Single in-flight get-all-products via [ProductCache] (no duplicate HTTP).
   Future<List<Product>> _fetchProducts() async {
     _isLoadingProducts = true;
 
     try {
       debugPrint(
-          '🌐 [HomepageService] Making API request to get-all-products...');
-      http.Response? response;
-      Object? lastError;
-
-      for (var i = 0; i < _catalogRequestTimeouts.length; i++) {
-        final timeout = _catalogRequestTimeouts[i];
-        try {
-          response = await http
-              .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
-              .timeout(timeout);
-          break;
-        } on TimeoutException catch (e) {
-          lastError = e;
-          final attempt = i + 1;
-          final isLast = i == _catalogRequestTimeouts.length - 1;
-          debugPrint(
-            '⏱️ [HomepageService] get-all-products timeout (attempt $attempt/${_catalogRequestTimeouts.length}) after ${timeout.inSeconds}s',
-          );
-          if (!isLast) {
-            await Future<void>.delayed(Duration(milliseconds: 300 * attempt));
-          }
-        }
-      }
-
-      if (response == null) {
-        throw lastError ??
-            TimeoutException(
-              'get-all-products timed out after ${_catalogRequestTimeouts.last.inSeconds}s',
-            );
-      }
-
-      debugPrint(
-          '📡 [HomepageService] API response status: ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        debugPrint('✅ [HomepageService] Parsing response data...');
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        final List<dynamic> dataList = responseData['data'] ?? [];
-
-        debugPrint(
-            '📦 [HomepageService] Found ${dataList.length} products in response');
-
-        final products = dataList.map<Product>((item) {
-          final productData = item['product'] as Map<String, dynamic>;
-          return Product(
-            id: productData['id'] ?? 0,
-            name: productData['name'] ?? 'No name',
-            description: productData['description'] ?? '',
-            urlName: productData['url_name'] ?? '',
-            status: productData['status'] ?? '',
-            batch_no: item['batch_no'] ?? '',
-            price: (item['price'] ?? 0).toString(),
-            thumbnail: productData['thumbnail'] ?? productData['image'] ?? '',
-            quantity: productData['qty_in_stock']?.toString() ?? '',
-            category: productData['category'] ?? '',
-            route: productData['route'] ?? '',
-            otcpom: productData['otcpom'],
-            drug: productData['drug'],
-            wellness: productData['wellness'],
-            selfcare: productData['selfcare'],
-            accessories: productData['accessories'],
-          );
-        }).toList();
-
-        debugPrint('💾 [HomepageService] Caching ${products.length} products');
+        '🌐 [HomepageService] waiting on ProductCache get-all-products...',
+      );
+      await ProductCache.prefetchFromNetwork();
+      if (ProductCache.hasProductsInMemory) {
+        final products = List<Product>.from(ProductCache.cachedProducts);
         _cacheProducts(products);
+        debugPrint(
+          '✅ [HomepageService] ${products.length} products from ProductCache',
+        );
         _optimizationService.endTimer('HomepageService_GetProducts');
         return products;
-      } else {
-        debugPrint(
-            '❌ [HomepageService] API returned status ${response.statusCode}');
-        throw Exception('Failed to load products: HTTP ${response.statusCode}');
       }
+      throw Exception('get-all-products returned no products');
     } catch (e) {
       debugPrint('💥 [HomepageService] Exception in _fetchProducts: $e');
-      debugPrint('💥 [HomepageService] Exception type: ${e.runtimeType}');
       _optimizationService.endTimer('HomepageService_GetProducts');
       rethrow;
     } finally {

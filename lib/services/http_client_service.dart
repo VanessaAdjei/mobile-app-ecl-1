@@ -18,8 +18,8 @@ class HttpClientService {
       // Use default certificate validation. Fix server certificate chain
       // if you see SSL errors; do not use badCertificateCallback in production.
       final httpClient = HttpClient()
-        ..connectionTimeout = const Duration(seconds: 15)
-        ..idleTimeout = const Duration(seconds: 15);
+        ..connectionTimeout = const Duration(seconds: 20)
+        ..idleTimeout = const Duration(seconds: 60);
 
       _client = IOClient(httpClient);
       _isInitialized = true;
@@ -54,7 +54,11 @@ class HttpClientService {
     Map<String, String>? headers,
   }) async {
     await initialize();
-    return client.get(url, headers: headers);
+    final merged = <String, String>{
+      'Accept-Encoding': 'gzip',
+      if (headers != null) ...headers,
+    };
+    return client.get(url, headers: merged);
   }
 
   static Future<http.Response> post(

@@ -283,7 +283,7 @@ class NativeNotificationService {
     if (await canPostSystemNotifications()) return true;
     if (!requestIfNeeded) {
       debugPrint(
-        '📱 Native: Notifications off — enable in Settings → ECL → Notifications',
+        '📱 Native: Notifications off — enable in Settings → Ernest Chemist → Notifications',
       );
       return false;
     }
@@ -314,7 +314,7 @@ class NativeNotificationService {
         if (!allowed) {
           debugPrint(
             '📱 Native: Cannot show "$title" — notifications are off. '
-            'Open Settings → ECL → Notifications.',
+            'Open Settings → Ernest Chemist → Notifications.',
           );
           return;
         }
@@ -371,7 +371,7 @@ class NativeNotificationService {
   static Future<void> testNotification() async {
     await showNotification(
       title: 'Test Notification 📱',
-      body: 'This is a test notification from ECL Pharmacy App!',
+      body: 'This is a test notification from Ernest Chemist!',
       payload: json.encode({
         'type': 'test',
         'message': 'Test notification',

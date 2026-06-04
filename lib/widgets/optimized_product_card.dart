@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import '../config/api_config.dart';
 import '../models/product_model.dart';
-import '../pages/itemdetail.dart';
+import '../utils/product_detail_navigation.dart';
 import '../services/advanced_performance_service.dart';
 import '../services/stock_utility_service.dart';
 
@@ -79,14 +79,10 @@ class _OptimizedProductCardState extends State<OptimizedProductCard>
     if (widget.onTap != null) {
       widget.onTap!();
     } else {
-      Navigator.push(
+      ProductDetailNavigation.push(
         context,
-        MaterialPageRoute(
-          builder: (context) => ItemPage(
-            urlName: widget.product.urlName,
-            isPrescribed: widget.product.otcpom?.toLowerCase() == 'pom',
-          ),
-        ),
+        urlName: widget.product.urlName,
+        product: widget.product,
       );
     }
   }

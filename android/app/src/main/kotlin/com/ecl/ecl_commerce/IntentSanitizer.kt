@@ -26,7 +26,8 @@ object IntentSanitizer {
         mainActivityClass: Class<*>,
         incoming: Intent?,
     ): Intent {
-        val safe = Intent(mainActivityClass).apply {
+        val safe = Intent().apply {
+            setClassName(packageName, mainActivityClass.name)
             setPackage(packageName)
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             action = Intent.ACTION_MAIN

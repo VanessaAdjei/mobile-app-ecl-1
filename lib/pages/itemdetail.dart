@@ -30,6 +30,7 @@ import '../services/product_detail_service.dart';
 import '../services/prescription_upload_status_service.dart';
 import '../cache/product_catalog_memory.dart';
 import '../utils/product_detail_parser.dart';
+import '../utils/product_detail_navigation.dart';
 
 const _leaveProductTitle = 'Leave Product';
 const _leaveProductMessage =
@@ -39,10 +40,14 @@ class ItemPage extends StatefulWidget {
   final String urlName;
   final bool isPrescribed;
 
+  /// Catalog/list row shown immediately while the detail API loads.
+  final Product? initialProduct;
+
   const ItemPage({
     super.key,
     required this.urlName,
     this.isPrescribed = false,
+    this.initialProduct,
   });
 
   @override
@@ -123,9 +128,29 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     // set up the optimization service
     _initializeOptimization();
 
+    ProductDetailService.warmProductDetails(widget.urlName);
     _productFuture = _fetchProductDetailsWithCache(widget.urlName);
-    _relatedProductsFuture = _fetchRelatedProductsWithCache(widget.urlName);
+    _relatedProductsFuture = Future<List<Product>>.value(const []);
     _pageScrollController.addListener(_syncPageScrollbar);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _relatedProductsFuture =
+            _fetchRelatedProductsWithCache(widget.urlName);
+      });
+      _relatedProductsFuture.then((products) {
+        if (mounted) {
+          _scheduleRelatedImagePrecache(products);
+          _schedulePageScrollbarUpdate();
+        }
+      }).catchError((_) {});
+    });
+
+    final preview = _instantPreviewProduct;
+    if (preview != null) {
+      _scheduleProductImagePrecache(preview);
+    }
 
     _productFuture.then((product) {
       if (mounted) {
@@ -135,13 +160,11 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       }
     }).catchError((_) {});
 
-    _relatedProductsFuture.then((products) {
-      if (mounted) {
-        _scheduleRelatedImagePrecache(products);
-        _schedulePageScrollbarUpdate();
-      }
-    }).catchError((_) {});
   }
+
+  Product? get _instantPreviewProduct =>
+      widget.initialProduct ??
+      ProductCatalogMemory.findByUrlName(widget.urlName);
 
   void _initializeOptimization() {
     _optimizationService.trackPagePerformance(
@@ -262,8 +285,10 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         catalogFallback: ProductCatalogMemory.hasProducts
             ? ProductCatalogMemory.products
             : const [],
+        timeout: const Duration(seconds: 30),
       ),
       pageName: 'item_detail',
+      persistToDisk: false,
     );
     if (result == null) {
       throw Exception('Product not found');
@@ -275,8 +300,12 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   Future<List<Product>> _fetchRelatedProductsWithCache(String urlName) async {
     final result = await _optimizationService.fetchData(
       'related_products_$urlName',
-      () => _detailService.fetchRelatedProducts(urlName),
+      () => _detailService.fetchRelatedProducts(
+        urlName,
+        timeout: const Duration(seconds: 20),
+      ),
       pageName: 'item_detail',
+      persistToDisk: false,
     );
     return result ?? [];
   }
@@ -621,6 +650,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return FutureBuilder<Product>(
       future: _productFuture,
+      initialData: _instantPreviewProduct,
       builder: (context, snapshot) {
         if (snapshot.hasError && kDebugMode) {
           debugPrint('item_detail FutureBuilder: ${snapshot.error}');
@@ -648,7 +678,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         }
 
         if (!snapshot.hasData) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting ||
+              snapshot.connectionState == ConnectionState.active) {
             return Scaffold(
               backgroundColor: _detailBg,
               body: CustomScrollView(
@@ -1680,13 +1711,10 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
-          Navigator.pushNamed(
+          ProductDetailNavigation.pushNamed(
             context,
-            AppRoutes.itemDetail,
-            arguments: {
-              'urlName': product.urlName,
-              'isPrescribed': product.otcpom?.toLowerCase() == 'pom',
-            },
+            urlName: product.urlName,
+            product: product,
           );
         },
         borderRadius: BorderRadius.circular(ItemDetailDesign.radiusMd),

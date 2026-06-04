@@ -12,11 +12,17 @@ class ProductImagePreloadService {
 
   static final DefaultCacheManager _cache = DefaultCacheManager();
   static final Set<String> _downloaded = {};
+
+  /// Same store [CachedNetworkImage] must use so preloads are visible on cards.
+  static CacheManager get cacheManager => _cache;
   static Future<void>? _gridWarmFuture;
   static Future<void>? _homeGridWarmFuture;
 
   /// Must match [HomeProductCard] / grid [CachedNetworkImage] disk resize.
   static const int homeThumbDiskSize = 300;
+
+  /// Matches [_getLimitedProducts] on home (medication horizontal row).
+  static const int homeMedicationVisibleCount = 8;
 
   static int get downloadedCount => _downloaded.length;
 
@@ -24,9 +30,15 @@ class ProductImagePreloadService {
 
   static bool _lastHomeGridWarmComplete = false;
 
-  static String imageUrlFor(Product product) =>
-      ApiConfig.getImageOrStorageUrl(product.thumbnail);
+  static String imageUrlFor(Product product) {
+    var source = product.thumbnail.trim();
+    if (source.isEmpty && product.galleryImages.isNotEmpty) {
+      source = product.galleryImages.first.trim();
+    }
+    return ApiConfig.getImageOrStorageUrl(source);
+  }
 
+  /// Disk key used by [ImageCacheManager.getImageFile] when `key` is the image URL.
   static String diskCacheKeyFor(String url) =>
       'resized_w${homeThumbDiskSize}_h${homeThumbDiskSize}_$url';
 
@@ -36,24 +48,90 @@ class ProductImagePreloadService {
     return _downloaded.contains(diskCacheKeyFor(url));
   }
 
-  /// Medication row thumbnails only — used for fast first paint on home.
-  static Future<void> warmPriorityHomeImages({
-    required List<Product> catalog,
-    Duration maxWait = const Duration(seconds: 10),
-    int maxConcurrent = 4,
-    int medicationVisible = 6,
-  }) async {
-    if (catalog.isEmpty) return;
+  /// True when every product in [products] has a resized thumbnail on disk.
+  static Future<bool> areProductsCached(List<Product> products) async {
+    final urls = <String>[];
+    for (final p in products) {
+      final u = imageUrlFor(p);
+      if (u.isNotEmpty) urls.add(u);
+    }
+    if (urls.isEmpty) return true;
+    return _areUrlsCached(urls);
+  }
+
+  /// Larger pool pre-cached during onboarding so home shuffle still hits disk cache.
+  static const int onboardingGridPoolPerSection = 40;
+
+  static List<Product> onboardingGridWarmProducts(List<Product> catalog) {
+    if (catalog.isEmpty) return const [];
     final sections = categorizeProductsForHome(catalog);
-    final drugs = sections['drugs'] ?? const <Product>[];
-    final urls = <String>{};
-    for (final p in drugs.take(medicationVisible)) {
+    return [
+      ...sections['wellness']!.take(onboardingGridPoolPerSection),
+      ...sections['selfcare']!.take(onboardingGridPoolPerSection),
+      ...sections['accessories']!.take(onboardingGridPoolPerSection),
+      ...sections['prescribed']!.take(20),
+    ];
+  }
+
+  /// Warms thumbnails for the exact [products] shown on home (after section shuffle).
+  static Future<int> warmProductListImages({
+    required List<Product> products,
+    Duration maxWait = const Duration(seconds: 30),
+    int maxConcurrent = 18,
+  }) async {
+    final urls = <String>[];
+    for (final p in products) {
+      final u = imageUrlFor(p);
+      if (u.isNotEmpty) urls.add(u);
+    }
+    if (urls.isEmpty) return 0;
+
+    if (await _areUrlsCached(urls)) {
+      _lastHomeGridWarmComplete = true;
+      return urls.length;
+    }
+
+    _lastHomeGridWarmComplete = false;
+    await _warmUrls(
+      urls,
+      maxWait: maxWait,
+      maxConcurrent: maxConcurrent,
+    );
+    _lastHomeGridWarmComplete = await _areUrlsCached(urls);
+    return urls.length;
+  }
+
+  /// Warms the exact products shown in the home medication row (after shuffle).
+  static Future<void> warmMedicationRowImages({
+    required List<Product> products,
+    Duration maxWait = const Duration(seconds: 10),
+    int maxConcurrent = 8,
+  }) async {
+    final urls = <String>[];
+    for (final p in products.take(homeMedicationVisibleCount)) {
       final u = imageUrlFor(p);
       if (u.isNotEmpty) urls.add(u);
     }
     if (urls.isEmpty) return;
     await _warmUrls(
-      urls.toList(),
+      urls,
+      maxWait: maxWait,
+      maxConcurrent: maxConcurrent,
+    );
+  }
+
+  /// Medication row thumbnails — first OTC slice when row list not built yet.
+  static Future<void> warmPriorityHomeImages({
+    required List<Product> catalog,
+    Duration maxWait = const Duration(seconds: 10),
+    int maxConcurrent = 8,
+    int medicationVisible = homeMedicationVisibleCount,
+  }) async {
+    if (catalog.isEmpty) return;
+    final sections = categorizeProductsForHome(catalog);
+    final drugs = sections['drugs'] ?? const <Product>[];
+    await warmMedicationRowImages(
+      products: drugs.take(medicationVisible).toList(),
       maxWait: maxWait,
       maxConcurrent: maxConcurrent,
     );
@@ -156,6 +234,15 @@ class ProductImagePreloadService {
     Duration maxWait = const Duration(seconds: 35),
     int maxConcurrent = 6,
   }) async {
+    if (visibleProducts.isNotEmpty) {
+      await warmProductListImages(
+        products: visibleProducts,
+        maxWait: maxWait,
+        maxConcurrent: maxConcurrent,
+      );
+      return;
+    }
+
     final urls = collectHomeGridUrls(
       catalog: catalog,
       popular: popular,
@@ -185,7 +272,10 @@ class ProductImagePreloadService {
     while (index < urls.length && DateTime.now().isBefore(deadline)) {
       final chunk = urls.skip(index).take(maxConcurrent).toList();
       index += chunk.length;
-      await Future.wait(chunk.map(_downloadOne));
+      await Future.wait(
+        chunk.map((url) => _downloadOne(url)),
+        eagerError: false,
+      );
     }
     debugPrint(
       'ProductImagePreload: ${_downloaded.length} resized thumbnails cached',
@@ -263,6 +353,7 @@ class ProductImagePreloadService {
 
       await for (final response in _cache.getImageFile(
         url,
+        key: url,
         maxWidth: homeThumbDiskSize,
         maxHeight: homeThumbDiskSize,
       )) {

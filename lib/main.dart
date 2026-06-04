@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:eclapp/cache/product_cache.dart';
 import 'package:eclapp/utils/catalog_timer.dart';
 import 'package:eclapp/pages/homepage.dart';
+import 'package:eclapp/pages/main_tab_shell.dart';
 import 'package:eclapp/pages/wallet_page.dart';
 import 'package:provider/provider.dart';
 import 'providers/cart_provider.dart';
@@ -25,6 +26,7 @@ import 'pages/clearance_admin_page.dart';
 import 'providers/notification_provider.dart';
 import 'services/app_background_scheduler.dart';
 import 'services/home_preload_service.dart';
+import 'services/product_image_preload_service.dart';
 import 'services/order_notification_service.dart';
 import 'services/native_notification_service.dart';
 import 'services/notification_handler_service.dart';
@@ -164,14 +166,18 @@ void main() async {
       return false;
     };
 
-    // set up http client stuff for ssl certificates i think
-    await HttpClientService.initialize();
+    // Prefs + routing in parallel with HTTP/catalog so runApp is not blocked twice.
+    final launchFlagsFuture = resolveAppLaunchFlags();
 
-    // Same key as native GoogleMap — required for Places / Geocoding search in Dart.
-    await ApiConfig.initializeMapsApiKey();
-
-    // Start full catalog download as soon as the app opens (not on Get Started).
+    // Start disk catalog read immediately (no HTTP) so warm launches beat network.
     CatalogTimer.mark('app_open');
+    unawaited(ProductCache.loadFromStorage());
+
+    // HTTP/maps are not needed to choose the first screen — init after first frame.
+    unawaited(HttpClientService.initialize());
+    unawaited(ApiConfig.initializeMapsApiKey());
+
+    // Full catalog download as soon as HTTP is ready (not on Get Started).
     unawaited(ProductCache.prefetchPriorityFromNetwork());
     unawaited(ProductCache.prefetchFromNetwork());
     debugPrint('🚀 Main: priority + get-all-products started at app open');
@@ -180,8 +186,10 @@ void main() async {
     PaintingBinding.instance.imageCache.maximumSize = 1000;
     PaintingBinding.instance.imageCache.maximumSizeBytes = 100 << 20; // 100 MB
 
-    await _initializeApp();
-    runApp(const MyApp());
+    unawaited(_initializeApp());
+
+    // First Flutter frame immediately — no white logo screen while prefs load.
+    runApp(EclAppRoot(flagsFuture: launchFlagsFuture));
   }, (error, stack) {
     if (_isKeychainError(error)) return;
     debugPrint('Unhandled error: $error');
@@ -190,35 +198,76 @@ void main() async {
 }
 
 Future<void> _initializeApp() async {
-  debugPrint('🚀 Main: Cold start - optimized for fast onboarding');
+  debugPrint('🚀 Main: Cold start - deferred (non-blocking for first frame)');
 
-  await AuthService.clearAllGuestIds();
-
-  // do the important stuff first and wait for it to finish
-  debugPrint('🚀 Main: Starting critical service initialization...');
-  final criticalStartTime = DateTime.now();
-
-  // only do the bare minimum so onboarding shows up fast
-  await Future.wait([
-    BannerCacheService().initialize(),
-  ]).timeout(
-      const Duration(milliseconds: 500)); // Very fast timeout for onboarding
-
-  final criticalInitTime = DateTime.now().difference(criticalStartTime);
-  debugPrint(
-      '🚀 Main: Critical services initialized in ${criticalInitTime.inMilliseconds}ms');
-
-  // Disk + images in parallel with the in-flight get-all-products request.
+  unawaited(AuthService.clearAllGuestIds());
+  unawaited(BannerCacheService().initialize());
   unawaited(_warmCatalogFromDisk());
-  HomePreloadService.startOnboardingPreload();
-
-  // do other stuff in background, dont wait for it
   unawaited(_initBackground());
-
-  debugPrint('Prefetch...');
   unawaited(BannerCacheService().getBanners());
 
-  debugPrint('🚀 Main: Cold start completed');
+  debugPrint('🚀 Main: Cold start work scheduled');
+}
+
+/// Launch routing flags read once before [runApp] so the white bootstrap screen is skipped.
+class AppLaunchFlags {
+  const AppLaunchFlags({
+    required this.isFirstLaunch,
+    required this.termsAccepted,
+    required this.hasSeenBrandSplash,
+  });
+
+  final bool isFirstLaunch;
+  final bool termsAccepted;
+  final bool hasSeenBrandSplash;
+}
+
+Future<AppLaunchFlags> resolveAppLaunchFlags() async {
+  final prefs = await SharedPreferences.getInstance();
+  final currentDate = DateTime.now().toIso8601String();
+  final appInstallDate = prefs.getString('app_install_date');
+
+  bool isFirstLaunch;
+  if (appInstallDate == null) {
+    unawaited(prefs.setString('app_install_date', currentDate));
+    isFirstLaunch = true;
+    debugPrint('🚀 Main: Fresh install detected - showing onboarding');
+  } else {
+    try {
+      final installDate = DateTime.parse(appInstallDate);
+      final daysSinceInstall = DateTime.now().difference(installDate).inDays;
+      if (daysSinceInstall > 30) {
+        unawaited(prefs.setString('app_install_date', currentDate));
+        isFirstLaunch = true;
+        debugPrint(
+          '🚀 Main: App reinstall detected ($daysSinceInstall days old) - showing onboarding',
+        );
+      } else {
+        isFirstLaunch = false;
+        debugPrint('🚀 Main: Normal app launch - skipping onboarding');
+      }
+    } catch (e) {
+      unawaited(prefs.setString('app_install_date', currentDate));
+      isFirstLaunch = true;
+      debugPrint('🚀 Main: Date parsing error - treating as fresh install');
+    }
+  }
+
+  final termsAccepted = prefs.getBool('terms_accepted') ?? false;
+  final hasSeenBrandSplash =
+      prefs.getBool('has_seen_brand_launch_splash') ?? false;
+
+  if (termsAccepted) {
+    debugPrint('🚀 Main: Terms already accepted');
+  } else {
+    debugPrint('🚀 Main: Terms not accepted yet - will show acceptance page');
+  }
+
+  return AppLaunchFlags(
+    isFirstLaunch: isFirstLaunch,
+    termsAccepted: termsAccepted,
+    hasSeenBrandSplash: hasSeenBrandSplash,
+  );
 }
 
 Future<void> _warmCatalogFromDisk() async {
@@ -228,8 +277,23 @@ Future<void> _warmCatalogFromDisk() async {
     if (ProductCache.hasProductsInMemory) {
       ProductCache.warmPopularFromCatalog();
       HomePreloadService.publishCatalogToHomeServices();
+      unawaited(
+        ProductImagePreloadService.warmPriorityHomeImages(
+          catalog: ProductCache.cachedProducts,
+          maxWait: const Duration(seconds: 12),
+          maxConcurrent: 8,
+        ),
+      );
       debugPrint(
         'Main: catalog ready from disk (${ProductCache.catalogProductCount} products)',
+      );
+    } else if (ProductCache.hasPriorityProducts) {
+      unawaited(
+        ProductImagePreloadService.warmPriorityHomeImages(
+          catalog: ProductCache.cachedPriorityProducts,
+          maxWait: const Duration(seconds: 10),
+          maxConcurrent: 8,
+        ),
       );
     }
   } catch (e) {
@@ -241,17 +305,56 @@ Future<void> _initBackground() async {
   await AppBackgroundScheduler.startDeferred();
 }
 
+/// Shows a plain brand-colored placeholder until [resolveAppLaunchFlags] completes.
+class EclAppRoot extends StatefulWidget {
+  const EclAppRoot({super.key, required this.flagsFuture});
+
+  final Future<AppLaunchFlags> flagsFuture;
+
+  @override
+  State<EclAppRoot> createState() => _EclAppRootState();
+}
+
+class _EclAppRootState extends State<EclAppRoot> {
+  AppLaunchFlags? _flags;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.flagsFuture.then((flags) {
+      if (mounted) setState(() => _flags = flags);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final flags = _flags;
+    if (flags == null) {
+      return const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: ColoredBox(
+          color: Color(0xFF1B5E32),
+          child: SizedBox.expand(),
+        ),
+      );
+    }
+    return MyApp(launchFlags: flags);
+  }
+}
+
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, required this.launchFlags});
+
+  final AppLaunchFlags launchFlags;
 
   @override
   State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  bool? _isFirstLaunch;
-  bool? _termsAccepted;
-  bool? _hasSeenBrandSplash;
+  late bool _isFirstLaunch;
+  late bool _termsAccepted;
+  late bool _hasSeenBrandSplash;
   bool _isLoggedIn = false;
   String? _pendingNotificationPayload;
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
@@ -261,105 +364,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // do initialization stuff at the same time to make it faster
-    _initializeAppState();
-  }
+    _isFirstLaunch = widget.launchFlags.isFirstLaunch;
+    _termsAccepted = widget.launchFlags.termsAccepted;
+    _hasSeenBrandSplash = widget.launchFlags.hasSeenBrandSplash;
 
-  // set up app state, do multiple things at once
-  Future<void> _initializeAppState() async {
-    debugPrint('🚀 Main: Starting app state initialization...');
-    final startTime = DateTime.now();
-
-    // do the important checks first (wait for them)
-    await _checkFirstLaunch();
-    await _checkTermsAcceptance();
-    await _checkBrandSplash();
-
-    // do the less important checks at the same time (dont wait)
+    HomePreloadService.startOnboardingPreload();
     unawaited(_checkAuthStatus());
     unawaited(_handleNotificationPayload());
-
-    final initTime = DateTime.now().difference(startTime);
-    debugPrint(
-        '🚀 Main: App state initialized in ${initTime.inMilliseconds}ms');
-  }
-
-  Future<void> _checkFirstLaunch() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    // check if this is the first time opening the app
-    final appInstallDate = prefs.getString('app_install_date');
-    final currentDate = DateTime.now().toIso8601String();
-
-    if (appInstallDate == null) {
-      // first time opening, set the date and show onboarding
-      await prefs.setString('app_install_date', currentDate);
-      if (!mounted) return;
-      setState(() {
-        _isFirstLaunch = true;
-      });
-      debugPrint('🚀 Main: Fresh install detected - showing onboarding');
-      HomePreloadService.startOnboardingPreload();
-    } else {
-      // check if they uninstalled and reinstalled the app
-      // if the install date is really old (over 30 days), treat it as a fresh install
-      try {
-        final installDate = DateTime.parse(appInstallDate);
-        final daysSinceInstall = DateTime.now().difference(installDate).inDays;
-
-        if (daysSinceInstall > 30) {
-          // probably uninstalled and reinstalled, show onboarding again
-          await prefs.setString('app_install_date', currentDate);
-          if (!mounted) return;
-          setState(() {
-            _isFirstLaunch = true;
-          });
-          debugPrint(
-              '🚀 Main: App reinstall detected (${daysSinceInstall} days old) - showing onboarding');
-          HomePreloadService.startOnboardingPreload();
-        } else {
-          // normal launch, skip onboarding
-          if (!mounted) return;
-          setState(() {
-            _isFirstLaunch = false;
-          });
-          debugPrint('🚀 Main: Normal app launch - skipping onboarding');
-          HomePreloadService.startOnboardingPreload();
-        }
-      } catch (e) {
-        // if we cant parse the date, just treat it as a fresh install
-        await prefs.setString('app_install_date', currentDate);
-        if (!mounted) return;
-        setState(() {
-          _isFirstLaunch = true;
-        });
-        debugPrint('🚀 Main: Date parsing error - treating as fresh install');
-        HomePreloadService.startOnboardingPreload();
-      }
-    }
-  }
-
-  Future<void> _checkBrandSplash() async {
-    final prefs = await SharedPreferences.getInstance();
-    final seen = prefs.getBool('has_seen_brand_launch_splash') ?? false;
-    if (!mounted) return;
-    setState(() => _hasSeenBrandSplash = seen);
-  }
-
-  Future<void> _checkTermsAcceptance() async {
-    final prefs = await SharedPreferences.getInstance();
-    final termsAccepted = prefs.getBool('terms_accepted') ?? false;
-
-    if (!mounted) return;
-    setState(() {
-      _termsAccepted = termsAccepted;
-    });
-
-    if (termsAccepted) {
-      debugPrint('🚀 Main: Terms already accepted');
-    } else {
-      debugPrint('🚀 Main: Terms not accepted yet - will show acceptance page');
-    }
   }
 
   // reset onboarding state (for testing)
@@ -497,40 +508,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // if we're still loading, show loading screen or go to onboarding
-    if (_isFirstLaunch == null ||
-        _termsAccepted == null ||
-        _hasSeenBrandSplash == null) {
-      // show a simple loading screen or just go straight to onboarding
-      return MaterialApp(
-        home: Scaffold(
-          backgroundColor: Colors.white,
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // show the app logo
-                Image(
-                  image: AssetImage('assets/images/png.png'),
-                  width: 120,
-                  height: 120,
-                ),
-                SizedBox(height: 20),
-                // spinning loading circle
-                SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => CartProvider()),
@@ -585,7 +562,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             isLoggedIn: _isLoggedIn,
             refreshAuthState: _refreshAuthState,
             child: MaterialApp(
-              title: 'ECL App',
+              title: 'Ernest Chemist',
               debugShowCheckedModeBanner: false,
               // hide keychain errors here too; tablet/desktop: centered max-width column
               builder: (context, widget) {
@@ -760,11 +737,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                             setState(() => _isFirstLaunch = false);
                           },
                         )
-                      : const HomePage(),
+                      : MainTabShell(
+                          key: MainTabShell.navigatorKey,
+                        ),
               onGenerateRoute: (settings) =>
                   AppRouteGenerator.generate(settings) ??
                   MaterialPageRoute(
-                    builder: (_) => const HomePage(),
+                    builder: (_) => MainTabShell(
+                      key: MainTabShell.navigatorKey,
+                    ),
                   ),
               routes: {
                 '/clearance-admin': (context) => const ClearanceAdminPage(),

@@ -5,7 +5,9 @@ import 'package:flutter/foundation.dart';
 
 import '../models/category_fetch_result.dart';
 import '../models/product_model.dart';
+import '../cache/product_catalog_memory.dart';
 import '../repositories/product_detail_repository.dart';
+import 'universal_page_optimization_service.dart';
 import '../utils/app_error_utils.dart';
 import '../utils/product_detail_parser.dart';
 import '../utils/related_products_parser.dart';
@@ -17,17 +19,70 @@ class ProductDetailService {
 
   final ProductDetailRepository _repository;
 
+  static final Map<String, Future<Product>> _warmInFlight = {};
+
+  /// Starts loading detail API data before navigation finishes (deduped).
+  static void warmProductDetails(String urlName) {
+    if (urlName.isEmpty || _warmInFlight.containsKey(urlName)) return;
+    final service = ProductDetailService();
+    final catalog = ProductCatalogMemory.hasProducts
+        ? ProductCatalogMemory.products
+        : const <Product>[];
+    final future = UniversalPageOptimizationService()
+        .fetchData<Product>(
+          'product_details_$urlName',
+          () => service.fetchProductDetails(
+            urlName,
+            catalogFallback: catalog,
+            timeout: const Duration(seconds: 30),
+          ),
+          pageName: 'item_detail',
+          persistToDisk: false,
+        )
+        .then((product) {
+      if (product == null) {
+        throw Exception('Product warm failed for $urlName');
+      }
+      return product;
+    });
+    _warmInFlight[urlName] = future;
+    unawaited(future.whenComplete(() => _warmInFlight.remove(urlName)));
+  }
+
+  Product? _productFromCatalog(String urlName, Iterable<Product> catalog) {
+    final indexed = ProductCatalogMemory.findByUrlName(urlName);
+    if (indexed != null) return indexed;
+    for (final product in catalog) {
+      if (product.urlName == urlName && product.id != 0) return product;
+    }
+    return null;
+  }
+
   Future<Product> fetchProductDetails(
     String urlName, {
     Iterable<Product> catalogFallback = const [],
-    Duration timeout = const Duration(seconds: 10),
+    Duration timeout = const Duration(seconds: 30),
   }) async {
     try {
       final result = await _repository.fetchProductDetails(
         urlName,
         timeout: timeout,
       );
-      _rethrowTransportError(result);
+      final transportError = result.error;
+      if (transportError != null) {
+        if (AppErrorUtils.isTransientTransportError(transportError)) {
+          final catalogProduct = _productFromCatalog(urlName, catalogFallback);
+          if (catalogProduct != null) {
+            if (kDebugMode) {
+              debugPrint(
+                'item_detail: catalog fallback for "$urlName" after transport error',
+              );
+            }
+            return catalogProduct;
+          }
+        }
+        _rethrowTransportError(result);
+      }
 
       if (result.statusCode == 404) {
         throw Exception('Product not found');
@@ -72,7 +127,7 @@ class ProductDetailService {
 
   Future<List<Product>> fetchRelatedProducts(
     String urlName, {
-    Duration timeout = const Duration(seconds: 10),
+    Duration timeout = const Duration(seconds: 20),
   }) async {
     try {
       final result = await _repository.fetchRelatedProducts(
