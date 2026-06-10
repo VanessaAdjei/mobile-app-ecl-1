@@ -4,6 +4,10 @@ import 'package:intl/intl.dart';
 DateTime? parseOrderTimestamp(dynamic value) {
   if (value == null) return null;
   if (value is DateTime) return value.toLocal();
+  if (value is int) {
+    final ms = value > 9999999999 ? value : value * 1000;
+    return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true).toLocal();
+  }
 
   final raw = value.toString().trim();
   if (raw.isEmpty) return null;

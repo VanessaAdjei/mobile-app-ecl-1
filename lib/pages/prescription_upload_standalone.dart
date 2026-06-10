@@ -2,14 +2,17 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:flutter/services.dart';
 import 'dart:io';
 import 'package:google_fonts/google_fonts.dart';
 import '../config/app_colors.dart';
+import '../config/app_routes.dart';
 import '../services/prescription_service.dart';
 import '../services/auth_service.dart';
 import '../pages/app_back_button.dart';
+import '../pages/prescription_history.dart';
 import '../utils/app_error_utils.dart';
+import '../utils/prescription_image_picker.dart';
 
 class PrescriptionUploadStandalone extends StatefulWidget {
   const PrescriptionUploadStandalone({super.key});
@@ -21,6 +24,45 @@ class PrescriptionUploadStandalone extends StatefulWidget {
 
 class _PrescriptionUploadStandaloneState
     extends State<PrescriptionUploadStandalone> {
+  bool _authChecked = false;
+
+  bool _isValidImageFile(String filePath) {
+    final extension = filePath.split('.').last.toLowerCase();
+    return ['jpg', 'jpeg', 'png'].contains(extension);
+  }
+
+  bool _isValidImageSize(File file) {
+    return file.lengthSync() <= 10 * 1024 * 1024;
+  }
+
+  Future<bool> _assignImageFile({
+    required String path,
+    required void Function(File file) onAccepted,
+    required String label,
+  }) async {
+    if (!_isValidImageFile(path)) {
+      if (mounted) {
+        AppErrorUtils.showSnack(
+          context,
+          '$label must be a JPG or PNG image.',
+        );
+      }
+      return false;
+    }
+    final file = File(path);
+    if (!_isValidImageSize(file)) {
+      if (mounted) {
+        AppErrorUtils.showSnack(
+          context,
+          '$label exceeds 10MB. Choose a smaller image.',
+        );
+      }
+      return false;
+    }
+    onAccepted(file);
+    return true;
+  }
+
   void _openSamplePrescriptionPreview(bool isDark) {
     showDialog(
       context: context,
@@ -93,7 +135,9 @@ class _PrescriptionUploadStandaloneState
 
   Future<void> _checkAuth() async {
     final isLoggedIn = await AuthService.isLoggedIn();
-    if (!isLoggedIn && mounted) {
+    if (!mounted) return;
+
+    if (!isLoggedIn) {
       final action = await showDialog<String>(
         context: context,
         barrierDismissible: false,
@@ -192,10 +236,23 @@ class _PrescriptionUploadStandaloneState
       if (!mounted) return;
 
       if (action == 'signin') {
-        Navigator.of(context).pushReplacementNamed('/signin');
+        await Navigator.of(context).pushNamed(
+          AppRoutes.signIn,
+          arguments: {'returnTo': AppRoutes.prescriptionUpload},
+        );
+        if (!mounted) return;
+        if (!await AuthService.isLoggedIn()) {
+          Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+          return;
+        }
       } else {
-        Navigator.of(context).pushReplacementNamed('/');
+        Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+        return;
       }
+    }
+
+    if (mounted) {
+      setState(() => _authChecked = true);
     }
   }
 
@@ -226,7 +283,6 @@ class _PrescriptionUploadStandaloneState
   File? _selectedImage;
   File? _brandImage;
   final PrescriptionService _prescriptionService = PrescriptionService();
-  final ImagePicker _picker = ImagePicker();
   bool _isSubmitting = false;
 
   // Form controllers
@@ -248,19 +304,36 @@ class _PrescriptionUploadStandaloneState
 
   void _chooseFromGallery() async {
     try {
-      final XFile? pickedFile = await _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
+      final pickedFile = await PrescriptionImagePicker.pickFromGallery();
+      if (pickedFile == null || !mounted) return;
+      final accepted = await _assignImageFile(
+        path: pickedFile.path,
+        label: 'Prescription image',
+        onAccepted: (file) => setState(() => _selectedImage = file),
       );
-      if (pickedFile != null) {
-        setState(() {
-          _selectedImage = File(pickedFile.path);
-        });
+      if (accepted && mounted) {
+        AppErrorUtils.showSnack(
+          context,
+          'Prescription image added.',
+          isError: false,
+        );
       }
+    } on PlatformException catch (e) {
+      debugPrint('Error selecting image: $e');
+      if (!mounted) return;
+      final message = switch (e.code) {
+        'photo_access_denied' =>
+          'Allow photo access in Settings to choose an image.',
+        'gallery_pick_failed' =>
+          e.message ?? 'Could not read that image. Try Camera instead.',
+        _ => 'Failed to add prescription image.',
+      };
+      AppErrorUtils.showSnack(context, message);
     } catch (e) {
       debugPrint('Error selecting image: $e');
+      if (mounted) {
+        AppErrorUtils.showSnack(context, 'Failed to add prescription image.');
+      }
     }
   }
 
@@ -434,51 +507,59 @@ class _PrescriptionUploadStandaloneState
 
   Future<void> _pickFromCamera() async {
     try {
-      final XFile? pickedFile = await _picker.pickImage(
-        source: ImageSource.camera,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
+      final pickedFile = await PrescriptionImagePicker.pickFromCamera();
+      if (pickedFile == null || !mounted) return;
+      final accepted = await _assignImageFile(
+        path: pickedFile.path,
+        label: 'Prescription image',
+        onAccepted: (file) => setState(() => _selectedImage = file),
       );
-      if (pickedFile != null) {
-        setState(() {
-          _selectedImage = File(pickedFile.path);
-        });
+      if (accepted && mounted) {
+        AppErrorUtils.showSnack(
+          context,
+          'Prescription image added.',
+          isError: false,
+        );
       }
     } catch (e) {
       debugPrint('Error picking image from camera: $e');
+      if (mounted) {
+        AppErrorUtils.showSnack(context, 'Failed to capture prescription image.');
+      }
     }
   }
 
   Future<void> _pickBrandImageFromGallery() async {
     try {
-      final XFile? pickedFile = await _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
+      final pickedFile = await PrescriptionImagePicker.pickFromGallery();
+      if (pickedFile == null || !mounted) return;
+      await _assignImageFile(
+        path: pickedFile.path,
+        label: 'Brand photo',
+        onAccepted: (file) => setState(() => _brandImage = file),
       );
-      if (pickedFile != null && mounted) {
-        setState(() => _brandImage = File(pickedFile.path));
-      }
     } catch (e) {
       debugPrint('Error selecting brand image: $e');
+      if (mounted) {
+        AppErrorUtils.showSnack(context, 'Failed to add brand photo.');
+      }
     }
   }
 
   Future<void> _pickBrandImageFromCamera() async {
     try {
-      final XFile? pickedFile = await _picker.pickImage(
-        source: ImageSource.camera,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
+      final pickedFile = await PrescriptionImagePicker.pickFromCamera();
+      if (pickedFile == null || !mounted) return;
+      await _assignImageFile(
+        path: pickedFile.path,
+        label: 'Brand photo',
+        onAccepted: (file) => setState(() => _brandImage = file),
       );
-      if (pickedFile != null && mounted) {
-        setState(() => _brandImage = File(pickedFile.path));
-      }
     } catch (e) {
       debugPrint('Error capturing brand image: $e');
+      if (mounted) {
+        AppErrorUtils.showSnack(context, 'Failed to capture brand photo.');
+      }
     }
   }
 
@@ -622,10 +703,18 @@ class _PrescriptionUploadStandaloneState
   Future<void> _submitPrescription() async {
     if (_selectedImage == null) return;
 
-    if (_nameController.text.isEmpty ||
-        _emailController.text.isEmpty ||
-        _phoneController.text.isEmpty) {
+    if (_nameController.text.trim().isEmpty ||
+        _emailController.text.trim().isEmpty ||
+        _phoneController.text.trim().isEmpty) {
       AppErrorUtils.showSnack(context, 'Please fill in all required fields');
+      return;
+    }
+
+    if (!await AuthService.isLoggedIn()) {
+      AppErrorUtils.showSnack(
+        context,
+        'Please sign in to upload a prescription.',
+      );
       return;
     }
 
@@ -635,15 +724,17 @@ class _PrescriptionUploadStandaloneState
 
     try {
       final token = await AuthService.getToken();
-      final authToken = token ?? 'guest-temp-token';
+      if (token == null || token.isEmpty) {
+        throw Exception('Unable to process prescription upload');
+      }
 
       final fields = <String, String>{
-        'name': _nameController.text,
-        'email': _emailController.text,
-        'phone': '$_selectedCountryCode${_phoneController.text}',
+        'name': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'phone': '$_selectedCountryCode${_phoneController.text.trim()}',
       };
-      if (_noteController.text.isNotEmpty) {
-        fields['note'] = _noteController.text;
+      if (_noteController.text.trim().isNotEmpty) {
+        fields['note'] = _noteController.text.trim();
       }
 
       _logPrescriptionApiToConsole(
@@ -664,11 +755,15 @@ class _PrescriptionUploadStandaloneState
       );
 
       final result = await _prescriptionService.uploadPrescription(
-        authToken: authToken,
+        authToken: token,
         filePath: _selectedImage!.path,
         medFilePath: _brandImage?.path,
         fields: fields,
       );
+
+      if (result.error != null) {
+        throw result.error!;
+      }
 
       final responseBody = result.body ?? result.rawBody;
       final ok = _prescriptionService.uploadSucceeded(result);
@@ -681,22 +776,23 @@ class _PrescriptionUploadStandaloneState
       );
 
       if (ok) {
+        await _prescriptionService.recordSuccessfulUpload(result);
         if (mounted) {
+          PrescriptionHistoryScreen.invalidateCache();
           AppErrorUtils.showSnack(
             context,
             '✓ Prescription submitted successfully',
             isError: false,
             duration: const Duration(seconds: 2),
           );
-          _nameController.clear();
-          _emailController.clear();
-          _phoneController.clear();
-          _noteController.clear();
-          setState(() {
-            _selectedImage = null;
-            _brandImage = null;
-          });
+          await Navigator.of(context).pushReplacementNamed(
+            AppRoutes.prescriptionHistory,
+          );
         }
+      } else if (result.statusCode == 401) {
+        throw Exception('Your session has expired. Please log in again.');
+      } else if (result.statusCode == 413) {
+        throw Exception('File size too large. Maximum size is 10MB.');
       } else {
         throw Exception(
           _prescriptionResponseErrorMessage(responseBody, result.statusCode),
@@ -833,6 +929,16 @@ class _PrescriptionUploadStandaloneState
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (!_authChecked) {
+      return Scaffold(
+        backgroundColor:
+            isDark ? const Color(0xFF0F172A) : const Color(0xFFF3F7F4),
+        body: const Center(
+          child: CircularProgressIndicator(color: Color(0xFF20AF67)),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor:

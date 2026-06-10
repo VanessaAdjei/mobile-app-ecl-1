@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../config/app_colors.dart';
+import '../../utils/app_theme_colors.dart';
+import '../../utils/responsive_extension.dart';
 import 'payment_section_style.dart';
 import 'payment_summary_row.dart';
 import '../order_threshold_promo_banner.dart';
@@ -53,17 +55,21 @@ class PaymentBillSummarySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appColors;
     final sectionPadding = compact
-        ? const EdgeInsets.symmetric(horizontal: 12, vertical: 12)
-        : PaymentSectionStyle.padding;
-    final blockGap = compact ? 7.0 : 8.0;
-    final titleFontSize = compact ? 13.0 : 14.0;
-    final accentBarHeight = compact ? 15.0 : 16.0;
+        ? EdgeInsets.symmetric(
+            horizontal: context.rs(12),
+            vertical: context.rs(12),
+          )
+        : PaymentSectionStyle.paddingOf(context);
+    final blockGap = compact ? context.rs(7) : context.rs(8);
+    final titleFontSize = compact ? context.sp(13) : context.sp(14);
+    final accentBarHeight = compact ? context.rs(15) : context.rs(16);
 
     return Container(
-      margin: PaymentSectionStyle.margin,
+      margin: PaymentSectionStyle.marginOf(context),
       padding: sectionPadding,
-      decoration: PaymentSectionStyle.cardDecoration(),
+      decoration: PaymentSectionStyle.cardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -84,7 +90,8 @@ class PaymentBillSummarySection extends StatelessWidget {
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: titleFontSize,
-                  color: AppColors.primaryDark,
+                  color:
+                      t.isDark ? AppColors.primaryLight : AppColors.primaryDark,
                 ),
               ),
             ],
@@ -105,12 +112,7 @@ class PaymentBillSummarySection extends StatelessWidget {
           SizedBox(height: blockGap),
           Container(
             padding: EdgeInsets.all(compact ? 9 : 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF4FAF7),
-              borderRadius:
-                  BorderRadius.circular(PaymentSectionStyle.innerRadius),
-              border: Border.all(color: PaymentSectionStyle.borderColor),
-            ),
+            decoration: PaymentSectionStyle.innerPanelDecoration(context),
             child: Column(
               children: [
                 PaymentSummaryRow(
@@ -138,12 +140,12 @@ class PaymentBillSummarySection extends StatelessWidget {
                 if (emergencyOrderFee > 0) ...[
                   const SizedBox(height: 6),
                   PaymentSummaryRow(
-                    label: 'Urgent order fee',
+                    label: 'xPress order fee',
                     value: emergencyOrderFee,
                     icon: Icons.flash_on,
                   ),
                 ],
-                Divider(height: 18, thickness: 1, color: Colors.grey[300]),
+                Divider(height: 18, thickness: 1, color: t.border),
                 PaymentSummaryRow(
                   label: 'Total',
                   value: _total,
@@ -182,16 +184,14 @@ class _PromoCodeBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasApplied = appliedPromoCode != null || (lockPromoEditing && discountAmount > 0);
+    final t = context.appColors;
+    final hasApplied =
+        appliedPromoCode != null || (lockPromoEditing && discountAmount > 0);
     final lockedLabel = appliedPromoCode ?? 'Server pricing';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEEF9F3),
-        borderRadius: BorderRadius.circular(PaymentSectionStyle.innerRadius),
-        border: Border.all(color: const Color(0xFFBBEAD3)),
-      ),
+      decoration: PaymentSectionStyle.accentPanelDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -199,8 +199,12 @@ class _PromoCodeBlock extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Icon(Icons.local_offer_outlined,
-                  color: AppColors.primaryDark, size: 16),
+              Icon(
+                Icons.local_offer_outlined,
+                color:
+                    t.isDark ? AppColors.primaryLight : AppColors.primaryDark,
+                size: 16,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: hasApplied
@@ -208,11 +212,15 @@ class _PromoCodeBlock extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              lockPromoEditing ? lockedLabel : appliedPromoCode!,
+                              lockPromoEditing
+                                  ? lockedLabel
+                                  : appliedPromoCode!,
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: AppColors.primaryDark,
+                                color: t.isDark
+                                    ? AppColors.primaryLight
+                                    : AppColors.primaryDark,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -228,24 +236,28 @@ class _PromoCodeBlock extends StatelessWidget {
                     : TextField(
                         enabled: !lockPromoEditing,
                         controller: promoCodeController,
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.2,
+                          color: t.inputText,
+                        ),
+                        cursorColor: t.inputText,
                         decoration: InputDecoration(
                           isDense: true,
                           hintText: 'Promo code',
                           hintStyle: TextStyle(
-                            color: Colors.grey[500],
+                            color: t.inputHint,
                             fontSize: 12,
                           ),
                           filled: true,
-                          fillColor: Colors.white,
+                          fillColor: t.surface,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(6),
-                            borderSide:
-                                const BorderSide(color: Color(0xFFBBEAD3)),
+                            borderSide: BorderSide(color: t.accentBorder),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(6),
-                            borderSide:
-                                const BorderSide(color: Color(0xFFBBEAD3)),
+                            borderSide: BorderSide(color: t.accentBorder),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(6),
@@ -256,7 +268,6 @@ class _PromoCodeBlock extends StatelessWidget {
                             vertical: 8,
                           ),
                         ),
-                        style: const TextStyle(fontSize: 12, height: 1.2),
                       ),
               ),
               const SizedBox(width: 6),
@@ -269,18 +280,20 @@ class _PromoCodeBlock extends StatelessWidget {
                           ? onRemovePromo
                           : (isApplyingPromo ? null : onApplyPromo),
                   style: TextButton.styleFrom(
-                    backgroundColor:
-                        lockPromoEditing
-                            ? Colors.grey.shade200
-                            : hasApplied
-                                ? Colors.red[50]
-                                : AppColors.primary,
-                    foregroundColor:
-                        lockPromoEditing
-                            ? Colors.grey.shade700
-                            : hasApplied
-                                ? Colors.red[700]
-                                : Colors.white,
+                    backgroundColor: lockPromoEditing
+                        ? t.fieldBg
+                        : hasApplied
+                            ? (t.isDark
+                                ? Colors.red.withValues(alpha: 0.18)
+                                : Colors.red.shade50)
+                            : AppColors.primary,
+                    foregroundColor: lockPromoEditing
+                        ? t.muted
+                        : hasApplied
+                            ? (t.isDark
+                                ? Colors.red.shade300
+                                : Colors.red.shade700)
+                            : Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -317,7 +330,7 @@ class _PromoCodeBlock extends StatelessWidget {
             Text(
               'Pricing is set from delivery quote.',
               style: TextStyle(
-                color: Colors.grey[600],
+                color: t.muted,
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
               ),
@@ -326,14 +339,19 @@ class _PromoCodeBlock extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               promoError!,
-              style: TextStyle(color: Colors.red[600], fontSize: 11, height: 1.2),
+              style: TextStyle(
+                color: t.isDark ? Colors.red.shade300 : Colors.red.shade600,
+                fontSize: 11,
+                height: 1.2,
+              ),
             ),
           ] else if (hasApplied && discountAmount > 0) ...[
             const SizedBox(height: 4),
             Text(
               'Saved GHS ${discountAmount.toStringAsFixed(2)}',
               style: TextStyle(
-                color: AppColors.primaryDark,
+                color:
+                    t.isDark ? AppColors.primaryLight : AppColors.primaryDark,
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
               ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../config/app_colors.dart';
+import '../../utils/app_theme_colors.dart';
 import 'payment_section_style.dart';
 
 /// Delivery address and contact on the payment information screen.
@@ -17,21 +18,22 @@ class PaymentDeliveryDetailsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appColors;
     final address = deliveryAddress?.trim() ?? '';
     final contact = contactNumber?.trim() ?? '';
     final hasAddress = address.isNotEmpty;
     final hasContact = contact.isNotEmpty;
 
     return Container(
-      margin: PaymentSectionStyle.margin,
-      decoration: PaymentSectionStyle.cardDecoration(),
+      margin: PaymentSectionStyle.marginOf(context),
+      decoration: PaymentSectionStyle.cardDecoration(context),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _Header(hasDetails: hasAddress || hasContact),
           Container(
-            color: Colors.white,
+            color: t.surface,
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
             child: hasAddress || hasContact
                 ? Column(
@@ -39,8 +41,12 @@ class PaymentDeliveryDetailsCard extends StatelessWidget {
                       if (hasAddress)
                         _DetailTile(
                           icon: Icons.place_rounded,
-                          iconColor: const Color(0xFF1565C0),
-                          iconBg: const Color(0xFFE3F2FD),
+                          iconColor: t.isDark
+                              ? Colors.blue.shade300
+                              : const Color(0xFF1565C0),
+                          iconBg: t.isDark
+                              ? Colors.blue.withValues(alpha: 0.18)
+                              : const Color(0xFFE3F2FD),
                           label: 'Delivery address',
                           value: address,
                         ),
@@ -48,8 +54,10 @@ class PaymentDeliveryDetailsCard extends StatelessWidget {
                       if (hasContact)
                         _DetailTile(
                           icon: Icons.call_rounded,
-                          iconColor: AppColors.primaryDark,
-                          iconBg: const Color(0xFFEEF9F3),
+                          iconColor: t.isDark
+                              ? AppColors.primaryLight
+                              : AppColors.primaryDark,
+                          iconBg: t.accentTint,
                           label: 'Contact number',
                           value: contact,
                         ),
@@ -59,7 +67,7 @@ class PaymentDeliveryDetailsCard extends StatelessWidget {
                     'Delivery address not available',
                     style: GoogleFonts.poppins(
                       fontSize: 13,
-                      color: Colors.grey.shade500,
+                      color: t.inputHint,
                       fontStyle: FontStyle.italic,
                     ),
                   ),
@@ -79,7 +87,7 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -158,14 +166,12 @@ class _DetailTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appColors;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF4FAF7),
-        borderRadius: BorderRadius.circular(PaymentSectionStyle.innerRadius),
-        border: Border.all(color: PaymentSectionStyle.borderColor),
-      ),
+      decoration: PaymentSectionStyle.innerPanelDecoration(context),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -189,7 +195,7 @@ class _DetailTile extends StatelessWidget {
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.4,
-                    color: Colors.grey.shade600,
+                    color: t.muted,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -198,7 +204,7 @@ class _DetailTile extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
-                    color: const Color(0xFF1A1F1C),
+                    color: t.ink,
                     height: 1.4,
                   ),
                 ),

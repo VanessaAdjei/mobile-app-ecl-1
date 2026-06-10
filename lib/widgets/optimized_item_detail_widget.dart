@@ -439,7 +439,12 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
     );
   }
 
+  bool _isPrescriptionProduct(Product product) =>
+      widget.isPrescribed || product.otcpom?.toLowerCase() == 'pom';
+
   Widget _buildProductInfoCard(Product product) {
+    final isPrescription = _isPrescriptionProduct(product);
+
     return Animate(
       effects: [
         FadeEffect(duration: 400.ms, delay: 100.ms),
@@ -513,8 +518,8 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
             ),
             SizedBox(height: 16),
 
-            // Description
-            if (product.description.isNotEmpty) ...[
+            // Description (hidden for prescription-only medicines)
+            if (!isPrescription && product.description.isNotEmpty) ...[
               Text(
                 'Description',
                 style: GoogleFonts.poppins(
@@ -548,10 +553,11 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
               SizedBox(height: 16),
             ],
 
-            // Product details
-            if (product.category.isNotEmpty ||
-                product.batch_no.isNotEmpty ||
-                (product.uom?.isNotEmpty ?? false)) ...[
+            // Product details (hidden for prescription-only medicines)
+            if (!isPrescription &&
+                (product.category.isNotEmpty ||
+                    product.batch_no.isNotEmpty ||
+                    (product.uom?.isNotEmpty ?? false))) ...[
               Text(
                 'Product Details',
                 style: GoogleFonts.poppins(

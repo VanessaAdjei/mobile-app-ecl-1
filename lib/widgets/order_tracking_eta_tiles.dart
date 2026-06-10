@@ -68,7 +68,7 @@ class _Tile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: PostCheckoutDesign.surfaceCard(),
+      decoration: PostCheckoutDesign.surfaceCard(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

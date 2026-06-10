@@ -190,7 +190,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     super.dispose();
   }
 
-  void _onPushStatusRefresh() {
+  void _onPushStatusRefresh({String? status, String? orderId}) {
     if (!mounted) return;
     unawaited(_fetchOrderDetailsFromAPI());
   }
@@ -840,7 +840,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     );
 
     final children = <Widget>[
-      PostCheckoutDesign.pageLogo(height: 30),
+      PostCheckoutDesign.pageLogo(context, height: 30),
       OrderTrackingStatusCard(
         stageLabel: _friendlyStageLabel(status, isPickup),
         badgeLabel: _statusBadgeLabel(status, isPickup),
@@ -929,7 +929,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       debugPrint('🔍 Total amount: $totalAmount');
 
       return Scaffold(
-        backgroundColor: PostCheckoutDesign.pageBg,
+        backgroundColor: PostCheckoutDesign.pageBg(context),
         body: _isLoading
             ? CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -1078,7 +1078,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     } catch (e) {
       debugPrint('🔍 Error in OrderTrackingPage build: $e');
       return Scaffold(
-        backgroundColor: PostCheckoutDesign.pageBg,
+        backgroundColor: PostCheckoutDesign.pageBg(context),
         body: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [

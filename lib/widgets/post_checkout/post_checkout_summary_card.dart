@@ -23,7 +23,7 @@ class PostCheckoutSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: PostCheckoutDesign.surfaceCard(),
+      decoration: PostCheckoutDesign.surfaceCard(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -33,7 +33,7 @@ class PostCheckoutSummaryCard extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: PostCheckoutDesign.accentLight,
+                  color: PostCheckoutDesign.accentLight(context),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -52,7 +52,7 @@ class PostCheckoutSummaryCard extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: PostCheckoutDesign.ink,
+                        color: PostCheckoutDesign.ink(context),
                       ),
                     ),
                     Text(
@@ -61,7 +61,7 @@ class PostCheckoutSummaryCard extends StatelessWidget {
                           : 'Items from your cart',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
-                        color: PostCheckoutDesign.muted,
+                        color: PostCheckoutDesign.muted(context),
                       ),
                     ),
                   ],
@@ -84,7 +84,7 @@ class PostCheckoutSummaryCard extends StatelessWidget {
                         : 'Ref pending',
                     style: GoogleFonts.poppins(
                       fontSize: 11,
-                      color: PostCheckoutDesign.muted,
+                      color: PostCheckoutDesign.muted(context),
                     ),
                   ),
                 ],
@@ -93,7 +93,7 @@ class PostCheckoutSummaryCard extends StatelessWidget {
           ),
           if (itemsSection != null) ...[
             const SizedBox(height: 12),
-            const Divider(height: 1, color: PostCheckoutDesign.border),
+            Divider(height: 1, color: PostCheckoutDesign.border(context)),
             const SizedBox(height: 8),
             itemsSection!,
           ],

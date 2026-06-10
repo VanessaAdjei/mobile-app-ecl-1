@@ -31,6 +31,9 @@ import '../services/prescription_upload_status_service.dart';
 import '../services/recently_viewed_service.dart';
 import '../utils/product_detail_parser.dart';
 import '../utils/product_detail_navigation.dart';
+import '../utils/product_tap_guard.dart';
+import '../utils/app_theme_colors.dart';
+import '../widgets/item_detail_rx_hint.dart';
 
 const _leaveProductTitle = 'Leave Product';
 const _leaveProductMessage =
@@ -39,11 +42,13 @@ const _leaveProductMessage =
 class ItemPage extends StatefulWidget {
   final String urlName;
   final bool isPrescribed;
+  final bool fromProductCard;
 
   const ItemPage({
     super.key,
     required this.urlName,
     this.isPrescribed = false,
+    this.fromProductCard = false,
   });
 
   @override
@@ -51,18 +56,11 @@ class ItemPage extends StatefulWidget {
 }
 
 class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
-  static const Color _detailBg = ItemDetailDesign.pageBg;
-  static const Color _detailBorder = ItemDetailDesign.border;
-  static const Color _detailGreenBorder = Color(0xFFBBEAD3);
-  static const Color _detailGreenTint = ItemDetailDesign.accentLight;
-  static const Color _detailInk = ItemDetailDesign.ink;
-  static const Color _detailMuted = ItemDetailDesign.muted;
   static const double _pageHPad = ItemDetailDesign.pagePadding;
   static const double _relatedCardWidth = 108;
   static const double _relatedListHeight = 148;
   static const double _relatedSeparatorWidth = 8;
   static const double _recentCardWidth = 114;
-  static const Color _recentCardImageWell = Color(0xFFF1F5F9);
   static const int _recentMaxCards = 6;
   static const int _relatedLoopRepeats = 3;
   static const int _recentLoopRepeats = 3;
@@ -109,6 +107,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   final ScrollController _pageScrollController = ScrollController();
   bool _pageCanScroll = false;
   bool _prescriptionUploaded = false;
+  bool _rxHintScheduled = false;
+  final GlobalKey _rxUploadButtonKey = GlobalKey();
   final FocusNode _headerSearchFocusNode = FocusNode();
 
   /// When image URLs change (refresh / new product), reset [PageView] off a stale page index.
@@ -165,6 +165,28 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         _ensureRecentlyViewedLoaded(product);
       }
     }).catchError((_) {});
+
+    if (widget.fromProductCard) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _showAccidentalOpenUndo());
+    }
+  }
+
+  void _showAccidentalOpenUndo() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Opened product'),
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: 'Go back',
+          onPressed: () {
+            if (Navigator.canPop(context)) Navigator.pop(context);
+          },
+        ),
+      ),
+    );
   }
 
   /// Shows prior visits from disk before the current product API finishes.
@@ -709,7 +731,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildSectionHeader(String title, {String? subtitle, IconData? icon}) {
-    return ItemDetailDesign.sectionLabel(title, subtitle: subtitle, icon: icon);
+    return ItemDetailDesign.sectionLabel(context, title, subtitle: subtitle, icon: icon);
   }
 
   Widget _itemDetailBackButton({Color? backgroundColor}) {
@@ -762,17 +784,143 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     }
   }
 
+  Future<bool> _promptSignInForPrescriptionUpload(BuildContext context) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final result = await showDialog<bool>(
+      context: context,
+      barrierColor: isDark
+          ? Colors.black.withValues(alpha: 0.72)
+          : Colors.black.withValues(alpha: 0.45),
+      builder: (ctx) {
+        final ink = ItemDetailDesign.ink(ctx);
+        final muted = ItemDetailDesign.muted(ctx);
+        final card = ItemDetailDesign.card(ctx);
+        final border = ItemDetailDesign.cardBorder(ctx);
+        final action = ItemDetailDesign.prescriptionAction(ctx);
+
+        return Dialog(
+          backgroundColor: card,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(ItemDetailDesign.radiusLg),
+            side: BorderSide(color: border),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.lock_outline_rounded,
+                      color: action,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Sign in required',
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: ink,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'You need to sign in before you can upload a prescription for this medicine.',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    height: 1.45,
+                    color: muted,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: muted,
+                          side: BorderSide(color: border),
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(ItemDetailDesign.radiusMd),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(ctx).pop(true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: action,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(ItemDetailDesign.radiusMd),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: Text(
+                          'Sign in',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    return result == true;
+  }
+
   Future<void> _openPrescriptionUpload(
     BuildContext context,
     Product product,
   ) async {
+    final isLoggedIn = await AuthService.isLoggedIn();
+    if (!context.mounted) return;
+
+    if (!isLoggedIn) {
+      final shouldSignIn = await _promptSignInForPrescriptionUpload(context);
+      if (!context.mounted) return;
+      if (!shouldSignIn) return;
+
+      await Navigator.pushNamed(context, AppRoutes.signIn);
+      if (!mounted) return;
+      if (!await AuthService.isLoggedIn()) return;
+    }
+
     final token = await AuthService.getToken();
     if (!context.mounted) return;
+    if (token == null || token.isEmpty) return;
+
     final uploaded = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (context) => PrescriptionUploadPage(
-          token: token ?? 'guest-temp-token',
+          token: token,
           item: {
             'product': {
               'name': product.name,
@@ -795,8 +943,9 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
   Widget _buildPrescriptionUploadedBanner() {
     return ItemDetailDesign.accentStripeCard(
+      context: context,
       stripeColor: AppColors.primary,
-      backgroundColor: const Color(0xFFECFDF5),
+      backgroundColor: ItemDetailDesign.accentTint(context),
       padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -823,7 +972,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   style: GoogleFonts.poppins(
                     fontSize: _fsBodyMedium,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF065F46),
+                    color: context.appColors.ink,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -831,7 +980,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   'Our pharmacist will review it. You can replace the file if needed.',
                   style: GoogleFonts.poppins(
                     fontSize: _fsCaption,
-                    color: const Color(0xFF047857),
+                    color: context.appColors.muted,
                     height: 1.25,
                   ),
                 ),
@@ -854,11 +1003,12 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
         if (snapshot.hasError) {
           return Scaffold(
-            backgroundColor: _detailBg,
+            backgroundColor: ItemDetailDesign.pageBg(context),
             appBar: AppBar(
-              backgroundColor: Colors.white,
+              backgroundColor: ItemDetailDesign.card(context),
               elevation: 0,
               surfaceTintColor: Colors.transparent,
+              foregroundColor: ItemDetailDesign.ink(context),
               leading:
                   _itemDetailBackButton(backgroundColor: AppColors.primary),
               title: Text(
@@ -866,6 +1016,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 style: GoogleFonts.poppins(
                   fontWeight: FontWeight.w600,
                   fontSize: _fsToolbarTitle,
+                  color: ItemDetailDesign.ink(context),
                 ),
               ),
             ),
@@ -875,7 +1026,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
         if (snapshot.connectionState != ConnectionState.done) {
           return Scaffold(
-            backgroundColor: _detailBg,
+            backgroundColor: ItemDetailDesign.pageBg(context),
             body: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
@@ -890,11 +1041,12 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
         if (!snapshot.hasData) {
           return Scaffold(
-            backgroundColor: _detailBg,
+            backgroundColor: ItemDetailDesign.pageBg(context),
             appBar: AppBar(
-              backgroundColor: Colors.white,
+              backgroundColor: ItemDetailDesign.card(context),
               elevation: 0,
               surfaceTintColor: Colors.transparent,
+              foregroundColor: ItemDetailDesign.ink(context),
               leading:
                   _itemDetailBackButton(backgroundColor: AppColors.primary),
             ),
@@ -907,12 +1059,48 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     );
   }
 
+  void _scheduleRxHintIfNeeded(Product product) {
+    if (_rxHintScheduled ||
+        !_isPrescriptionProduct(product) ||
+        _prescriptionUploaded) {
+      return;
+    }
+    final inCart = CartProvider.selectIsProductInCart(
+      context.read<CartProvider>(),
+      productName: product.name,
+      batchNo: product.batch_no,
+      catalogProductId: product.id.toString(),
+    );
+    if (inCart) return;
+
+    _rxHintScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future<void>.delayed(const Duration(milliseconds: 450), () async {
+        if (!mounted) return;
+        if (_prescriptionUploaded) return;
+        final stillInCart = CartProvider.selectIsProductInCart(
+          context.read<CartProvider>(),
+          productName: product.name,
+          batchNo: product.batch_no,
+          catalogProductId: product.id.toString(),
+        );
+        if (stillInCart) return;
+        if (!context.mounted) return;
+        await ItemDetailRxHint.maybeStart(
+          context: context,
+          uploadButtonKey: _rxUploadButtonKey,
+        );
+      });
+    });
+  }
+
   Widget _buildProductScaffold(Product product) {
     _schedulePageScrollbarUpdate();
     _ensureRecentlyViewedLoaded(product);
+    _scheduleRxHintIfNeeded(product);
 
     return Scaffold(
-      backgroundColor: _detailBg,
+      backgroundColor: ItemDetailDesign.pageBg(context),
       body: RefreshIndicator(
         onRefresh: () async {
           _precachedGallerySig = null;
@@ -954,7 +1142,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           _schedulePageScrollbarUpdate();
         },
         color: AppColors.primary,
-        backgroundColor: Colors.white,
+        backgroundColor: ItemDetailDesign.card(context),
         child: NotificationListener<ScrollNotification>(
           onNotification: (notification) {
             if (notification.depth == 0) {
@@ -976,7 +1164,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 _buildItemSliverHeader(product: product),
                 SliverToBoxAdapter(
                   child: ColoredBox(
-                    color: _detailBg,
+                    color: ItemDetailDesign.pageBg(context),
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(
                         _pageHPad,
@@ -996,7 +1184,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                             const SizedBox(height: 10),
                             _buildPrescriptionUploadedBanner(),
                           ],
-                          _buildDescriptionSection(product),
+                          if (!_isPrescriptionProduct(product))
+                            _buildDescriptionSection(product),
                           _buildRecentlyViewedSection(),
                           _buildRelatedProductsSection(product),
                           const SizedBox(height: 84),
@@ -1015,11 +1204,12 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildLoadingSkeleton() {
+    final shimmer = ItemDetailDesign.shimmerColors(context);
     return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
+      baseColor: shimmer.$1,
+      highlightColor: shimmer.$2,
       child: ColoredBox(
-        color: _detailBg,
+        color: ItemDetailDesign.pageBg(context),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(_pageHPad, 12, _pageHPad, 24),
           child: Column(
@@ -1027,25 +1217,25 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             children: [
               Container(
                 height: _galleryHeight,
-                decoration: ItemDetailDesign.surfaceCard(color: Colors.white),
+                decoration: ItemDetailDesign.surfaceCard(context),
               ),
               const SizedBox(height: 10),
               Container(
                 height: 18,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: ItemDetailDesign.card(context),
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
               const SizedBox(height: 12),
               Container(
                 height: 88,
-                decoration: ItemDetailDesign.surfaceCard(color: Colors.white),
+                decoration: ItemDetailDesign.surfaceCard(context),
               ),
               const SizedBox(height: 12),
               Container(
                 height: 120,
-                decoration: ItemDetailDesign.surfaceCard(color: Colors.white),
+                decoration: ItemDetailDesign.surfaceCard(context),
               ),
             ],
           ),
@@ -1075,7 +1265,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               style: TextStyle(
                 fontSize: _fsToolbarTitle,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey[800],
+                color: ItemDetailDesign.ink(context),
               ),
               textAlign: TextAlign.center,
             ),
@@ -1084,7 +1274,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               AppErrorUtils.productDetailMessageFromError(error),
               style: TextStyle(
                 fontSize: _fsBody,
-                color: Colors.grey[600],
+                color: ItemDetailDesign.muted(context),
               ),
               textAlign: TextAlign.center,
             ),
@@ -1106,7 +1296,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   icon: const Icon(Icons.refresh, size: 18),
                   label: const Text('Try again'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade600,
+                    backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
                         horizontal: 20, vertical: 10),
@@ -1120,7 +1310,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   icon: const Icon(Icons.arrow_back, size: 18),
                   label: const Text('Go back'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.grey[600],
+                    foregroundColor: ItemDetailDesign.muted(context),
+                    side: BorderSide(color: ItemDetailDesign.cardBorder(context)),
                     padding: const EdgeInsets.symmetric(
                         horizontal: 20, vertical: 10),
                     shape: RoundedRectangleBorder(
@@ -1182,14 +1373,14 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       child: Container(
         height: _galleryHeight,
         width: double.infinity,
-        decoration: ItemDetailDesign.surfaceCard(),
+        decoration: ItemDetailDesign.surfaceCard(context),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(ItemDetailDesign.radiusLg - 1),
           child: Stack(
             alignment: Alignment.bottomCenter,
             children: [
               ColoredBox(
-                color: ItemDetailDesign.imageWell,
+                color: ItemDetailDesign.imageWell(context),
                 child: PageView.builder(
                   controller: _imagePageController,
                   onPageChanged: (index) {
@@ -1245,9 +1436,9 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.92),
+                      color: ItemDetailDesign.card(context).withValues(alpha: 0.92),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: _detailBorder),
+                      border: Border.all(color: ItemDetailDesign.cardBorder(context)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1261,8 +1452,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(999),
                             color: _currentImageIndex == index
-                                ? AppColors.primary
-                                : const Color(0xFFD1E7DD),
+                                ? ItemDetailDesign.priceAccent(context)
+                                : ItemDetailDesign.galleryDotInactive(context),
                           ),
                         ),
                       ),
@@ -1276,14 +1467,15 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.95),
+                      color: ItemDetailDesign.card(context).withValues(alpha: 0.95),
                       shape: BoxShape.circle,
-                      border: Border.all(color: _detailBorder),
+                      border: Border.all(color: ItemDetailDesign.cardBorder(context)),
                     ),
                     child: Icon(
                       Icons.zoom_in_rounded,
                       size: 18,
-                      color: AppColors.primaryDark.withValues(alpha: 0.7),
+                      color: ItemDetailDesign.headingAccent(context)
+                          .withValues(alpha: 0.85),
                     ),
                   ),
                 ),
@@ -1299,7 +1491,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       child: Icon(
         Icons.medical_services_outlined,
         size: 32,
-        color: AppColors.primary.withValues(alpha: 0.35),
+        color: ItemDetailDesign.priceAccent(context).withValues(alpha: 0.35),
       ),
     );
   }
@@ -1315,7 +1507,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         style: GoogleFonts.poppins(
           fontSize: 16,
           fontWeight: FontWeight.w600,
-          color: _detailInk,
+          color: context.appColors.ink,
           height: 1.25,
           letterSpacing: -0.2,
         ),
@@ -1328,14 +1520,10 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     final inStock = StockUtilityService.isProductInStock(product.quantity);
     final price = double.tryParse(product.price) ?? 0.0;
 
-    return Container(
-      width: double.infinity,
+    return ItemDetailDesign.accentStripeCard(
+      context: context,
+      stripeColor: ItemDetailDesign.priceAccent(context),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: ItemDetailDesign.surface,
-        borderRadius: BorderRadius.circular(ItemDetailDesign.radiusMd),
-        border: Border.all(color: ItemDetailDesign.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -1349,7 +1537,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
+                  color: ItemDetailDesign.priceAccent(context),
                   height: 1.1,
                 ),
               ),
@@ -1358,7 +1546,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 style: GoogleFonts.poppins(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
+                  color: ItemDetailDesign.priceAccent(context),
                   letterSpacing: -0.3,
                   height: 1.05,
                 ),
@@ -1370,7 +1558,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   style: GoogleFonts.poppins(
                     fontSize: 10,
                     height: 1.1,
-                    color: _detailMuted,
+                    color: context.appColors.muted,
                   ),
                 ),
               ],
@@ -1383,7 +1571,9 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             children: [
               _buildMetaChip(
                 label: inStock ? 'In stock' : 'Out of stock',
-                fg: inStock ? AppColors.primaryDark : const Color(0xFFB45309),
+                fg: inStock
+                    ? ItemDetailDesign.headingAccent(context)
+                    : ItemDetailDesign.warningAccent(context),
                 green: inStock,
                 compact: true,
               ),
@@ -1391,15 +1581,15 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 _buildMetaChip(
                   label: _prescriptionUploaded ? 'Rx uploaded' : 'Rx required',
                   fg: _prescriptionUploaded
-                      ? AppColors.primaryDark
-                      : const Color(0xFF991B1B),
+                      ? ItemDetailDesign.headingAccent(context)
+                      : ItemDetailDesign.rxInk(context),
                   green: _prescriptionUploaded,
                   tint: _prescriptionUploaded
-                      ? _detailGreenTint
-                      : const Color(0xFFFEF2F2),
+                      ? ItemDetailDesign.accentTint(context)
+                      : ItemDetailDesign.rxTint(context),
                   border: _prescriptionUploaded
-                      ? _detailGreenBorder
-                      : const Color(0xFFFECACA),
+                      ? ItemDetailDesign.accentBorder(context)
+                      : ItemDetailDesign.rxBorder(context),
                   compact: true,
                 ),
             ],
@@ -1423,10 +1613,13 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         vertical: compact ? 2 : 3,
       ),
       decoration: BoxDecoration(
-        color: tint ?? (green ? _detailGreenTint : const Color(0xFFF9FAFB)),
+        color: tint ??
+            (green
+                ? ItemDetailDesign.accentTint(context)
+                : ItemDetailDesign.mutedWell(context)),
         borderRadius: BorderRadius.circular(compact ? 5 : 6),
         border: Border.all(
-          color: border ?? (green ? _detailGreenBorder : _detailBorder),
+          color: border ?? (green ? ItemDetailDesign.accentBorder(context) : ItemDetailDesign.cardBorder(context)),
         ),
       ),
       child: Text(
@@ -1447,11 +1640,13 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     return Padding(
       padding: const EdgeInsets.only(top: 10),
       child: ItemDetailDesign.accentStripeCard(
+        context: context,
         padding: const EdgeInsets.fromLTRB(12, 10, 10, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ItemDetailDesign.sectionLabel(
+              context,
               'Product details',
               subtitle: 'Ingredients, usage & more',
               icon: Icons.info_outline_rounded,
@@ -1460,8 +1655,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             if (hasDescription)
               ProductDescription(
                 description: product.description,
-                fadeColor: ItemDetailDesign.surface,
-                chipBorderColor: _detailBorder,
+                fadeColor: ItemDetailDesign.card(context),
+                chipBorderColor: ItemDetailDesign.cardBorder(context),
               )
             else
               Text(
@@ -1469,7 +1664,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 style: GoogleFonts.poppins(
                   fontSize: _fsBody,
                   fontWeight: FontWeight.w500,
-                  color: _detailMuted,
+                  color: context.appColors.muted,
                   height: 1.4,
                 ),
               ),
@@ -1488,18 +1683,16 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         cart,
         productName: product.name,
         batchNo: product.batch_no,
+        catalogProductId: product.id.toString(),
       ),
       builder: (context, isInCart, _) {
         return Container(
           decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 16,
-                offset: const Offset(0, -4),
-              ),
-            ],
+            color: ItemDetailDesign.card(context),
+            border: Border(
+              top: BorderSide(color: ItemDetailDesign.cardBorder(context)),
+            ),
+            boxShadow: ItemDetailDesign.bottomBarShadow(context),
           ),
           padding: EdgeInsets.fromLTRB(
             _pageHPad,
@@ -1529,7 +1722,9 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     bool prescriptionUploaded = false,
   }) {
     final accent = isPrescription
-        ? (prescriptionUploaded ? AppColors.primary : const Color(0xFFB91C1C))
+        ? (prescriptionUploaded
+            ? AppColors.primary
+            : ItemDetailDesign.prescriptionAction(context))
         : AppColors.primary;
 
     return Row(
@@ -1543,7 +1738,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 'Total',
                 style: GoogleFonts.poppins(
                   fontSize: _fsCaption,
-                  color: _detailMuted,
+                  color: context.appColors.muted,
                 ),
               ),
               Text(
@@ -1551,7 +1746,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 style: GoogleFonts.poppins(
                   fontSize: _fsPriceLarge,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
+                  color: ItemDetailDesign.priceAccent(context),
                 ),
               ),
             ],
@@ -1563,6 +1758,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           child: SizedBox(
             height: 44,
             child: FilledButton.icon(
+              key: isPrescription ? _rxUploadButtonKey : null,
               onPressed: () async {
                 HapticFeedback.mediumImpact();
                 if (isPrescription) {
@@ -1616,6 +1812,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         cart,
         productName: product.name,
         batchNo: product.batch_no,
+        catalogProductId: product.id.toString(),
       ),
       builder: (context, cartQuantity, _) {
         final cartProvider = Provider.of<CartProvider>(context, listen: false);
@@ -1644,7 +1841,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   style: GoogleFonts.poppins(
                     fontSize: _fsSmall,
                     fontWeight: FontWeight.w500,
-                    color: _detailMuted,
+                    color: context.appColors.muted,
                   ),
                 ),
                 const Spacer(),
@@ -1653,7 +1850,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   style: GoogleFonts.poppins(
                     fontSize: _fsHeroPrice,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.primary,
+                    color: ItemDetailDesign.priceAccent(context),
                   ),
                 ),
               ],
@@ -1664,8 +1861,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: _detailGreenBorder),
-                    color: _detailGreenTint,
+                    border: Border.all(color: ItemDetailDesign.accentBorder(context)),
+                    color: ItemDetailDesign.accentTint(context),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1758,8 +1955,10 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         Navigator.pushNamed(context, AppRoutes.cart);
                       },
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primaryDark,
-                        side: const BorderSide(color: AppColors.primary),
+                        foregroundColor: ItemDetailDesign.headingAccent(context),
+                        side: BorderSide(
+                          color: ItemDetailDesign.accentBorder(context),
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -1790,7 +1989,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-        decoration: ItemDetailDesign.surfaceCard(),
+        decoration: ItemDetailDesign.surfaceCard(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1837,6 +2036,11 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
     final scrollingList = NotificationListener<ScrollNotification>(
       onNotification: (notification) {
+        if (notification is ScrollUpdateNotification ||
+            notification is ScrollStartNotification ||
+            notification is ScrollEndNotification) {
+          ProductTapGuard.markScrolling();
+        }
         if (notification is UserScrollNotification) {
           _pauseRecentAutoScrollForUser();
         }
@@ -1870,25 +2074,20 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             context,
             urlName: product.urlName,
             product: product,
+            fromProductCard: true,
           );
         },
         borderRadius: BorderRadius.circular(14),
         child: Ink(
           width: _recentCardWidth,
           decoration: BoxDecoration(
-            color: ItemDetailDesign.surface,
+            color: ItemDetailDesign.card(context),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: const Color(0xFFCBD5E1),
+              color: ItemDetailDesign.cardBorder(context),
               width: 0.8,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF64748B).withValues(alpha: 0.08),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            boxShadow: ItemDetailDesign.cardShadow(context),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1901,7 +2100,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         top: Radius.circular(13),
                       ),
                       child: ColoredBox(
-                        color: _recentCardImageWell,
+                        color: ItemDetailDesign.imageWell(context),
                         child: product.thumbnail.isNotEmpty
                             ? Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -1927,14 +2126,16 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.92),
+                          color: ItemDetailDesign.card(context)
+                              .withValues(alpha: 0.92),
                           shape: BoxShape.circle,
-                          border: Border.all(color: _detailBorder),
+                          border: Border.all(
+                              color: ItemDetailDesign.cardBorder(context)),
                         ),
                         child: Icon(
                           Icons.history_rounded,
                           size: 11,
-                          color: _detailMuted.withValues(alpha: 0.9),
+                          color: context.appColors.muted.withValues(alpha: 0.9),
                         ),
                       ),
                     ),
@@ -1948,15 +2149,15 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFEF2F2),
+                            color: ItemDetailDesign.rxTint(context),
                             borderRadius: BorderRadius.circular(5),
-                            border:
-                                Border.all(color: const Color(0xFFFECACA)),
+                            border: Border.all(
+                                color: ItemDetailDesign.rxBorder(context)),
                           ),
                           child: Text(
                             'Rx',
                             style: GoogleFonts.poppins(
-                              color: const Color(0xFF991B1B),
+                              color: ItemDetailDesign.rxInk(context),
                               fontSize: 9,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1968,7 +2169,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               ),
               Container(
                 height: 1,
-                color: _detailBorder.withValues(alpha: 0.7),
+                color: ItemDetailDesign.cardBorder(context).withValues(alpha: 0.7),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(7, 5, 7, 7),
@@ -1981,7 +2182,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         fontWeight: FontWeight.w600,
                         fontSize: _fsCaption,
                         height: 1.15,
-                        color: _detailInk,
+                        color: context.appColors.ink,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -1990,7 +2191,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                     Text(
                       'GHS ${price.toStringAsFixed(2)}',
                       style: GoogleFonts.poppins(
-                        color: AppColors.primaryDark,
+                        color: ItemDetailDesign.priceAccent(context),
                         fontWeight: FontWeight.w700,
                         fontSize: _fsCaption,
                         height: 1.1,
@@ -2036,6 +2237,11 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
     final scrollingList = NotificationListener<ScrollNotification>(
       onNotification: (notification) {
+        if (notification is ScrollUpdateNotification ||
+            notification is ScrollStartNotification ||
+            notification is ScrollEndNotification) {
+          ProductTapGuard.markScrolling();
+        }
         if (notification is UserScrollNotification) {
           _pauseRelatedAutoScrollForUser();
         }
@@ -2061,7 +2267,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-        decoration: ItemDetailDesign.surfaceCard(),
+        decoration: ItemDetailDesign.surfaceCard(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2119,6 +2325,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildRelatedProductsSkeleton() {
+    final shimmer = ItemDetailDesign.shimmerColors(context);
     return SizedBox(
       height: _relatedListHeight,
       child: ListView.separated(
@@ -2127,14 +2334,14 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         itemCount: 3,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) => Shimmer.fromColors(
-          baseColor: Colors.grey[300]!,
-          highlightColor: Colors.grey[100]!,
+          baseColor: shimmer.$1,
+          highlightColor: shimmer.$2,
           child: Container(
             width: _relatedCardWidth,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: ItemDetailDesign.card(context),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _detailBorder),
+              border: Border.all(color: ItemDetailDesign.cardBorder(context)),
             ),
           ),
         ),
@@ -2152,9 +2359,9 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       margin: const EdgeInsets.symmetric(vertical: 6),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: ItemDetailDesign.imageWell,
+        color: ItemDetailDesign.mutedWell(context),
         borderRadius: BorderRadius.circular(ItemDetailDesign.radiusMd),
-        border: Border.all(color: _detailBorder),
+        border: Border.all(color: ItemDetailDesign.cardBorder(context)),
       ),
       child: Column(
         children: [
@@ -2165,7 +2372,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             style: GoogleFonts.poppins(
               fontSize: _fsBody,
               fontWeight: FontWeight.w600,
-              color: Colors.black87,
+              color: ItemDetailDesign.ink(context),
             ),
             textAlign: TextAlign.center,
           ),
@@ -2174,7 +2381,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             message,
             style: TextStyle(
               fontSize: _fsSmall,
-              color: Colors.grey.shade600,
+              color: ItemDetailDesign.muted(context),
             ),
             textAlign: TextAlign.center,
           ),
@@ -2197,22 +2404,26 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             context,
             urlName: product.urlName,
             product: product,
+            fromProductCard: true,
           );
         },
         borderRadius: BorderRadius.circular(ItemDetailDesign.radiusMd),
         child: Ink(
           width: _relatedCardWidth,
           decoration: BoxDecoration(
-            color: ItemDetailDesign.surface,
+            color: ItemDetailDesign.card(context),
             borderRadius: BorderRadius.circular(ItemDetailDesign.radiusMd),
-            border: Border.all(color: _detailBorder),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            border: Border.all(color: ItemDetailDesign.cardBorder(context)),
+            boxShadow: ItemDetailDesign.cardShadow(context) ??
+                (context.appColors.isDark
+                    ? null
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2224,7 +2435,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                       borderRadius:
                           const BorderRadius.vertical(top: Radius.circular(11)),
                       child: ColoredBox(
-                        color: _detailGreenTint,
+                        color: ItemDetailDesign.imageWell(context),
                         child: product.thumbnail.isNotEmpty
                             ? CachedNetworkImage(
                                 imageUrl: imageUrl,
@@ -2248,14 +2459,15 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 4, vertical: 1),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFEF2F2),
+                            color: ItemDetailDesign.rxTint(context),
                             borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: const Color(0xFFFECACA)),
+                            border: Border.all(
+                                color: ItemDetailDesign.rxBorder(context)),
                           ),
                           child: Text(
                             'Rx',
                             style: GoogleFonts.poppins(
-                              color: const Color(0xFF991B1B),
+                              color: ItemDetailDesign.rxInk(context),
                               fontSize: 9,
                               fontWeight: FontWeight.w600,
                             ),
@@ -2276,7 +2488,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         fontWeight: FontWeight.w500,
                         fontSize: _fsCaption,
                         height: 1.15,
-                        color: _detailInk,
+                        color: context.appColors.ink,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -2285,7 +2497,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                     Text(
                       'GHS ${product.price}',
                       style: GoogleFonts.poppins(
-                        color: AppColors.primary,
+                        color: ItemDetailDesign.priceAccent(context),
                         fontWeight: FontWeight.w600,
                         fontSize: _fsCaption,
                       ),
@@ -2306,236 +2518,64 @@ class ItemPageSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final shimmer = ItemDetailDesign.shimmerColors(context);
+
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.grey[300],
-        elevation: 0,
-        leading: BackButtonUtils.withConfirmation(
-          backgroundColor: AppColors.primary,
-          title: _leaveProductTitle,
-          message: _leaveProductMessage,
-        ),
-        title: Container(
-          width: 200,
-          height: 24,
-          color: Colors.white,
-        ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 8.0),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.grey[400],
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.shopping_cart, color: Colors.white),
-              onPressed: () {},
-            ),
-          ),
-        ],
-      ),
+      backgroundColor: ItemDetailDesign.pageBg(context),
       body: Shimmer.fromColors(
-        baseColor: Colors.grey[300]!,
-        highlightColor: Colors.grey[100]!,
-        child: SingleChildScrollView(
-          padding:
-              const EdgeInsets.only(left: 10, right: 10, top: 1, bottom: 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // product image skeleton
-              Container(
-                height: 200,
-                margin: const EdgeInsets.symmetric(vertical: 10),
-                color: Colors.white,
+        baseColor: shimmer.$1,
+        highlightColor: shimmer.$2,
+        child: CustomScrollView(
+          physics: const NeverScrollableScrollPhysics(),
+          slivers: [
+            SliverAppBar(
+              pinned: true,
+              expandedHeight: kToolbarHeight + 36,
+              backgroundColor: AppColors.accent,
+              leading: BackButtonUtils.withConfirmation(
+                backgroundColor: Colors.white.withValues(alpha: 0.2),
+                title: _leaveProductTitle,
+                message: _leaveProductMessage,
               ),
-
-              Container(
-                width: 100,
-                height: 24,
-                margin: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  ItemDetailDesign.pagePadding,
+                  12,
+                  ItemDetailDesign.pagePadding,
+                  24,
                 ),
-              ),
-
-              Material(
-                elevation: 2,
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey),
-                    borderRadius: BorderRadius.circular(10),
-                    color: Colors.white,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 24,
-                        height: 24,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(width: 16),
-                      Container(
-                        width: 24,
-                        height: 24,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(width: 16),
-                      Container(
-                        width: 24,
-                        height: 24,
-                        color: Colors.white,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: double.infinity,
-                        height: 24,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(height: 16),
-
-                      Center(
-                        child: Container(
-                          width: 100,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      Center(
-                        child: Container(
-                          width: 120,
-                          height: 20,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const Divider(height: 24, thickness: 1),
-                      const SizedBox(height: 8),
-
-                      // description skeleton
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: List.generate(
-                          5,
-                          (index) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Container(
-                              width: index == 4 ? 100 : double.infinity,
-                              height: 16,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 50,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      height: 220,
+                      decoration: ItemDetailDesign.surfaceCard(context),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      height: 18,
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
+                        color: ItemDetailDesign.card(context),
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Container(
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                    const SizedBox(height: 10),
+                    Container(
+                      height: 88,
+                      decoration: ItemDetailDesign.surfaceCard(context),
                     ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 24),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Container(
-                  width: 150,
-                  height: 24,
-                  color: Colors.white,
+                    const SizedBox(height: 12),
+                    Container(
+                      height: 140,
+                      decoration: ItemDetailDesign.surfaceCard(context),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-
-              SizedBox(
-                height: 180,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: 3,
-                  itemBuilder: (context, index) {
-                    return Container(
-                      width: 150,
-                      margin: const EdgeInsets.only(left: 10, right: 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            width: double.infinity,
-                            height: 16,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            width: 80,
-                            height: 14,
-                            color: Colors.white,
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -2705,9 +2745,11 @@ class _ProductDescriptionState extends State<ProductDescription> {
   }
 
   Map<String, Style> _descriptionHtmlStyles() {
-    const bodyColor = Color(0xFF374151);
-    const mutedColor = Color(0xFF6B7280);
-    final accentBorder = widget.chipBorderColor ?? const Color(0xFFBBEAD3);
+    final bodyColor = ItemDetailDesign.ink(context);
+    final mutedColor = ItemDetailDesign.muted(context);
+    final headingColor = ItemDetailDesign.headingAccent(context);
+    final accentBorder =
+        widget.chipBorderColor ?? ItemDetailDesign.cardBorder(context);
 
     return {
       'body': Style(
@@ -2724,21 +2766,21 @@ class _ProductDescriptionState extends State<ProductDescription> {
         margin: Margins.only(bottom: 5),
       ),
       'h1': Style(
-        color: AppColors.primaryDark,
+        color: headingColor,
         fontWeight: FontWeight.w700,
         fontSize: FontSize(17),
         margin: Margins.only(top: 2, bottom: 4),
         lineHeight: LineHeight.number(1.12),
       ),
       'h2': Style(
-        color: AppColors.primaryDark,
+        color: headingColor,
         fontWeight: FontWeight.w700,
         fontSize: FontSize(16),
         margin: Margins.only(top: 2, bottom: 4),
         lineHeight: LineHeight.number(1.12),
       ),
       'h3, h4': Style(
-        color: AppColors.primaryDark,
+        color: headingColor,
         fontWeight: FontWeight.w600,
         fontSize: FontSize(14),
         letterSpacing: 0.2,
@@ -2758,16 +2800,16 @@ class _ProductDescriptionState extends State<ProductDescription> {
       ),
       'strong, b': Style(
         fontWeight: FontWeight.w600,
-        color: AppColors.primaryDark,
+        color: headingColor,
       ),
       'em, i': Style(
         fontStyle: FontStyle.italic,
         color: mutedColor,
       ),
       'a': Style(
-        color: AppColors.primary,
+        color: ItemDetailDesign.priceAccent(context),
         textDecoration: TextDecoration.underline,
-        textDecorationColor: AppColors.primary,
+        textDecorationColor: ItemDetailDesign.priceAccent(context),
       ),
       'blockquote': Style(
         border: Border(
@@ -2796,7 +2838,7 @@ class _ProductDescriptionState extends State<ProductDescription> {
         style: GoogleFonts.poppins(
           fontStyle: FontStyle.italic,
           fontSize: 14,
-          color: const Color(0xFF6B7280),
+          color: ItemDetailDesign.muted(context),
         ),
       );
     }
@@ -2812,8 +2854,9 @@ class _ProductDescriptionState extends State<ProductDescription> {
           htmlWidget: htmlWidget,
           expanded: _expanded,
           collapsedHeight: _collapsedHeight,
-          fadeColor: widget.fadeColor ?? Colors.white,
-          chipBorderColor: widget.chipBorderColor ?? const Color(0xFFE5E7EB),
+          fadeColor: widget.fadeColor ?? ItemDetailDesign.card(context),
+          chipBorderColor:
+              widget.chipBorderColor ?? ItemDetailDesign.cardBorder(context),
           onToggle: () => setState(() => _expanded = !_expanded),
         );
       },
@@ -2870,6 +2913,8 @@ class _ExpandableHtmlState extends State<_ExpandableHtml> {
   @override
   Widget build(BuildContext context) {
     final showFade = _showButton && !widget.expanded;
+    final chipBg = ItemDetailDesign.card(context);
+    final chipInk = ItemDetailDesign.headingAccent(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2912,7 +2957,7 @@ class _ExpandableHtmlState extends State<_ExpandableHtml> {
           const SizedBox(height: 6),
           Center(
             child: Material(
-              color: Colors.white,
+              color: chipBg,
               borderRadius: BorderRadius.circular(999),
               child: InkWell(
                 onTap: widget.onToggle,
@@ -2932,7 +2977,7 @@ class _ExpandableHtmlState extends State<_ExpandableHtml> {
                         style: GoogleFonts.poppins(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.primaryDark,
+                          color: chipInk,
                         ),
                       ),
                       const SizedBox(width: 2),
@@ -2941,7 +2986,7 @@ class _ExpandableHtmlState extends State<_ExpandableHtml> {
                             ? Icons.keyboard_arrow_up_rounded
                             : Icons.keyboard_arrow_down_rounded,
                         size: 16,
-                        color: AppColors.primary,
+                        color: chipInk,
                       ),
                     ],
                   ),
@@ -2973,27 +3018,24 @@ class CategoryAndTagsWidget extends StatelessWidget {
         if (category.isNotEmpty)
           Row(
             children: [
-              const Text(
-                "Category: ",
-                style: TextStyle(
+              Text(
+                'Category: ',
+                style: GoogleFonts.poppins(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
+                  color: ItemDetailDesign.ink(context),
                 ),
               ),
               Expanded(
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.green.shade200),
-                  ),
+                  decoration: ItemDetailDesign.categoryChipDecoration(context),
                   child: Text(
                     category,
-                    style: TextStyle(
+                    style: GoogleFonts.poppins(
                       fontSize: 15,
-                      color: Colors.green.shade800,
+                      color: ItemDetailDesign.headingAccent(context),
                     ),
                   ),
                 ),
@@ -3005,11 +3047,12 @@ class CategoryAndTagsWidget extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                "Tags: ",
-                style: TextStyle(
+              Text(
+                'Tags: ',
+                style: GoogleFonts.poppins(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
+                  color: ItemDetailDesign.ink(context),
                 ),
               ),
               Expanded(
@@ -3036,16 +3079,12 @@ class TagChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
+      decoration: ItemDetailDesign.tagChipDecoration(context),
       child: Text(
         tag,
-        style: TextStyle(
+        style: GoogleFonts.poppins(
           fontSize: 14,
-          color: Colors.grey.shade800,
+          color: ItemDetailDesign.muted(context),
         ),
       ),
     );

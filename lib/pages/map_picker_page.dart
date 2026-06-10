@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:eclapp/widgets/safe_typeahead_host.dart';
+import 'package:eclapp/widgets/typeahead_box_style.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import '../config/api_config.dart';
 import '../models/map_place_suggestion.dart';
@@ -711,117 +713,132 @@ class _MapPickerPageState extends State<MapPickerPage> {
                         child: Row(
                           children: [
                             Expanded(
-                              child: TypeAheadField<MapPlaceSuggestion>(
-                                textFieldConfiguration: TextFieldConfiguration(
-                                  controller: _searchController,
-                                  onChanged: (_) => setState(() {}),
-                                  onSubmitted: (value) {
-                                    final trimmed = value.trim();
-                                    if (trimmed.isNotEmpty) {
-                                      _searchLocation(trimmed);
-                                    }
-                                  },
-                                  decoration: InputDecoration(
-                                    hintText: 'Search for a location...',
-                                    hintStyle: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 14,
-                                    ),
-                                    prefixIcon: Icon(
-                                      Icons.search,
-                                      color: Colors.grey[600],
-                                      size: 20,
-                                    ),
-                                    border: InputBorder.none,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 16,
-                                    ),
-                                  ),
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[800],
-                                  ),
-                                ),
-                                suggestionsCallback: (pattern) async {
-                                  return await _getSearchSuggestions(pattern);
-                                },
-                                itemBuilder: (context, suggestion) {
-                                  return ListTile(
-                                    leading: Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green.shade50,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Icon(
-                                        Icons.location_on_outlined,
-                                        color: Colors.green[600],
-                                        size: 18,
-                                      ),
-                                    ),
-                                    title: Text(
-                                      suggestion.description,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.grey[800],
-                                      ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    subtitle: Text(
-                                      'Tap to show on map',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                    dense: true,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 8,
-                                    ),
+                              child: SafeTypeAheadHost<MapPlaceSuggestion>(
+                                builder: (context, suggestionsController) {
+                                  const boxStyle = TypeAheadBoxStyle(
+                                    borderRadius:
+                                        BorderRadius.all(Radius.circular(12)),
+                                    elevation: 12,
+                                    shadowColor: Color(0x26000000),
+                                    constraints:
+                                        BoxConstraints(maxHeight: 280),
+                                  );
+
+                                  return TypeAheadField<MapPlaceSuggestion>(
+                                    controller: _searchController,
+                                    suggestionsController: suggestionsController,
+                                    offset: boxStyle.offset,
+                                    constraints: boxStyle.constraints,
+                                    decorationBuilder:
+                                        boxStyle.decorationBuilder,
+                                    animationDuration:
+                                        const Duration(milliseconds: 200),
+                                    builder: (context, controller, focusNode) {
+                                      return TextField(
+                                        controller: controller,
+                                        focusNode: focusNode,
+                                        onChanged: (_) => setState(() {}),
+                                        onSubmitted: (value) {
+                                          final trimmed = value.trim();
+                                          if (trimmed.isNotEmpty) {
+                                            _searchLocation(trimmed);
+                                          }
+                                        },
+                                        decoration: InputDecoration(
+                                          hintText: 'Search for a location...',
+                                          hintStyle: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 14,
+                                          ),
+                                          prefixIcon: Icon(
+                                            Icons.search,
+                                            color: Colors.grey[600],
+                                            size: 20,
+                                          ),
+                                          border: InputBorder.none,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                            horizontal: 20,
+                                            vertical: 16,
+                                          ),
+                                        ),
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey[800],
+                                        ),
+                                      );
+                                    },
+                                    suggestionsCallback: (pattern) async {
+                                      return _getSearchSuggestions(pattern);
+                                    },
+                                    itemBuilder: (context, suggestion) {
+                                      return ListTile(
+                                        leading: Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green.shade50,
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: Icon(
+                                            Icons.location_on_outlined,
+                                            color: Colors.green[600],
+                                            size: 18,
+                                          ),
+                                        ),
+                                        title: Text(
+                                          suggestion.description,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.grey[800],
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        subtitle: Text(
+                                          'Tap to show on map',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                        dense: true,
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 8,
+                                        ),
+                                      );
+                                    },
+                                    onSelected: (suggestion) {
+                                      _searchController.text =
+                                          suggestion.description;
+                                      _searchLocation(
+                                        suggestion.description,
+                                        placeId: suggestion.placeId,
+                                        latitude: suggestion.latitude,
+                                        longitude: suggestion.longitude,
+                                      );
+                                    },
+                                    emptyBuilder: (context) {
+                                      return Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Text(
+                                          'No locations found',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    debounceDuration:
+                                        const Duration(milliseconds: 300),
+                                    hideOnEmpty: false,
+                                    hideOnLoading: false,
                                   );
                                 },
-                                onSuggestionSelected: (suggestion) {
-                                  _searchController.text =
-                                      suggestion.description;
-                                  _searchLocation(
-                                    suggestion.description,
-                                    placeId: suggestion.placeId,
-                                    latitude: suggestion.latitude,
-                                    longitude: suggestion.longitude,
-                                  );
-                                },
-                                noItemsFoundBuilder: (context) {
-                                  return Padding(
-                                    padding: const EdgeInsets.all(16.0),
-                                    child: Text(
-                                      'No locations found',
-                                      style: TextStyle(
-                                        color: Colors.grey[600],
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                debounceDuration:
-                                    const Duration(milliseconds: 300),
-                                suggestionsBoxDecoration:
-                                    SuggestionsBoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  elevation: 12,
-                                  shadowColor: Colors.black.withOpacity(0.15),
-                                  constraints: const BoxConstraints(
-                                    maxHeight: 280,
-                                  ),
-                                ),
-                                animationDuration:
-                                    const Duration(milliseconds: 200),
-                                hideOnEmpty: false,
-                                hideOnLoading: false,
                               ),
                             ),
                             if (_searchController.text.isNotEmpty)

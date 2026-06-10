@@ -13,6 +13,7 @@ import 'package:uuid/uuid.dart';
 import '../models/product_model.dart';
 import 'dart:io';
 import '../config/api_config.dart';
+import '../services/guest_local_order_service.dart';
 import '../services/http_client_service.dart';
 import '../utils/app_error_utils.dart';
 
@@ -1846,17 +1847,29 @@ class AuthService {
         return {'status': 'error', 'message': 'Not authenticated'};
       }
 
+      final loggedIn = await AuthService.isLoggedIn();
+      if (!loggedIn) {
+        return GuestLocalOrderService.instance.buildOrdersResponse();
+      }
+
       debugPrint('🔍 Fetching orders from API...');
       final response = await HttpClientService.get(
         Uri.parse('$baseUrl/orders'),
         headers: {
-          'Authorization': 'Bearer $token',
           'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
         },
       ).timeout(const Duration(seconds: 15));
 
-      debugPrint('Orders API response status: \\${response.statusCode}');
-      debugPrint('Orders API response body: \\${response.body}');
+      if (response.statusCode != 200) {
+        debugPrint('Orders API response status: ${response.statusCode}');
+        return {
+          'status': 'error',
+          'message': 'Failed to fetch orders (${response.statusCode})',
+        };
+      }
+
+      debugPrint('Orders API response status: ${response.statusCode}');
 
       final decoded = jsonDecode(response.body);
 
@@ -1914,6 +1927,10 @@ class AuthService {
       debugPrint('Error fetching orders: $e');
 
       try {
+        if (!(await isLoggedIn())) {
+          return GuestLocalOrderService.instance.buildOrdersResponse();
+        }
+
         final localOrders = await getLocalCashOnDeliveryOrders();
         return {
           'status': 'success',

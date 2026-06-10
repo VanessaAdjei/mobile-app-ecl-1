@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../repositories/order_tracking_repository.dart';
+import '../utils/order_notification_policy.dart';
 import '../utils/product_image_url.dart';
 import 'native_notification_service.dart';
 
@@ -76,32 +78,7 @@ class OrderNotificationService {
         _onBadgeUpdate!(await getUnreadCount());
       }
 
-      // Save to user_orders so background tracking can start immediately
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final existingJson = prefs.getString('user_orders');
-        final List<Map<String, dynamic>> existing = [];
-        if (existingJson != null) {
-          final list = json.decode(existingJson) as List<dynamic>?;
-          if (list != null) {
-            for (final o in list) {
-              existing.add(Map<String, dynamic>.from(o));
-            }
-          }
-        }
-        final orderMap = Map<String, dynamic>.from(orderData);
-        final id = orderMap['id']?.toString() ?? orderMap['transaction_id']?.toString() ?? '';
-        if (id.isNotEmpty) {
-          orderMap['delivery_id'] = id;
-          final byId = <String, Map<String, dynamic>>{};
-          for (final o in existing) {
-            final k = o['delivery_id']?.toString() ?? o['transaction_id']?.toString() ?? o['id']?.toString() ?? '';
-            if (k.isNotEmpty) byId[k] = o;
-          }
-          byId[id] = orderMap;
-          await prefs.setString('user_orders', json.encode(byId.values.toList()));
-        }
-      } catch (_) {}
+      await _persistOrderForBackgroundTracking(orderData);
 
       // Always show system notification; in-app SnackBar is deferred until the user
       // leaves the post-checkout confirmation page.
@@ -133,6 +110,97 @@ class OrderNotificationService {
     } catch (e) {
       debugPrint('Error creating order placed notification: $e');
     }
+  }
+
+  static String _guestOrderUpdatesHint({
+    required String phone,
+    required String email,
+  }) {
+    final hasPhone = phone.isNotEmpty;
+    final hasEmail = email.isNotEmpty;
+    if (hasPhone && hasEmail) {
+      return ' Updates go to $phone and $email.';
+    }
+    if (hasPhone) return ' Text updates go to $phone.';
+    if (hasEmail) return ' Email updates go to $email.';
+    return ' Updates will be sent by text and email.';
+  }
+
+  /// One system notification for guests — no in-app inbox (SMS/email off-app).
+  static Future<void> createGuestOrderPlacedNotification(
+    Map<String, dynamic> orderData,
+  ) async {
+    try {
+      await _persistOrderForBackgroundTracking(orderData);
+
+      final orderRef = orderData['order_number']?.toString() ??
+          orderData['id']?.toString() ??
+          '';
+      final phone = orderData['contact_number']?.toString().trim() ?? '';
+      final email = orderData['email']?.toString().trim() ?? '';
+      final updateHint = _guestOrderUpdatesHint(phone: phone, email: email);
+
+      await NativeNotificationService.ensureSystemNotificationsEnabled(
+        requestIfNeeded: true,
+      );
+      await NativeNotificationService.showNotification(
+        title: 'Order placed',
+        body: orderRef.isEmpty
+            ? 'Your order is confirmed.$updateHint'
+            : 'Order #$orderRef placed.$updateHint',
+        payload: json.encode({
+          'type': 'order_placed',
+          'order_id': orderData['id']?.toString() ?? '',
+          'order_number': orderRef,
+          'status': orderData['status'] ?? 'Order Placed',
+          'total_amount': orderData['total_amount'] ?? '0.00',
+          'payment_method': orderData['payment_method'] ?? 'Unknown',
+          'items': orderData['items'] ?? [],
+          'created_at':
+              orderData['created_at'] ?? DateTime.now().toIso8601String(),
+          'is_guest': true,
+        }),
+      );
+
+      debugPrint('📱 Guest order placed notification shown');
+    } catch (e) {
+      debugPrint('Error creating guest order placed notification: $e');
+    }
+  }
+
+  static Future<void> _persistOrderForBackgroundTracking(
+    Map<String, dynamic> orderData,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final existingJson = prefs.getString('user_orders');
+      final List<Map<String, dynamic>> existing = [];
+      if (existingJson != null) {
+        final list = json.decode(existingJson) as List<dynamic>?;
+        if (list != null) {
+          for (final o in list) {
+            existing.add(Map<String, dynamic>.from(o));
+          }
+        }
+      }
+      final orderMap = Map<String, dynamic>.from(orderData);
+      final id = orderMap['id']?.toString() ??
+          orderMap['transaction_id']?.toString() ??
+          '';
+      if (id.isEmpty) return;
+
+      orderMap['delivery_id'] = id;
+      final byId = <String, Map<String, dynamic>>{};
+      for (final o in existing) {
+        final k = o['delivery_id']?.toString() ??
+            o['transaction_id']?.toString() ??
+            o['id']?.toString() ??
+            '';
+        if (k.isNotEmpty) byId[k] = o;
+      }
+      byId[id] = orderMap;
+      await prefs.setString('user_orders', json.encode(byId.values.toList()));
+    } catch (_) {}
   }
 
   /// In-app list + system notification when the store confirms the order.
@@ -187,26 +255,39 @@ class OrderNotificationService {
 
       await _addNotificationOptimized(notification);
 
+      await OrderTrackingRepositoryImpl().saveStatusHint(
+        status: status,
+        orderId: orderId,
+        orderNumber: orderNumber,
+      );
+
       if (_onBadgeUpdate != null) {
         _onBadgeUpdate!(await getUnreadCount());
       }
 
-      try {
-        await NativeNotificationService.ensureSystemNotificationsEnabled(
-          requestIfNeeded: true,
-        );
-        await NativeNotificationService.showNotification(
-          title: title,
-          body: message,
-          payload: json.encode({
-            'type': 'order_status',
-            'order_id': orderId,
-            'order_number': orderNumber,
-            'status': status,
-          }),
-        );
-      } catch (e) {
-        debugPrint('Error showing order status system notification: $e');
+      if (OrderNotificationPolicy.shouldShowSystemPush(
+        type: 'order_status',
+        status: status,
+      )) {
+        try {
+          await NativeNotificationService.ensureSystemNotificationsEnabled(
+            requestIfNeeded: true,
+          );
+          await NativeNotificationService.showNotification(
+            title: title,
+            body: message,
+            payload: json.encode({
+              'type': 'order_status',
+              'order_id': orderId,
+              'order_number': orderNumber,
+              'status': status,
+            }),
+          );
+        } catch (e) {
+          debugPrint('Error showing order status system notification: $e');
+        }
+      } else {
+        debugPrint('📱 In-app only (no push) for status: $status');
       }
 
       debugPrint('📱 Order status notification created: $status');
@@ -356,21 +437,20 @@ class OrderNotificationService {
   static Future<void> _addNotificationOptimized(
       Map<String, dynamic> notification) async {
     try {
-      // Get current unread count immediately
+      final shouldBumpUnread = await _upsertNotification(notification);
+      if (!shouldBumpUnread) {
+        debugPrint('📱 Notification deduped — badge unchanged');
+        return;
+      }
+
       final prefs = await SharedPreferences.getInstance();
       final currentUnreadCount = prefs.getInt(_unreadCountKey) ?? 0;
-
-      // Update unread count immediately for fast badge updates
       final newUnreadCount = currentUnreadCount + 1;
       await prefs.setInt(_unreadCountKey, newUnreadCount);
 
-      // Notify provider immediately for instant badge updates
       if (_onBadgeUpdate != null) {
         _onBadgeUpdate!(newUnreadCount);
       }
-
-      // Add notification to list (async, but doesn't block badge update)
-      _addNotificationToList(notification);
 
       debugPrint('📱 Badge updated immediately: $newUnreadCount');
     } catch (e) {
@@ -378,21 +458,45 @@ class OrderNotificationService {
     }
   }
 
-  /// Add notification to list (separate async operation)
-  static Future<void> _addNotificationToList(
+  /// Inserts or updates an existing row for the same order + status bucket.
+  /// Returns `true` when the unread badge should increase.
+  static Future<bool> _upsertNotification(
       Map<String, dynamic> notification) async {
     try {
       final notifications = await getNotifications();
-      notifications.insert(0, notification); // Add to beginning
+      final incomingKey = OrderNotificationPolicy.dedupeKey(notification);
 
-      // Keep only the last 50 notifications
+      final existingIndex = notifications.indexWhere(
+        (n) => OrderNotificationPolicy.dedupeKey(n) == incomingKey,
+      );
+
+      if (existingIndex >= 0) {
+        final existing = Map<String, dynamic>.from(notifications[existingIndex]);
+        final wasRead = existing['is_read'] == true;
+
+        notifications[existingIndex] = {
+          ...existing,
+          ...notification,
+          'id': existing['id'],
+          'is_read': wasRead,
+          'timestamp': notification['timestamp'],
+        };
+
+        await _saveNotifications(notifications);
+        debugPrint('📱 Updated existing notification for $incomingKey');
+        return false;
+      }
+
+      notifications.insert(0, notification);
       if (notifications.length > 50) {
         notifications.removeRange(50, notifications.length);
       }
 
       await _saveNotifications(notifications);
+      return true;
     } catch (e) {
-      debugPrint('Error adding notification to list: $e');
+      debugPrint('Error upserting notification: $e');
+      return true;
     }
   }
 

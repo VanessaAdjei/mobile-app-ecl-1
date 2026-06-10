@@ -1,4 +1,5 @@
 import 'package:eclapp/widgets/post_checkout/post_checkout_design.dart';
+import 'package:eclapp/utils/app_theme_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -19,13 +20,13 @@ class OrderConfirmedOnScreenBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 14, 8, 14),
       decoration: BoxDecoration(
-        color: PostCheckoutDesign.surface,
+        color: PostCheckoutDesign.surface(context),
         borderRadius: BorderRadius.circular(PostCheckoutDesign.radiusMd),
         border: Border.all(
           color: PostCheckoutDesign.accent.withValues(alpha: 0.35),
           width: 1.5,
         ),
-        boxShadow: PostCheckoutDesign.cardShadow,
+        boxShadow: PostCheckoutDesign.cardShadow(context),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -34,7 +35,7 @@ class OrderConfirmedOnScreenBanner extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: PostCheckoutDesign.accentLight,
+              color: PostCheckoutDesign.accentLight(context),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
@@ -51,7 +52,7 @@ class OrderConfirmedOnScreenBanner extends StatelessWidget {
                 Text(
                   'Order confirmed',
                   style: GoogleFonts.poppins(
-                    color: PostCheckoutDesign.ink,
+                    color: PostCheckoutDesign.ink(context),
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
@@ -62,7 +63,7 @@ class OrderConfirmedOnScreenBanner extends StatelessWidget {
                       ? 'We\'re preparing your order now.'
                       : 'Order #$orderReference is being prepared.',
                   style: GoogleFonts.poppins(
-                    color: PostCheckoutDesign.muted,
+                    color: PostCheckoutDesign.muted(context),
                     fontSize: 12,
                     height: 1.4,
                   ),
@@ -77,7 +78,7 @@ class OrderConfirmedOnScreenBanner extends StatelessWidget {
               icon: Icon(
                 Icons.close_rounded,
                 size: 20,
-                color: Colors.grey.shade500,
+                color: context.appColors.muted,
               ),
             ),
         ],

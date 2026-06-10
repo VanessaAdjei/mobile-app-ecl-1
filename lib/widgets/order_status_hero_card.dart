@@ -89,7 +89,7 @@ class OrderStatusHeroCard extends StatelessWidget {
           : order.transactionId;
       return Container(
         padding: const EdgeInsets.all(16),
-        decoration: PostCheckoutDesign.surfaceCard(),
+        decoration: PostCheckoutDesign.surfaceCard(context),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -119,7 +119,7 @@ class OrderStatusHeroCard extends StatelessWidget {
                           style: GoogleFonts.poppins(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
-                            color: PostCheckoutDesign.ink,
+                            color: PostCheckoutDesign.ink(context),
                             height: 1.2,
                           ),
                         ),
@@ -132,7 +132,7 @@ class OrderStatusHeroCard extends StatelessWidget {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: PostCheckoutDesign.accentLight,
+                            color: PostCheckoutDesign.accentLight(context),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -152,7 +152,7 @@ class OrderStatusHeroCard extends StatelessWidget {
                       'Order #$ref',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
-                        color: PostCheckoutDesign.muted,
+                        color: PostCheckoutDesign.muted(context),
                       ),
                     ),
                   ],
@@ -163,7 +163,7 @@ class OrderStatusHeroCard extends StatelessWidget {
                         : 'Placed ${DateFormat('MMM d, y · h:mm a').format(order.createdAt)} · GHS ${order.totalAmount.toStringAsFixed(2)}',
                     style: GoogleFonts.poppins(
                       fontSize: 12,
-                      color: PostCheckoutDesign.muted,
+                      color: PostCheckoutDesign.muted(context),
                       height: 1.35,
                     ),
                   ),

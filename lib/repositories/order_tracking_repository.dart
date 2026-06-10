@@ -17,6 +17,7 @@ abstract class OrderTrackingRepository {
   Future<void> handleOrderConfirmed({
     required OrderTrackingModel order,
     String? initialTransactionId,
+    bool isGuestCheckout = false,
   });
 
   Future<Map<String, DateTime>> loadStageTimestamps(String orderKey);
@@ -44,6 +45,15 @@ abstract class OrderTrackingRepository {
     String orderKey,
     int timelineIndex,
   );
+
+  Future<void> saveStatusHint({
+    required String status,
+    String? orderId,
+    String? orderNumber,
+    String? transactionId,
+  });
+
+  Future<List<String>> loadStatusHints(Set<String> lookupKeys);
 }
 
 class OrderTrackingRepositoryImpl implements OrderTrackingRepository {
@@ -87,12 +97,16 @@ class OrderTrackingRepositoryImpl implements OrderTrackingRepository {
   Future<void> handleOrderConfirmed({
     required OrderTrackingModel order,
     String? initialTransactionId,
+    bool isGuestCheckout = false,
   }) async {
     await _localDataSource.storeOrderAmounts(
       order: order,
       initialTransactionId: initialTransactionId,
     );
-    await _localDataSource.createOrderPlacedNotification(order);
+    await _localDataSource.createOrderPlacedNotification(
+      order,
+      isGuestCheckout: isGuestCheckout,
+    );
   }
 
   @override
@@ -148,5 +162,25 @@ class OrderTrackingRepositoryImpl implements OrderTrackingRepository {
       orderKey,
       timelineIndex,
     );
+  }
+
+  @override
+  Future<void> saveStatusHint({
+    required String status,
+    String? orderId,
+    String? orderNumber,
+    String? transactionId,
+  }) {
+    return _localDataSource.saveStatusHint(
+      status: status,
+      orderId: orderId,
+      orderNumber: orderNumber,
+      transactionId: transactionId,
+    );
+  }
+
+  @override
+  Future<List<String>> loadStatusHints(Set<String> lookupKeys) {
+    return _localDataSource.loadStatusHints(lookupKeys);
   }
 }

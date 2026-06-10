@@ -1,13 +1,13 @@
 // pages/prescription_history.dart
 import 'package:flutter/material.dart';
 import '../services/prescription_service.dart';
-import 'package:eclapp/config/api_config.dart';
 import 'package:eclapp/services/auth_service.dart';
 import 'package:eclapp/widgets/error_display.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../utils/app_error_utils.dart';
+import '../utils/prescription_parser.dart';
 import '../widgets/app_header_bar.dart';
 
 const Color _kRxAccent = Color(0xFF0D7A4C);
@@ -17,31 +17,49 @@ const Color _kRxPageMint = Color(0xFFEFFCF4);
 class PrescriptionHistoryScreen extends StatefulWidget {
   const PrescriptionHistoryScreen({super.key});
 
+  static List<Map<String, dynamic>>? _cachedPrescriptions;
+  static DateTime? _lastFetchTime;
+  static const Duration _cacheValidDuration = Duration(minutes: 30);
+
+  /// Clears in-memory list cache (e.g. after a new upload).
+  static void invalidateCache() {
+    _cachedPrescriptions = null;
+    _lastFetchTime = null;
+  }
+
   @override
   PrescriptionHistoryScreenState createState() =>
       PrescriptionHistoryScreenState();
 }
 
-class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
+class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen>
+    with SingleTickerProviderStateMixin {
   final PrescriptionService _prescriptionService = PrescriptionService();
   List<Map<String, dynamic>> _prescriptions = [];
   bool _isLoading = true;
 
   String? _error;
   final ScrollController _scrollController = ScrollController();
-
-  // Cache for prescription data
-  static List<Map<String, dynamic>>? _cachedPrescriptions;
-  static DateTime? _lastFetchTime;
-  static const Duration _cacheValidDuration = Duration(minutes: 30);
+  TabController? _tabController;
 
   // Image loading optimization
   final Map<String, bool> _imageLoadingStates = {};
   final Map<String, String?> _imageErrors = {};
 
+  List<Map<String, dynamic>> get _pendingPrescriptions =>
+      partitionPrescriptionsByQueue(_prescriptions).pending;
+
+  List<Map<String, dynamic>> get _servedPrescriptions =>
+      partitionPrescriptionsByQueue(_prescriptions).served;
+
+  void _ensureTabController() {
+    _tabController ??= TabController(length: 2, vsync: this);
+  }
+
   @override
   void initState() {
     super.initState();
+    _ensureTabController();
 
     setState(() {
       _isLoading = true;
@@ -51,6 +69,7 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
 
   @override
   void dispose() {
+    _tabController?.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -58,15 +77,18 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   Future<void> _loadPrescriptions() async {
     debugPrint('🔍 Loading prescriptions...');
     // Check if we have valid cached data
-    if (_cachedPrescriptions != null && _lastFetchTime != null) {
-      final timeSinceLastFetch = DateTime.now().difference(_lastFetchTime!);
-      final isCacheValid = timeSinceLastFetch < _cacheValidDuration;
+    if (PrescriptionHistoryScreen._cachedPrescriptions != null &&
+        PrescriptionHistoryScreen._lastFetchTime != null) {
+      final timeSinceLastFetch = DateTime.now()
+          .difference(PrescriptionHistoryScreen._lastFetchTime!);
+      final isCacheValid =
+          timeSinceLastFetch < PrescriptionHistoryScreen._cacheValidDuration;
       debugPrint(
           '🔍 Cache check: ${isCacheValid ? 'HIT' : 'MISS'} (age: ${timeSinceLastFetch.inMinutes}min)');
 
       if (isCacheValid) {
         setState(() {
-          _prescriptions = _cachedPrescriptions!;
+          _prescriptions = PrescriptionHistoryScreen._cachedPrescriptions!;
           _isLoading = false;
         });
         debugPrint(
@@ -106,8 +128,8 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
       debugPrint(
           '🔍 Fetched ${prescriptions.length} prescriptions from API');
 
-      _cachedPrescriptions = prescriptions;
-      _lastFetchTime = DateTime.now();
+      PrescriptionHistoryScreen._cachedPrescriptions = prescriptions;
+      PrescriptionHistoryScreen._lastFetchTime = DateTime.now();
 
       if (mounted) {
         setState(() {
@@ -133,9 +155,7 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   Future<void> _refreshPrescriptions() async {
     debugPrint('🔍 Refreshing prescriptions...');
 
-    // Clear cache to force fresh data
-    _cachedPrescriptions = null;
-    _lastFetchTime = null;
+    PrescriptionHistoryScreen.invalidateCache();
 
     // Show loading state immediately
     if (mounted) {
@@ -386,63 +406,119 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    const scrollPhysics = AlwaysScrollableScrollPhysics(
-      parent: BouncingScrollPhysics(),
-    );
-
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F172A) : _kRxPageBg,
       appBar: AppHeaderBar.forScaffold(
         context,
-        title: 'Prescription History',
-        subtitle: 'Uploads, status & pharmacist notes',
+        title: 'Uploaded Prescriptions',
+        subtitle: 'Pending review and served uploads',
         showCart: false,
         background: AppHeaderBackground.accent,
       ),
       body: _rxPageBackdrop(
         isDark: isDark,
         child: _isLoading
-            ? CustomScrollView(
-                controller: _scrollController,
-                physics: scrollPhysics,
-                slivers: [
-                  SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: _buildLoadingSkeleton(isDark),
-                  ),
-                ],
-              )
+            ? _buildLoadingSkeleton(isDark)
             : _error != null
-                ? CustomScrollView(
-                    controller: _scrollController,
-                    physics: scrollPhysics,
-                    slivers: [
-                      SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: _buildErrorState(),
-                      ),
-                    ],
-                  )
-                : _prescriptions.isEmpty
-                    ? CustomScrollView(
-                        controller: _scrollController,
-                        physics: scrollPhysics,
-                        slivers: [
-                          SliverFillRemaining(
-                            hasScrollBody: false,
-                            child: _buildEmptyState(isDark),
-                          ),
-                        ],
-                      )
-                    : RefreshIndicator(
-                        color: _kRxAccent,
-                        onRefresh: _refreshPrescriptions,
-                        child: CustomScrollView(
-                          controller: _scrollController,
-                          physics: scrollPhysics,
-                          slivers: _buildPrescriptionListSlivers(isDark),
+                ? _buildErrorState()
+                : Builder(
+                    builder: (context) {
+                      _ensureTabController();
+                      final tabController = _tabController!;
+                      return Column(
+                        children: [
+                          _buildQueueTabBar(isDark, tabController),
+                          Expanded(
+                            child: TabBarView(
+                              controller: tabController,
+                              children: [
+                            _PrescriptionQueueTab(
+                              queue: PrescriptionQueue.pending,
+                              prescriptions: _pendingPrescriptions,
+                              isDark: isDark,
+                              onRefresh: _refreshPrescriptions,
+                              onTapImage: _showPrescriptionImage,
+                              emptyTitle: 'No pending prescriptions',
+                              emptySubtitle:
+                                  'Uploads awaiting pharmacist review will appear here.',
+                            ),
+                            _PrescriptionQueueTab(
+                              queue: PrescriptionQueue.served,
+                              prescriptions: _servedPrescriptions,
+                              isDark: isDark,
+                              onRefresh: _refreshPrescriptions,
+                              onTapImage: _showPrescriptionImage,
+                              emptyTitle: 'No served prescriptions yet',
+                              emptySubtitle:
+                                  'Approved, served, or completed uploads show here.',
+                            ),
+                          ],
                         ),
                       ),
+                    ],
+                      );
+                    },
+                  ),
+      ),
+    );
+  }
+
+  Widget _buildQueueTabBar(bool isDark, TabController tabController) {
+    final pendingCount = _pendingPrescriptions.length;
+    final servedCount = _servedPrescriptions.length;
+    final barBg = isDark ? const Color(0xFF111827) : Colors.white;
+    final borderColor =
+        isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+
+    return Material(
+      color: barBg,
+      elevation: isDark ? 0 : 1,
+      shadowColor: Colors.black.withValues(alpha: 0.06),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: borderColor)),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: borderColor),
+          ),
+          padding: const EdgeInsets.all(4),
+          child: TabBar(
+            controller: tabController,
+            indicatorSize: TabBarIndicatorSize.tab,
+            dividerColor: Colors.transparent,
+            indicator: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                if (!isDark)
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+              ],
+            ),
+            labelColor: isDark ? Colors.white : const Color(0xFF0F172A),
+            unselectedLabelColor:
+                isDark ? Colors.white60 : const Color(0xFF64748B),
+            labelStyle: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+            unselectedLabelStyle: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+            tabs: [
+              Tab(text: 'Pending ($pendingCount)'),
+              Tab(text: 'Served ($servedCount)'),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -457,8 +533,126 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
     );
   }
 
-  Widget _buildEmptyState(bool isDark) {
+  // Preload images for better performance
+  void _preloadImages() {
+    for (final prescription in _prescriptions) {
+      if (prescription['file'] != null) {
+        final imageUrl = prescription['file'];
+        if (!_imageLoadingStates.containsKey(imageUrl)) {
+          _imageLoadingStates[imageUrl] = false;
+          // Preload image in background
+          _preloadImage(imageUrl);
+        }
+      }
+    }
+  }
+
+  Future<void> _preloadImage(String imageUrl) async {
+    try {
+      _imageLoadingStates[imageUrl] = true;
+      // Use a lightweight preload approach
+      await precacheImage(
+        CachedNetworkImageProvider(imageUrl),
+        context,
+        onError: (exception, stackTrace) {
+          debugPrint(
+              'Skipping prescription preload image (may be missing): $imageUrl');
+        },
+      );
+      _imageLoadingStates[imageUrl] = false;
+    } catch (e) {
+      _imageLoadingStates[imageUrl] = false;
+      _imageErrors[imageUrl] = e.toString();
+    }
+  }
+}
+
+class _PrescriptionQueueTab extends StatelessWidget {
+  const _PrescriptionQueueTab({
+    required this.queue,
+    required this.prescriptions,
+    required this.isDark,
+    required this.onRefresh,
+    required this.onTapImage,
+    required this.emptyTitle,
+    required this.emptySubtitle,
+  });
+
+  final PrescriptionQueue queue;
+  final List<Map<String, dynamic>> prescriptions;
+  final bool isDark;
+  final Future<void> Function() onRefresh;
+  final void Function(String fileUrl) onTapImage;
+  final String emptyTitle;
+  final String emptySubtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    if (prescriptions.isEmpty) {
+      return RefreshIndicator(
+        color: _kRxAccent,
+        onRefresh: onRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          children: [
+            SizedBox(
+              height: MediaQuery.sizeOf(context).height * 0.45,
+              child: _PrescriptionQueueEmptyState(
+                isDark: isDark,
+                queue: queue,
+                title: emptyTitle,
+                subtitle: emptySubtitle,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: _kRxAccent,
+      onRefresh: onRefresh,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+        itemCount: prescriptions.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          return _PrescriptionHistoryCard(
+            prescription: prescriptions[index],
+            queue: queue,
+            isDark: isDark,
+            onTapImage: onTapImage,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PrescriptionQueueEmptyState extends StatelessWidget {
+  const _PrescriptionQueueEmptyState({
+    required this.isDark,
+    required this.queue,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final bool isDark;
+  final PrescriptionQueue queue;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
     final cardBg = isDark ? const Color(0xFF111827) : Colors.white;
+    final isPending = queue == PrescriptionQueue.pending;
+    final accent = isPending ? const Color(0xFFF59E0B) : _kRxAccent;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -471,20 +665,6 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
             border: Border.all(
               color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.07),
-                blurRadius: isDark ? 20 : 28,
-                offset: const Offset(0, 12),
-              ),
-              if (!isDark)
-                BoxShadow(
-                  color: _kRxAccent.withValues(alpha: 0.07),
-                  blurRadius: 32,
-                  offset: const Offset(0, 16),
-                  spreadRadius: -8,
-                ),
-            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -492,27 +672,30 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: _kRxAccent.withValues(alpha: 0.12),
+                  color: accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(
-                  Icons.medical_services_outlined,
+                  isPending
+                      ? Icons.hourglass_top_rounded
+                      : Icons.check_circle_outline_rounded,
                   size: 42,
-                  color: _kRxAccent,
+                  color: accent,
                 ),
               ),
               const SizedBox(height: 18),
               Text(
-                'No prescriptions yet',
+                title,
                 style: GoogleFonts.poppins(
-                  fontSize: 19,
+                  fontSize: 18,
                   color: isDark ? Colors.white : const Color(0xFF0F172A),
                   fontWeight: FontWeight.w700,
                 ),
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               Text(
-                'When you upload a prescription, it will show up here.',
+                subtitle,
                 style: GoogleFonts.poppins(
                   fontSize: 13.5,
                   height: 1.45,
@@ -526,27 +709,23 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
       ),
     );
   }
+}
 
-  List<Widget> _buildPrescriptionListSlivers(bool isDark) {
-    return [
-      SliverPadding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-        sliver: SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
-              return Padding(
-                padding: EdgeInsets.only(top: index == 0 ? 0 : 12),
-                child: _buildPrescriptionItemAt(index, isDark),
-              );
-            },
-            childCount: _prescriptions.length,
-          ),
-        ),
-      ),
-    ];
-  }
+class _PrescriptionHistoryCard extends StatelessWidget {
+  const _PrescriptionHistoryCard({
+    required this.prescription,
+    required this.queue,
+    required this.isDark,
+    required this.onTapImage,
+  });
 
-  Widget _buildPrescriptionItemAt(int index, bool isDark) {
+  final Map<String, dynamic> prescription;
+  final PrescriptionQueue queue;
+  final bool isDark;
+  final void Function(String fileUrl) onTapImage;
+
+  @override
+  Widget build(BuildContext context) {
     final cardBg = isDark ? const Color(0xFF111827) : Colors.white;
     final borderColor =
         isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
@@ -554,17 +733,16 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
     final noteSectionBg =
         isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
 
-    final prescription = _prescriptions[index];
-    final statusRaw = (prescription['status'] ?? 'pending').toString();
-    final status = statusRaw.trim();
-    final statusLabel = status.isEmpty
-        ? 'Pending'
-        : (status.length == 1
-            ? status.toUpperCase()
-            : '${status[0].toUpperCase()}${status.substring(1)}');
-    final uploadDate =
-        (prescription['created_at'] ?? prescription['date'] ?? '').toString();
-    final pharmacistNote = _extractPharmacistNote(prescription);
+    final status = prescription['status']?.toString().trim();
+    final statusLabel = prescriptionStatusLabel(status);
+    final statusColor = _prescriptionStatusColor(status);
+    final stripeColor = queue == PrescriptionQueue.pending
+        ? const Color(0xFFF59E0B)
+        : _kRxAccent;
+    final uploadDateLabel = formatPrescriptionSubmissionDate(
+      prescription['created_at'] ?? readPrescriptionSubmissionRaw(prescription),
+    );
+    final pharmacistNote = _readPharmacistNote(prescription);
     final hasPharmacistNote = pharmacistNote.isNotEmpty;
     final imageUrl = prescription['file']?.toString();
     final titleColor = isDark ? Colors.white : const Color(0xFF0F172A);
@@ -589,14 +767,12 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: imageUrl != null
-              ? () => _showPrescriptionImage(imageUrl)
-              : null,
+          onTap: imageUrl != null ? () => onTapImage(imageUrl) : null,
           child: IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(width: 4, color: _kRxAccent),
+                Container(width: 4, color: stripeColor),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.all(12),
@@ -664,8 +840,8 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                                       const SizedBox(width: 4),
                                       Expanded(
                                         child: Text(
-                                          uploadDate.isNotEmpty
-                                              ? uploadDate.split('T').first
+                                          uploadDateLabel.isNotEmpty
+                                              ? uploadDateLabel
                                               : 'No date',
                                           style: GoogleFonts.poppins(
                                             fontSize: 12,
@@ -685,14 +861,13 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                                 vertical: 5,
                               ),
                               decoration: BoxDecoration(
-                                color: _getStatusColor(status)
-                                    .withValues(alpha: 0.14),
+                                color: statusColor.withValues(alpha: 0.14),
                                 borderRadius: BorderRadius.circular(999),
                               ),
                               child: Text(
                                 statusLabel,
                                 style: GoogleFonts.poppins(
-                                  color: _getStatusColor(status),
+                                  color: statusColor,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 11,
                                 ),
@@ -734,7 +909,9 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                               Text(
                                 hasPharmacistNote
                                     ? pharmacistNote
-                                    : 'No pharmacist note yet.',
+                                    : queue == PrescriptionQueue.pending
+                                        ? 'Your upload is awaiting review.'
+                                        : 'No pharmacist note provided.',
                                 maxLines: 4,
                                 overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.poppins(
@@ -762,91 +939,68 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
       ),
     );
   }
+}
 
-  Color _getStatusColor(String? status) {
-    switch (status?.toLowerCase()) {
-      case 'approved':
-        return _kRxAccent;
-      case 'rejected':
-        return const Color(0xFFDC2626);
-      case 'pending':
-        return const Color(0xFFF59E0B);
-      default:
-        return const Color(0xFF64748B);
-    }
+Color _prescriptionStatusColor(String? status) {
+  switch (status?.toLowerCase()) {
+    case 'approved':
+    case 'served':
+    case 'processed':
+    case 'completed':
+    case 'complete':
+    case 'active':
+    case 'fulfilled':
+    case 'dispensed':
+      return _kRxAccent;
+    case 'rejected':
+    case 'declined':
+    case 'cancelled':
+    case 'canceled':
+      return const Color(0xFFDC2626);
+    case 'pending':
+      return const Color(0xFFF59E0B);
+    default:
+      return const Color(0xFF64748B);
   }
+}
 
-  String _extractPharmacistNote(Map<String, dynamic> prescription) {
-    const possibleKeys = [
-      'pharmacist_note',
-      'pharmacist_notes',
-      'pharmacist_comment',
-      'review_note',
-      'admin_note',
-      'note',
-      'notes',
-      'comment',
-    ];
+String _readPharmacistNote(Map<String, dynamic> prescription) {
+  const possibleKeys = [
+    'pharmacist_note',
+    'pharmacist_notes',
+    'pharmacist_comment',
+    'review_note',
+    'admin_note',
+    'note',
+    'notes',
+    'comment',
+  ];
 
-    String? readFromMap(Map<String, dynamic> map) {
-      for (final key in possibleKeys) {
-        final value = map[key];
-        if (value != null && value is! Map && value is! List) {
-          final text = value.toString().trim();
-          if (text.isNotEmpty) return text;
-        }
+  String? readFromMap(Map<String, dynamic> map) {
+    for (final key in possibleKeys) {
+      final value = map[key];
+      if (value != null && value is! Map && value is! List) {
+        final text = value.toString().trim();
+        if (text.isNotEmpty) return text;
       }
+    }
 
-      for (final entry in map.entries) {
-        final value = entry.value;
-        if (value is Map<String, dynamic>) {
-          final nested = readFromMap(value);
-          if (nested != null && nested.isNotEmpty) return nested;
-        } else if (value is List) {
-          for (final item in value) {
-            if (item is Map<String, dynamic>) {
-              final nested = readFromMap(item);
-              if (nested != null && nested.isNotEmpty) return nested;
-            }
+    for (final entry in map.entries) {
+      final value = entry.value;
+      if (value is Map<String, dynamic>) {
+        final nested = readFromMap(value);
+        if (nested != null && nested.isNotEmpty) return nested;
+      } else if (value is List) {
+        for (final item in value) {
+          if (item is Map<String, dynamic>) {
+            final nested = readFromMap(item);
+            if (nested != null && nested.isNotEmpty) return nested;
           }
         }
       }
-      return null;
     }
-
-    return readFromMap(prescription) ?? '';
+    return null;
   }
 
-  // Preload images for better performance
-  void _preloadImages() {
-    for (final prescription in _prescriptions) {
-      if (prescription['file'] != null) {
-        final imageUrl = prescription['file'];
-        if (!_imageLoadingStates.containsKey(imageUrl)) {
-          _imageLoadingStates[imageUrl] = false;
-          // Preload image in background
-          _preloadImage(imageUrl);
-        }
-      }
-    }
-  }
-
-  Future<void> _preloadImage(String imageUrl) async {
-    try {
-      _imageLoadingStates[imageUrl] = true;
-      // Use a lightweight preload approach
-      await precacheImage(
-        CachedNetworkImageProvider(imageUrl),
-        context,
-        onError: (exception, stackTrace) {
-          debugPrint(
-              'Skipping prescription preload image (may be missing): $imageUrl');
-        },
-      );
-      _imageLoadingStates[imageUrl] = false;
-    } catch (e) {
-      _imageLoadingStates[imageUrl] = false;
-      _imageErrors[imageUrl] = e.toString();
-    }
-  }
+  return readFromMap(prescription) ?? '';
 }

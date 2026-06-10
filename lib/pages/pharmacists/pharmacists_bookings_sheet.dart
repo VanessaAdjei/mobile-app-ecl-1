@@ -2,26 +2,25 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+import '../../config/app_colors.dart';
+import '../../utils/app_theme_colors.dart';
 import '../../widgets/booking_appointment_card.dart';
 
 /// Cancel-booking confirmation dialog. Use from main page or booking card.
 Widget buildCancelBookingConfirmDialog(BuildContext context) {
+  final theme = context.appColors;
+
   return Dialog(
-    backgroundColor: Colors.transparent,
+    backgroundColor: theme.sheetBg,
+    surfaceTintColor: Colors.transparent,
     elevation: 0,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(24),
+      side: BorderSide(color: theme.border),
+    ),
     child: Container(
       constraints: const BoxConstraints(maxWidth: 340),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
         child: Column(
@@ -30,13 +29,15 @@ Widget buildCancelBookingConfirmDialog(BuildContext context) {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.red.shade50,
+                color: theme.isDark
+                    ? Colors.red.withValues(alpha: 0.16)
+                    : Colors.red.shade50,
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.event_busy_rounded,
                 size: 40,
-                color: Colors.red.shade600,
+                color: theme.isDark ? Colors.red.shade300 : Colors.red.shade600,
               ),
             ),
             const SizedBox(height: 16),
@@ -45,7 +46,7 @@ Widget buildCancelBookingConfirmDialog(BuildContext context) {
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey.shade800,
+                color: theme.ink,
                 letterSpacing: -0.3,
               ),
               textAlign: TextAlign.center,
@@ -55,7 +56,7 @@ Widget buildCancelBookingConfirmDialog(BuildContext context) {
               'This consultation will be cancelled. You can book a new one anytime.',
               style: GoogleFonts.poppins(
                 fontSize: 13,
-                color: Colors.grey.shade600,
+                color: theme.muted,
                 height: 1.4,
               ),
               textAlign: TextAlign.center,
@@ -67,8 +68,14 @@ Widget buildCancelBookingConfirmDialog(BuildContext context) {
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context, false),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.green.shade700,
-                      side: BorderSide(color: Colors.green.shade300),
+                      foregroundColor: theme.isDark
+                          ? AppColors.primaryLight
+                          : Colors.green.shade700,
+                      side: BorderSide(
+                        color: theme.isDark
+                            ? AppColors.primary.withValues(alpha: 0.35)
+                            : Colors.green.shade300,
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -132,13 +139,17 @@ class BookingsListSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: theme.pageBg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: Colors.black.withValues(
+              alpha: theme.isDark ? 0.32 : 0.08,
+            ),
             blurRadius: 20,
             offset: const Offset(0, -4),
           ),
@@ -216,14 +227,14 @@ class BookingsListSheet extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.calendar_today_rounded,
-                                size: 56, color: Colors.grey.shade400),
+                                size: 56, color: theme.muted),
                             const SizedBox(height: 16),
                             Text(
                               'No bookings yet',
                               style: GoogleFonts.poppins(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade700,
+                                color: theme.ink,
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -231,7 +242,7 @@ class BookingsListSheet extends StatelessWidget {
                               'Book a consultation to see it here',
                               style: GoogleFonts.poppins(
                                 fontSize: 13,
-                                color: Colors.grey.shade600,
+                                color: theme.muted,
                               ),
                               textAlign: TextAlign.center,
                             ),
@@ -263,17 +274,27 @@ class BookingsListSheet extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
                 child: TextButton.icon(
                   onPressed: onClear,
-                  icon: Icon(Icons.delete_outline_rounded, size: 18, color: Colors.red.shade600),
+                  icon: Icon(
+                    Icons.delete_outline_rounded,
+                    size: 18,
+                    color: theme.isDark
+                        ? Colors.red.shade300
+                        : Colors.red.shade600,
+                  ),
                   label: Text(
                     'Clear all from device',
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: Colors.red.shade600,
+                      color: theme.isDark
+                          ? Colors.red.shade300
+                          : Colors.red.shade600,
                     ),
                   ),
                   style: TextButton.styleFrom(
-                    foregroundColor: Colors.red.shade600,
+                    foregroundColor: theme.isDark
+                        ? Colors.red.shade300
+                        : Colors.red.shade600,
                   ),
                 ),
               ),

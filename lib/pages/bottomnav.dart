@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../config/app_routes.dart';
+import '../config/app_colors.dart';
 import '../providers/cart_provider.dart';
 import '../widgets/cart_nav_badge_icon.dart';
 import 'homepage.dart' as home;
@@ -17,6 +18,7 @@ import '../providers/notification_provider.dart';
 import '../services/order_notification_service.dart';
 import 'notifications.dart';
 import '../utils/app_error_utils.dart';
+import '../utils/app_theme_colors.dart';
 import 'main_tab_shell.dart';
 
 class CustomBottomNav extends StatefulWidget {
@@ -84,10 +86,10 @@ class _CustomBottomNavState extends State<CustomBottomNav>
 
     _centerButtonRotationAnimation = Tween<double>(
       begin: 0.0,
-      end: 0.25,
+      end: 0.0,
     ).animate(CurvedAnimation(
       parent: _centerButtonController,
-      curve: Curves.easeInOut,
+      curve: Curves.easeOutCubic,
     ));
 
     // Initialize nav item animations (0: Home, 1: Cart, 3: Categories, 4: Profile)
@@ -186,46 +188,58 @@ class _CustomBottomNavState extends State<CustomBottomNav>
     }
   }
 
-  // Build icon with subtle active indicator when selected
+  // Tab icon with pill highlight when selected.
   Widget _buildIconWithGlow({
     required IconData icon,
     required bool isSelected,
     Widget? child,
     int? itemIndex,
+    double iconSize = 20,
   }) {
-    // Get animation for this item if it exists
     final animation = itemIndex != null && itemIndex != 2
         ? _navItemScaleAnimations[itemIndex]
         : null;
 
     Widget iconWidget;
-
     if (child != null) {
-      // Cart badge manages its own icon opacity so the red count stays vivid.
-      iconWidget = itemIndex == 1 ? child : AnimatedOpacity(
-        duration: const Duration(milliseconds: 200),
-        opacity: isSelected ? 1.0 : 0.7,
-        child: child,
-      );
+      iconWidget = itemIndex == 1
+          ? child
+          : AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: isSelected ? 1.0 : 0.72,
+              child: child,
+            );
     } else {
-      // For simple icons, the BottomNavigationBar's selectedItemColor handles it
-      iconWidget = Icon(icon);
+      iconWidget = Icon(icon, size: iconSize);
     }
 
-    // Wrap with scale animation if available
-    if (animation != null) {
-      return AnimatedBuilder(
-        animation: animation,
-        builder: (context, child) {
-          return Transform.scale(
-            scale: animation.value,
-            child: iconWidget,
-          );
-        },
-      );
-    }
+    final tabBody = AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? Colors.white.withValues(alpha: 0.2)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        border: isSelected
+            ? Border.all(color: Colors.white.withValues(alpha: 0.22))
+            : null,
+      ),
+      child: iconWidget,
+    );
 
-    return iconWidget;
+    if (animation == null) return tabBody;
+
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: animation.value,
+          child: tabBody,
+        );
+      },
+    );
   }
 
   // get the name of the current page (for debugging)
@@ -285,10 +299,11 @@ class _CustomBottomNavState extends State<CustomBottomNav>
           isDismissible: true,
           useSafeArea: true,
           builder: (BuildContext context) {
+            final theme = context.appColors;
             return _AnimatedBottomSheet(
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.sheetBg,
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(24),
                     topRight: Radius.circular(24),
@@ -311,7 +326,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                         width: 42,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
+                          color: theme.handleBar,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -323,12 +338,15 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                               width: 36,
                               height: 36,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFE8F5E9),
+                                color: theme.accentTint,
                                 borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: theme.accentBorder),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.apps_rounded,
-                                color: Color(0xFF15803D),
+                                color: theme.isDark
+                                    ? AppColors.primaryLight
+                                    : AppColors.primaryDark,
                                 size: 20,
                               ),
                             ),
@@ -337,19 +355,19 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
+                                  Text(
                                     'Quick Actions',
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w700,
-                                      color: Color(0xFF111827),
+                                      color: theme.ink,
                                     ),
                                   ),
                                   Text(
                                     'Choose what you want to do',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: Colors.grey.shade600,
+                                      color: theme.muted,
                                     ),
                                   ),
                                 ],
@@ -373,11 +391,12 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                     subtitle: 'Prescription',
                                     color: Colors.purple.shade600,
                                     onTap: () {
-                                      Navigator.pop(context);
-                                      Navigator.pushNamed(
-                                        context,
-                                        AppRoutes.prescriptionUpload,
-                                      );
+                                      _popThen(() {
+                                        Navigator.pushNamed(
+                                          context,
+                                          AppRoutes.prescriptionUpload,
+                                        );
+                                      });
                                     },
                                   ),
                                 ),
@@ -390,11 +409,12 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                     subtitle: 'Consultation',
                                     color: Colors.green.shade600,
                                     onTap: () {
-                                      Navigator.pop(context);
-                                      Navigator.pushNamed(
-                                        context,
-                                        AppRoutes.pharmacists,
-                                      );
+                                      _popThen(() {
+                                        Navigator.pushNamed(
+                                          context,
+                                          AppRoutes.pharmacists,
+                                        );
+                                      });
                                     },
                                   ),
                                 ),
@@ -411,11 +431,12 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                     subtitle: 'Retail outlets',
                                     color: Colors.blue.shade600,
                                     onTap: () {
-                                      Navigator.pop(context);
-                                      Navigator.pushNamed(
-                                        context,
-                                        AppRoutes.storeSelection,
-                                      );
+                                      _popThen(() {
+                                        Navigator.pushNamed(
+                                          context,
+                                          AppRoutes.storeSelection,
+                                        );
+                                      });
                                     },
                                   ),
                                 ),
@@ -428,8 +449,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                     subtitle: 'Support team',
                                     color: Colors.orange.shade600,
                                     onTap: () {
-                                      Navigator.pop(context);
-                                      _showContactOptions(context);
+                                      _popThen(() => _showContactOptions(context));
                                     },
                                   ),
                                 ),
@@ -460,6 +480,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
     required Color color,
     required VoidCallback onTap,
   }) {
+    final theme = context.appColors;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -467,7 +488,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
         height: 76,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: color.withValues(alpha: 0.25)),
           boxShadow: [
@@ -498,10 +519,10 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF111827),
+                      color: theme.ink,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -511,7 +532,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                     subtitle,
                     style: TextStyle(
                       fontSize: 9.5,
-                      color: Colors.grey.shade600,
+                      color: theme.muted,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -539,10 +560,11 @@ class _CustomBottomNavState extends State<CustomBottomNav>
       isDismissible: true,
       useSafeArea: true,
       builder: (BuildContext context) {
+        final theme = context.appColors;
         return _AnimatedBottomSheet(
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: theme.sheetBg,
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
@@ -565,7 +587,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                     width: 38,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: theme.handleBar,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -583,38 +605,41 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                           color: Colors.green.shade600,
                           onTap: () async {
                             Navigator.pop(context);
-                            // Show dialog to pick which number to call
-                            final selected = await showModalBottomSheet<String>(
-                              context: context,
-                              builder: (ctx) => SafeArea(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    ListTile(
-                                      leading: const Icon(Icons.phone),
-                                      title: const Text('Call 0302908674'),
-                                      onTap: () =>
-                                          Navigator.pop(ctx, phoneNumber1),
-                                    ),
-                                    ListTile(
-                                      leading: const Icon(Icons.phone),
-                                      title: const Text('Call 0302908675'),
-                                      onTap: () =>
-                                          Navigator.pop(ctx, phoneNumber2),
-                                    ),
-                                    ListTile(
-                                      leading: const Icon(Icons.phone),
-                                      title: const Text(
-                                          'Call 0508411184 (WhatsApp)'),
-                                      onTap: () => Navigator.pop(ctx, whatsapp),
-                                    ),
-                                  ],
+                            _afterRouteUnlock(() async {
+                              if (!mounted || !context.mounted) return;
+                              final selected = await showModalBottomSheet<String>(
+                                context: context,
+                                builder: (ctx) => SafeArea(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      ListTile(
+                                        leading: const Icon(Icons.phone),
+                                        title: const Text('Call 0302908674'),
+                                        onTap: () =>
+                                            Navigator.pop(ctx, phoneNumber1),
+                                      ),
+                                      ListTile(
+                                        leading: const Icon(Icons.phone),
+                                        title: const Text('Call 0302908675'),
+                                        onTap: () =>
+                                            Navigator.pop(ctx, phoneNumber2),
+                                      ),
+                                      ListTile(
+                                        leading: const Icon(Icons.phone),
+                                        title: const Text(
+                                            'Call 0508411184 (WhatsApp)'),
+                                        onTap: () =>
+                                            Navigator.pop(ctx, whatsapp),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            );
-                            if (selected != null) {
-                              _launchPhoneDialer(selected);
-                            }
+                              );
+                              if (selected != null) {
+                                _launchPhoneDialer(selected);
+                              }
+                            });
                           },
                         ),
                         const Divider(height: 1),
@@ -625,9 +650,12 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                           subtitle: '0508411184 - Chat instantly',
                           color: const Color(0xFF25D366),
                           onTap: () {
-                            Navigator.pop(context);
-                            _launchWhatsApp(whatsapp,
-                                "Hello! I need help with the Ernest Chemist app. Can you assist me?");
+                            _popThen(() {
+                              _launchWhatsApp(
+                                whatsapp,
+                                'Hello! I need help with the Ernest Chemist app. Can you assist me?',
+                              );
+                            });
                           },
                         ),
                         const Divider(height: 1),
@@ -638,8 +666,12 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                           subtitle: email,
                           color: Colors.blue.shade600,
                           onTap: () {
-                            Navigator.pop(context);
-                            _launchEmail(email, 'Ernest Chemist Support & Inquiry');
+                            _popThen(() {
+                              _launchEmail(
+                                email,
+                                'Ernest Chemist Support & Inquiry',
+                              );
+                            });
                           },
                         ),
                       ],
@@ -662,6 +694,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
     required Color color,
     required VoidCallback onTap,
   }) {
+    final theme = context.appColors;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -687,14 +720,16 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                 margin: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  color: theme.surface,
+                  boxShadow: theme.isDark
+                      ? null
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                 ),
                 child: Icon(
                   icon,
@@ -710,10 +745,10 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+                      color: theme.ink,
                     ),
                   ),
                   const SizedBox(height: 3),
@@ -721,7 +756,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                     subtitle,
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey.shade600,
+                      color: theme.muted,
                     ),
                   ),
                 ],
@@ -729,7 +764,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
             ),
             Icon(
               Icons.chevron_right,
-              color: Colors.grey.shade400,
+              color: theme.muted,
               size: 20,
             ),
           ],
@@ -800,6 +835,18 @@ class _CustomBottomNavState extends State<CustomBottomNav>
     }
   }
 
+  void _afterRouteUnlock(VoidCallback action) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !context.mounted) return;
+      action();
+    });
+  }
+
+  void _popThen(VoidCallback action) {
+    Navigator.pop(context);
+    _afterRouteUnlock(action);
+  }
+
   void _onItemTapped(int index) {
     if (mounted) {
       ScaffoldMessenger.of(context).clearSnackBars();
@@ -807,16 +854,19 @@ class _CustomBottomNavState extends State<CustomBottomNav>
 
     if (_isNavigating) return;
 
-    if (index != 2 && _navItemControllers.containsKey(index)) {
+    if (index == 2) {
+      _centerButtonController.forward().then((_) {
+        _centerButtonController.reverse();
+      });
+      _showPlusMenu(context);
+      return;
+    }
+
+    if (_navItemControllers.containsKey(index)) {
       final controller = _navItemControllers[index]!;
       controller.forward().then((_) {
         controller.reverse();
       });
-    }
-
-    if (index == 2) {
-      _showPlusMenu(context);
-      return;
     }
 
     if (_usesShellNavigation) {
@@ -846,7 +896,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
     _isNavigating = true;
     setState(() => _selectedIndex = index);
 
-    Future.microtask(() {
+    _afterRouteUnlock(() {
       if (!mounted || _disposed || !context.mounted) {
         _isNavigating = false;
         return;
@@ -880,6 +930,128 @@ class _CustomBottomNavState extends State<CustomBottomNav>
     });
   }
 
+  Widget _buildCenterMenuButton(double diameter, {bool tappable = false}) {
+    final frameSize = diameter + 10;
+    final iconSize = (diameter * 0.38).clamp(20.0, 24.0);
+
+    Widget hubFace() {
+      return Container(
+        key: widget.tourMenuKey,
+        width: diameter,
+        height: diameter,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFFFFFFF),
+              Color(0xFFF7F9F8),
+              Color(0xFFE9EFEB),
+            ],
+            stops: [0.0, 0.5, 1.0],
+          ),
+          border: Border.all(
+            color: Colors.white,
+            width: 2.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+            BoxShadow(
+              color: Colors.white.withValues(alpha: 0.35),
+              blurRadius: 6,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            Positioned(
+              top: diameter * 0.1,
+              left: diameter * 0.14,
+              child: Container(
+                width: diameter * 0.52,
+                height: diameter * 0.28,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(diameter),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.42),
+                      Colors.white.withValues(alpha: 0.0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Icon(
+              Icons.apps_rounded,
+              color: AppColors.navBar,
+              size: iconSize,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return AnimatedBuilder(
+      animation: _centerButtonController,
+      builder: (context, child) {
+        final button = Transform.scale(
+          scale: _centerButtonScaleAnimation.value,
+          child: SizedBox(
+            width: frameSize,
+            height: frameSize,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: frameSize,
+                  height: frameSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.22),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.white.withValues(alpha: 0.14),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                ),
+                hubFace(),
+              ],
+            ),
+          ),
+        );
+
+        if (!tappable) return button;
+
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _onItemTapped(2),
+            customBorder: const CircleBorder(),
+            splashColor: AppColors.navBar.withValues(alpha: 0.1),
+            highlightColor: AppColors.navBar.withValues(alpha: 0.05),
+            child: button,
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -889,21 +1061,29 @@ class _CustomBottomNavState extends State<CustomBottomNav>
 
     final finalIconSize = iconSize.clamp(16.0, 20.0);
     final finalFontSize = fontSize.clamp(7.0, 10.0);
+    final centerButtonSize =
+        (screenWidth * 0.134).clamp(52.0, 58.0);
+    final centerButtonLift = centerButtonSize * 0.22;
+    final navLabelStyle = TextStyle(
+      fontSize: finalFontSize,
+      height: 1.05,
+      fontWeight: FontWeight.w500,
+      letterSpacing: 0.15,
+    );
 
     return SafeArea(
       top: false,
       bottom: false,
       child: Stack(
         clipBehavior: Clip.none,
+        alignment: Alignment.topCenter,
         children: [
-          // Main navigation bar with curved notch
           Container(
-            constraints: BoxConstraints(
-              minHeight: 68.0,
-              maxHeight: 88.0,
+            constraints: const BoxConstraints(
+              minHeight: kBottomNavigationBarHeight,
             ),
             decoration: BoxDecoration(
-              color: Colors.green.shade700,
+              color: AppColors.navBar,
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(24),
                 topRight: Radius.circular(24),
@@ -918,15 +1098,16 @@ class _CustomBottomNavState extends State<CustomBottomNav>
               ],
             ),
             child: ClipPath(
-              clipper: _NotchedBottomNavClipper(),
-              child: Container(
-                width: double.infinity,
+              clipper: _NotchedBottomNavClipper(
+                notchRadius: centerButtonSize * 0.52,
+              ),
+              child: Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: BottomNavigationBar(
                   type: BottomNavigationBarType.fixed,
                   backgroundColor: Colors.transparent,
                   selectedItemColor: Colors.white,
-                  unselectedItemColor: Colors.white.withValues(alpha: 0.7),
+                  unselectedItemColor: Colors.white.withValues(alpha: 0.68),
                   elevation: 0,
                   currentIndex: _activeIndex,
                   onTap: _onItemTapped,
@@ -935,17 +1116,12 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                   iconSize: finalIconSize,
                   showSelectedLabels: true,
                   showUnselectedLabels: true,
-                  selectedLabelStyle: TextStyle(
-                    fontSize: finalFontSize,
-                    height: 0.5,
+                  selectedLabelStyle: navLabelStyle.copyWith(
+                    fontWeight: FontWeight.w700,
                     color: Colors.white,
-                    fontWeight: FontWeight.w600,
                   ),
-                  unselectedLabelStyle: TextStyle(
-                    fontSize: finalFontSize,
-                    height: 0.5,
-                    color: Colors.white.withValues(alpha: 0.7),
-                    fontWeight: FontWeight.w400,
+                  unselectedLabelStyle: navLabelStyle.copyWith(
+                    color: Colors.white.withValues(alpha: 0.72),
                   ),
                   items: [
                     BottomNavigationBarItem(
@@ -953,6 +1129,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                         icon: Icons.home_rounded,
                         isSelected: _activeIndex == 0,
                         itemIndex: 0,
+                        iconSize: finalIconSize,
                       ),
                       label: 'Home',
                     ),
@@ -961,6 +1138,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                         icon: Icons.shopping_cart_rounded,
                         isSelected: _activeIndex == 1,
                         itemIndex: 1,
+                        iconSize: finalIconSize,
                         child: CartNavBadgeIcon(
                           isSelected: _activeIndex == 1,
                         ),
@@ -968,7 +1146,10 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                       label: 'Cart',
                     ),
                     BottomNavigationBarItem(
-                      icon: SizedBox.shrink(),
+                      icon: SizedBox(
+                        width: centerButtonSize,
+                        height: finalIconSize,
+                      ),
                       label: '',
                     ),
                     BottomNavigationBarItem(
@@ -979,12 +1160,14 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                 icon: Icons.grid_view_rounded,
                                 isSelected: _activeIndex == 3,
                                 itemIndex: 3,
+                                iconSize: finalIconSize,
                               ),
                             )
                           : _buildIconWithGlow(
                               icon: Icons.grid_view_rounded,
                               isSelected: _activeIndex == 3,
                               itemIndex: 3,
+                              iconSize: finalIconSize,
                             ),
                       label: 'Shop',
                     ),
@@ -995,6 +1178,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                             icon: Icons.person_rounded,
                             isSelected: _activeIndex == 4,
                             itemIndex: 4,
+                            iconSize: finalIconSize,
                             child: Stack(
                               clipBehavior: Clip.none,
                               children: [
@@ -1052,105 +1236,9 @@ class _CustomBottomNavState extends State<CustomBottomNav>
               ),
             ),
           ),
-          // Floating center button with fluid design and animation
           Positioned(
-            left: 0,
-            right: 0,
-            top: -28,
-            child: Center(
-              child: AnimatedBuilder(
-                animation: _centerButtonController,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _centerButtonScaleAnimation.value,
-                    child: Transform.rotate(
-                      angle: _centerButtonRotationAnimation.value,
-                      child: Material(
-                        color: Colors.transparent,
-                        elevation: 0,
-                        child: InkWell(
-                          onTap: () {
-                            debugPrint('🔍 CENTER BUTTON TAPPED ===');
-                            if (mounted && !_disposed && context.mounted) {
-                              // Animate button press
-                              _centerButtonController.forward().then((_) {
-                                _centerButtonController.reverse();
-                              });
-                              // Show menu after a short delay
-                              Future.delayed(const Duration(milliseconds: 100),
-                                  () {
-                                if (mounted && !_disposed && context.mounted) {
-                                  _onItemTapped(2);
-                                }
-                              });
-                            } else {
-                              debugPrint('🔍 CONTEXT NOT AVAILABLE ===');
-                            }
-                          },
-                          borderRadius: BorderRadius.circular(30),
-                          splashColor:
-                              const Color(0xFF20AF67).withValues(alpha: 0.2),
-                          highlightColor:
-                              const Color(0xFF20AF67).withValues(alpha: 0.1),
-                          child: Container(
-                            key: widget.tourMenuKey,
-                            width: 60,
-                            height: 60,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Colors.white,
-                                  Colors.white.withValues(alpha: 0.98),
-                                ],
-                              ),
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF20AF67)
-                                      .withValues(alpha: 0.3),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 6),
-                                  spreadRadius: 0,
-                                ),
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.1),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 4),
-                                  spreadRadius: -4,
-                                ),
-                              ],
-                            ),
-                            child: Container(
-                              margin: const EdgeInsets.all(2),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    const Color(0xFF20AF67)
-                                        .withValues(alpha: 0.1),
-                                    const Color(0xFF20AF67)
-                                        .withValues(alpha: 0.05),
-                                  ],
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.apps_rounded,
-                                color: Color(0xFF20AF67),
-                                size: 28,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
+            top: -centerButtonLift,
+            child: _buildCenterMenuButton(centerButtonSize, tappable: true),
           ),
         ],
       ),
@@ -1158,55 +1246,47 @@ class _CustomBottomNavState extends State<CustomBottomNav>
   }
 }
 
-// Custom clipper for curved notch in bottom nav
 class _NotchedBottomNavClipper extends CustomClipper<Path> {
+  const _NotchedBottomNavClipper({required this.notchRadius});
+
+  final double notchRadius;
+
   @override
   Path getClip(Size size) {
     final path = Path();
     final centerX = size.width / 2;
-    final notchRadius = 35.0;
-    final notchHeight = 20.0;
+    final depth = notchRadius * 0.38;
 
-    // Start from top left
     path.moveTo(0, 0);
-
-    // Line to start of left curve
-    path.lineTo(centerX - notchRadius - 15, 0);
-
-    // Left curve going down
+    path.lineTo(centerX - notchRadius - 12, 0);
     path.quadraticBezierTo(
-      centerX - notchRadius - 5,
+      centerX - notchRadius + 4,
       0,
-      centerX - notchRadius,
-      notchHeight * 0.3,
+      centerX - notchRadius + 8,
+      depth,
     );
-
-    // Bottom curve of notch
     path.arcToPoint(
-      Offset(centerX + notchRadius, notchHeight * 0.3),
+      Offset(centerX + notchRadius - 8, depth),
       radius: Radius.circular(notchRadius),
       clockwise: false,
     );
-
-    // Right curve going up
     path.quadraticBezierTo(
-      centerX + notchRadius + 5,
+      centerX + notchRadius - 4,
       0,
-      centerX + notchRadius + 15,
+      centerX + notchRadius + 12,
       0,
     );
-
-    // Complete the rectangle
     path.lineTo(size.width, 0);
     path.lineTo(size.width, size.height);
     path.lineTo(0, size.height);
     path.close();
-
     return path;
   }
 
   @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+  bool shouldReclip(covariant _NotchedBottomNavClipper oldClipper) {
+    return oldClipper.notchRadius != notchRadius;
+  }
 }
 
 // Animated bottom sheet wrapper for smooth animations

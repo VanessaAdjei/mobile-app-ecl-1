@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../config/app_colors.dart';
 import '../pages/pharmacists/pharmacists_booking_helpers.dart';
+import '../utils/app_theme_colors.dart';
 import '../pages/pharmacists/pharmacists_bookings_sheet.dart';
 
 /// Appointment card used on pharmacists sheet and My Appointments profile page.
@@ -17,6 +19,7 @@ class BookingAppointmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
     final b = booking;
     final hasId = b['id'] != null;
     final isUpcoming = isBookingUpcoming(b);
@@ -24,38 +27,27 @@ class BookingAppointmentCard extends StatelessWidget {
     final isCompleted = isBookingCompleted(b);
     final isCancelled = isBookingCancelled(b);
 
-    Color accentBar;
-    Color badgeBg;
-    Color badgeFg;
-    if (isUpcoming) {
-      accentBar = Colors.green.shade500;
-      badgeBg = Colors.green.shade50;
-      badgeFg = Colors.green.shade700;
-    } else if (isPastDue) {
-      accentBar = Colors.amber.shade700;
-      badgeBg = Colors.amber.shade50;
-      badgeFg = Colors.amber.shade900;
-    } else if (isCompleted) {
-      accentBar = const Color(0xFF1565C0);
-      badgeBg = const Color(0xFFE3F2FD);
-      badgeFg = const Color(0xFF0D47A1);
-    } else if (isCancelled) {
-      accentBar = Colors.grey.shade400;
-      badgeBg = Colors.grey.shade100;
-      badgeFg = Colors.grey.shade600;
-    } else {
-      accentBar = Colors.grey.shade400;
-      badgeBg = Colors.grey.shade100;
-      badgeFg = Colors.grey.shade700;
-    }
+    final statusColors = _statusColors(
+      theme: theme,
+      isUpcoming: isUpcoming,
+      isPastDue: isPastDue,
+      isCompleted: isCompleted,
+      isCancelled: isCancelled,
+    );
+    final accentBar = statusColors.$1;
+    final badgeBg = statusColors.$2;
+    final badgeFg = statusColors.$3;
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.sheetBg,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: Colors.black.withValues(
+              alpha: theme.isDark ? 0.28 : 0.06,
+            ),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -82,7 +74,7 @@ class BookingAppointmentCard extends StatelessWidget {
                               style: GoogleFonts.poppins(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade800,
+                                color: theme.ink,
                                 letterSpacing: -0.2,
                               ),
                               maxLines: 1,
@@ -113,28 +105,37 @@ class BookingAppointmentCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
+                          color: theme.fieldBg,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade200),
+                          border: Border.all(color: theme.border),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _detailRow(
+                              theme,
                               Icons.person_outline_rounded,
                               bookingDisplayName(b),
                             ),
                             const SizedBox(height: 8),
-                            _detailRow(Icons.phone_outlined, b['phone'] ?? ''),
+                            _detailRow(
+                              theme,
+                              Icons.phone_outlined,
+                              b['phone'] ?? '',
+                            ),
                             const SizedBox(height: 8),
-                            _detailRow(Icons.email_outlined, b['email'] ?? ''),
+                            _detailRow(
+                              theme,
+                              Icons.email_outlined,
+                              b['email'] ?? '',
+                            ),
                             const SizedBox(height: 8),
                             Row(
                               children: [
                                 Icon(
                                   Icons.videocam_outlined,
                                   size: 16,
-                                  color: Colors.grey.shade600,
+                                  color: theme.muted,
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
@@ -142,7 +143,7 @@ class BookingAppointmentCard extends StatelessWidget {
                                     '${bookingDisplayConsultationType(b)} · ${bookingDisplayPlatform(b)}',
                                     style: GoogleFonts.poppins(
                                       fontSize: 12,
-                                      color: Colors.grey.shade700,
+                                      color: theme.muted,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -159,7 +160,7 @@ class BookingAppointmentCard extends StatelessWidget {
                           bookingDisplaySymptoms(b),
                           style: GoogleFonts.poppins(
                             fontSize: 12,
-                            color: Colors.grey.shade600,
+                            color: theme.muted,
                             height: 1.35,
                           ),
                           maxLines: 2,
@@ -195,7 +196,9 @@ class BookingAppointmentCard extends StatelessWidget {
                                     Icon(
                                       Icons.cancel_outlined,
                                       size: 16,
-                                      color: Colors.red.shade600,
+                                      color: theme.isDark
+                                          ? Colors.red.shade300
+                                          : Colors.red.shade600,
                                     ),
                                     const SizedBox(width: 6),
                                     Text(
@@ -203,7 +206,9 @@ class BookingAppointmentCard extends StatelessWidget {
                                       style: GoogleFonts.poppins(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
-                                        color: Colors.red.shade600,
+                                        color: theme.isDark
+                                            ? Colors.red.shade300
+                                            : Colors.red.shade600,
                                       ),
                                     ),
                                   ],
@@ -224,19 +229,19 @@ class BookingAppointmentCard extends StatelessWidget {
     );
   }
 
-  Widget _detailRow(IconData icon, String text) {
+  Widget _detailRow(AppThemeColors theme, IconData icon, String text) {
     if (text.isEmpty) return const SizedBox.shrink();
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: Colors.grey.shade600),
+        Icon(icon, size: 16, color: theme.muted),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             text,
             style: GoogleFonts.poppins(
               fontSize: 12,
-              color: Colors.grey.shade800,
+              color: theme.ink.withValues(alpha: 0.9),
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -244,5 +249,77 @@ class BookingAppointmentCard extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  (Color, Color, Color) _statusColors({
+    required AppThemeColors theme,
+    required bool isUpcoming,
+    required bool isPastDue,
+    required bool isCompleted,
+    required bool isCancelled,
+  }) {
+    if (isUpcoming) {
+      return theme.isDark
+          ? (
+              AppColors.primaryLight,
+              AppColors.primary.withValues(alpha: 0.18),
+              AppColors.primaryLight,
+            )
+          : (
+              Colors.green.shade500,
+              Colors.green.shade50,
+              Colors.green.shade700,
+            );
+    }
+    if (isPastDue) {
+      return theme.isDark
+          ? (
+              Colors.amber.shade400,
+              Colors.amber.withValues(alpha: 0.18),
+              Colors.amber.shade200,
+            )
+          : (
+              Colors.amber.shade700,
+              Colors.amber.shade50,
+              Colors.amber.shade900,
+            );
+    }
+    if (isCompleted) {
+      return theme.isDark
+          ? (
+              const Color(0xFF64B5F6),
+              const Color(0xFF1565C0).withValues(alpha: 0.22),
+              const Color(0xFF90CAF9),
+            )
+          : (
+              const Color(0xFF1565C0),
+              const Color(0xFFE3F2FD),
+              const Color(0xFF0D47A1),
+            );
+    }
+    if (isCancelled) {
+      return theme.isDark
+          ? (
+              Colors.grey.shade500,
+              Colors.white.withValues(alpha: 0.08),
+              Colors.grey.shade400,
+            )
+          : (
+              Colors.grey.shade400,
+              Colors.grey.shade100,
+              Colors.grey.shade600,
+            );
+    }
+    return theme.isDark
+        ? (
+            Colors.grey.shade500,
+            Colors.white.withValues(alpha: 0.08),
+            Colors.grey.shade400,
+          )
+        : (
+            Colors.grey.shade400,
+            Colors.grey.shade100,
+            Colors.grey.shade700,
+          );
   }
 }

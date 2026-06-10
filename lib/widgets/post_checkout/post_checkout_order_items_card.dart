@@ -1,6 +1,7 @@
 import 'package:eclapp/config/api_config.dart';
 import 'package:eclapp/models/order_tracking_model.dart';
 import 'package:eclapp/widgets/post_checkout/post_checkout_design.dart';
+import 'package:eclapp/utils/app_theme_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -59,7 +60,7 @@ class _PostCheckoutOrderItemsCardState extends State<PostCheckoutOrderItemsCard>
 
     return Container(
       width: double.infinity,
-      decoration: PostCheckoutDesign.compactCard(),
+      decoration: PostCheckoutDesign.compactCard(context),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(11),
         child: Stack(
@@ -140,6 +141,7 @@ class _ItemsCardHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appColors;
     final productLabel =
         '$itemCount product${itemCount == 1 ? '' : 's'} · $totalQty unit${totalQty == 1 ? '' : 's'}';
 
@@ -150,12 +152,12 @@ class _ItemsCardHeader extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            PostCheckoutDesign.accentLight.withValues(alpha: 0.85),
-            Colors.white,
+            PostCheckoutDesign.accentLight(context).withValues(alpha: 0.85),
+            t.surface,
           ],
         ),
         border: Border(
-          bottom: BorderSide(color: PostCheckoutDesign.border),
+          bottom: BorderSide(color: PostCheckoutDesign.border(context)),
         ),
       ),
       child: Row(
@@ -165,7 +167,7 @@ class _ItemsCardHeader extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: t.surface,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: accent.withValues(alpha: 0.18)),
               boxShadow: [
@@ -192,7 +194,7 @@ class _ItemsCardHeader extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: PostCheckoutDesign.ink,
+                    color: PostCheckoutDesign.ink(context),
                     letterSpacing: -0.25,
                     height: 1.1,
                   ),
@@ -203,7 +205,7 @@ class _ItemsCardHeader extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
-                    color: PostCheckoutDesign.muted,
+                    color: PostCheckoutDesign.muted(context),
                     height: 1.25,
                   ),
                   maxLines: 1,
@@ -233,9 +235,9 @@ class _ItemsCardFooter extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(14, 8, 12, 11),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: PostCheckoutDesign.pageBg,
+        color: PostCheckoutDesign.pageBg(context),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: PostCheckoutDesign.border),
+        border: Border.all(color: PostCheckoutDesign.border(context)),
       ),
       child: Row(
         children: [
@@ -245,7 +247,7 @@ class _ItemsCardFooter extends StatelessWidget {
               fontSize: 9,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.6,
-              color: PostCheckoutDesign.muted,
+              color: PostCheckoutDesign.muted(context),
             ),
           ),
           const Spacer(),
@@ -344,16 +346,16 @@ class PostCheckoutOrderItemRow extends StatelessWidget {
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: PostCheckoutDesign.pageBg,
+                  color: PostCheckoutDesign.pageBg(context),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: PostCheckoutDesign.border),
+                  border: Border.all(color: PostCheckoutDesign.border(context)),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: item.imageUrl.isEmpty
                     ? Icon(
                         Icons.medication_outlined,
                         size: 22,
-                        color: PostCheckoutDesign.muted.withValues(alpha: 0.5),
+                        color: PostCheckoutDesign.muted(context).withValues(alpha: 0.5),
                       )
                     : Image.network(
                         imageUrl,
@@ -362,7 +364,7 @@ class PostCheckoutOrderItemRow extends StatelessWidget {
                           Icons.medication_outlined,
                           size: 22,
                           color:
-                              PostCheckoutDesign.muted.withValues(alpha: 0.5),
+                              PostCheckoutDesign.muted(context).withValues(alpha: 0.5),
                         ),
                       ),
               ),
@@ -376,7 +378,7 @@ class PostCheckoutOrderItemRow extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: PostCheckoutDesign.ink,
+                        color: PostCheckoutDesign.ink(context),
                         height: 1.25,
                         letterSpacing: -0.15,
                       ),
@@ -414,7 +416,7 @@ class PostCheckoutOrderItemRow extends StatelessWidget {
                               item.batchNo,
                               style: GoogleFonts.poppins(
                                 fontSize: 10,
-                                color: PostCheckoutDesign.muted,
+                                color: PostCheckoutDesign.muted(context),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -429,7 +431,7 @@ class PostCheckoutOrderItemRow extends StatelessWidget {
                         'GHS ${item.price.toStringAsFixed(2)} each',
                         style: GoogleFonts.poppins(
                           fontSize: 10,
-                          color: PostCheckoutDesign.muted,
+                          color: PostCheckoutDesign.muted(context),
                         ),
                       ),
                     ],
@@ -442,7 +444,7 @@ class PostCheckoutOrderItemRow extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: PostCheckoutDesign.ink,
+                  color: PostCheckoutDesign.ink(context),
                   letterSpacing: -0.2,
                 ),
               ),
@@ -450,7 +452,7 @@ class PostCheckoutOrderItemRow extends StatelessWidget {
           ),
         ),
         if (showDivider)
-          Divider(height: 1, color: PostCheckoutDesign.border),
+          Divider(height: 1, color: PostCheckoutDesign.border(context)),
       ],
     );
   }

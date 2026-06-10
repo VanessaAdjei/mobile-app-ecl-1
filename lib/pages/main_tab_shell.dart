@@ -7,8 +7,8 @@ import 'categories.dart';
 import 'homepage.dart';
 import 'profile.dart';
 
-/// Root shell that keeps Home, Cart, Categories, and Profile alive in an
-/// [IndexedStack] so switching tabs does not recreate [HomePage].
+/// Root shell that keeps visited tabs alive in an [IndexedStack].
+/// [HomePage] is built at launch; Cart, Categories, and Profile mount on first visit.
 class MainTabShell extends StatefulWidget {
   const MainTabShell({super.key, this.initialIndex = 0});
 
@@ -28,18 +28,22 @@ class MainTabShell extends StatefulWidget {
 
   /// Opens a main tab without recreating [HomePage] when the shell is active.
   static void goToTab(BuildContext context, int index) {
-    if (switchToTab(context, index)) {
-      Navigator.of(context).popUntil((route) => route.isFirst);
-      return;
-    }
-    final route = switch (index) {
-      0 => AppRoutes.home,
-      1 => AppRoutes.cart,
-      3 => AppRoutes.categoryPage,
-      4 => AppRoutes.profile,
-      _ => AppRoutes.home,
-    };
-    Navigator.of(context).pushNamedAndRemoveUntil(route, (route) => false);
+    final switched = switchToTab(context, index);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!context.mounted) return;
+      if (switched) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        return;
+      }
+      final route = switch (index) {
+        0 => AppRoutes.home,
+        1 => AppRoutes.cart,
+        3 => AppRoutes.categoryPage,
+        4 => AppRoutes.profile,
+        _ => AppRoutes.home,
+      };
+      Navigator.of(context).pushNamedAndRemoveUntil(route, (route) => false);
+    });
   }
 
   @override
@@ -56,33 +60,51 @@ class MainTabShellState extends State<MainTabShell> {
   final GlobalKey shellTourMenuKey = GlobalKey();
   final GlobalKey shellTourShopKey = GlobalKey();
 
-  late final List<Widget> _tabs;
+  final List<Widget?> _tabs = List<Widget?>.filled(_tabCount, null);
 
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex.clamp(0, _tabCount - 1);
-    _tabs = [
-      HomePage(
-        key: _homeKey,
-        showBottomNav: false,
-        tourMenuKey: shellTourMenuKey,
-        tourShopKey: shellTourShopKey,
-      ),
-      const Cart(),
-      const SizedBox.shrink(),
-      const CategoryPage(showBottomNav: false),
-      const Profile(showBottomNav: false),
-    ];
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() {});
-    });
+    _ensureTabBuilt(0);
+    if (_selectedIndex != 0) {
+      _ensureTabBuilt(_selectedIndex);
+    }
+  }
+
+  void _ensureTabBuilt(int index) {
+    if (index < 0 || index >= _tabCount || index == 2) return;
+    if (_tabs[index] != null) return;
+    _tabs[index] = _buildTab(index);
+  }
+
+  Widget _buildTab(int index) {
+    switch (index) {
+      case 0:
+        return HomePage(
+          key: _homeKey,
+          showBottomNav: false,
+          tourMenuKey: shellTourMenuKey,
+          tourShopKey: shellTourShopKey,
+        );
+      case 1:
+        return const Cart();
+      case 2:
+        return const SizedBox.shrink();
+      case 3:
+        return const CategoryPage(showBottomNav: false);
+      case 4:
+        return const Profile(showBottomNav: false);
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   void selectTab(int index) {
     if (index < 0 || index >= _tabCount) return;
     if (index == 2) return;
     if (_selectedIndex == index) return;
+    _ensureTabBuilt(index);
     setState(() => _selectedIndex = index);
   }
 
@@ -91,7 +113,10 @@ class MainTabShellState extends State<MainTabShell> {
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
-        children: _tabs,
+        children: List.generate(
+          _tabCount,
+          (index) => _tabs[index] ?? const SizedBox.shrink(),
+        ),
       ),
       bottomNavigationBar: CustomBottomNav(
         selectedIndex: _selectedIndex,

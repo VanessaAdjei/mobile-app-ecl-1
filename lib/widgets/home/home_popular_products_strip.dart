@@ -27,6 +27,7 @@ class _HomePopularProductsStripState extends State<HomePopularProductsStrip> {
   static const double _sideScale = 0.98;
 
   final ScrollController _scrollController = ScrollController();
+  final ValueNotifier<double> _scrollOffset = ValueNotifier(0);
   Timer? _autoScrollTimer;
 
   double get _cardWidth => widget.isTablet ? 132 : 112;
@@ -50,7 +51,8 @@ class _HomePopularProductsStripState extends State<HomePopularProductsStrip> {
   }
 
   void _onScroll() {
-    if (mounted) setState(() {});
+    if (!_scrollController.hasClients) return;
+    _scrollOffset.value = _scrollController.offset;
   }
 
   void _startAutoScroll() {
@@ -98,6 +100,7 @@ class _HomePopularProductsStripState extends State<HomePopularProductsStrip> {
     _autoScrollTimer?.cancel();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _scrollOffset.dispose();
     super.dispose();
   }
 
@@ -114,66 +117,69 @@ class _HomePopularProductsStripState extends State<HomePopularProductsStrip> {
       infiniteProducts.addAll(baseProducts);
     }
 
-    final currentOffset =
-        _scrollController.hasClients ? _scrollController.offset : 0.0;
     final viewportWidth = MediaQuery.sizeOf(context).width;
 
     return SizedBox(
       height: _stripHeight,
-      child: ListView.builder(
-        controller: _scrollController,
-        scrollDirection: Axis.horizontal,
-        clipBehavior: Clip.none,
-        itemCount: infiniteProducts.length,
-        padding: EdgeInsets.symmetric(horizontal: isTablet ? 24 : 16),
-        physics: const BouncingScrollPhysics(),
-        itemBuilder: (context, index) {
-          final product = infiniteProducts[index];
-          final itemCenter = index * _itemStride + _cardWidth / 2;
-          final viewportCenter = currentOffset + viewportWidth / 2;
-          final isInCenter =
-              (itemCenter - viewportCenter).abs() < _itemStride * 0.55;
+      child: ValueListenableBuilder<double>(
+        valueListenable: _scrollOffset,
+        builder: (context, currentOffset, _) {
+          return ListView.builder(
+            controller: _scrollController,
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            itemCount: infiniteProducts.length,
+            padding: EdgeInsets.symmetric(horizontal: isTablet ? 24 : 16),
+            physics: const BouncingScrollPhysics(),
+            itemBuilder: (context, index) {
+              final product = infiniteProducts[index];
+              final itemCenter = index * _itemStride + _cardWidth / 2;
+              final viewportCenter = currentOffset + viewportWidth / 2;
+              final isInCenter =
+                  (itemCenter - viewportCenter).abs() < _itemStride * 0.55;
 
-          return AnimatedScale(
-            scale: isInCenter ? _centerScale : _sideScale,
-            duration: const Duration(milliseconds: 320),
-            curve: Curves.easeOutCubic,
-            alignment: Alignment.bottomCenter,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 320),
-              curve: Curves.easeOutCubic,
-              margin: EdgeInsets.only(
-                top: isInCenter ? 0 : 8,
-                right: _cardSpacing,
-              ),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: isInCenter
-                      ? [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: SizedBox(
-                  width: _cardWidth,
-                  child: HomeProductCard(
-                    product: product,
-                    fontSize: isTablet ? 16 : 14,
-                    padding: 0,
-                    imageHeight: _imageHeight,
-                    showWishlistButton: false,
-                    showPrice: false,
-                    showName: false,
-                    showHero: false,
+              return AnimatedScale(
+                scale: isInCenter ? _centerScale : _sideScale,
+                duration: const Duration(milliseconds: 320),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.bottomCenter,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 320),
+                  curve: Curves.easeOutCubic,
+                  margin: EdgeInsets.only(
+                    top: isInCenter ? 0 : 8,
+                    right: _cardSpacing,
+                  ),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: isInCenter
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.12),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: SizedBox(
+                      width: _cardWidth,
+                      child: HomeProductCard(
+                        product: product,
+                        fontSize: isTablet ? 16 : 14,
+                        padding: 0,
+                        imageHeight: _imageHeight,
+                        showWishlistButton: false,
+                        showPrice: false,
+                        showName: false,
+                        showHero: false,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
+              );
+            },
           );
         },
       ),

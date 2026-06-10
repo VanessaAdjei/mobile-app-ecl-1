@@ -10,11 +10,13 @@ import 'package:eclapp/providers/cart_provider.dart';
 import 'package:eclapp/providers/order_tracking_provider.dart';
 import 'package:eclapp/pages/delivery_page.dart';
 import 'package:eclapp/services/auth_service.dart';
+import 'package:eclapp/widgets/post_checkout/post_checkout_guest_order_content.dart';
 import 'package:eclapp/services/guest_checkout_draft_service.dart';
 import 'package:eclapp/services/order_tracking_service.dart';
 import 'package:eclapp/services/pending_payment_polling_service.dart';
 import 'package:eclapp/utils/non_ui_error_reporter.dart';
 import 'package:eclapp/utils/app_error_utils.dart';
+import 'package:eclapp/utils/app_theme_colors.dart';
 import 'package:eclapp/widgets/checkout_progress_stepper.dart';
 import 'package:eclapp/widgets/order_status_timeline.dart';
 import 'package:eclapp/widgets/post_checkout/post_checkout_design.dart';
@@ -97,6 +99,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
   bool _hasShownOrderPlacedBanner = false;
   bool _hasShownOrderConfirmedOnScreen = false;
   bool _showOrderConfirmedBanner = false;
+  bool _isGuestSession = false;
   /// Shown only after user leaves this page; system notifications always fire separately.
   String? _deferredPlacedSnackMessage;
   String? _deferredConfirmedSnackMessage;
@@ -227,8 +230,14 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
     });
 
     // When a push (order_status/delivery) arrives, refresh tracking immediately.
-    OrderTrackingProvider.onOrderStatusUpdateFromPush = () {
-      _provider.refreshTracking();
+    OrderTrackingProvider.onOrderStatusUpdateFromPush =
+        ({String? status, String? orderId}) {
+      unawaited(
+        _provider.refreshTracking(
+          statusHint: status,
+          orderIdHint: orderId,
+        ),
+      );
     };
     OrderTrackingProvider.onOrderConfirmedStageUi = _showOrderConfirmedOnScreen;
 
@@ -236,6 +245,14 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
       if (mounted)
         _showOrderConfirmedOnScreenIfAlreadyConfirmed(_provider.order);
     });
+
+    unawaited(_loadGuestSession());
+  }
+
+  Future<void> _loadGuestSession() async {
+    final isGuest = !(await AuthService.isLoggedIn());
+    if (!mounted) return;
+    setState(() => _isGuestSession = isGuest);
   }
 
   @override
@@ -401,9 +418,9 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Colors.green.shade600,
-              Colors.green.shade700,
-              Colors.green.shade800,
+              AppThemeColors.headerBackground,
+              AppColors.primaryDark,
+              AppColors.primary,
             ],
             stops: const [0.0, 0.5, 1.0],
           ),
@@ -1223,6 +1240,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
     OrderTrackingProvider provider,
     Color accent,
   ) {
+    final t = context.appColors;
     final paymentConfirmed = !provider.isAwaitingPaymentConfirmation &&
         order.stage != OrderTrackingStage.pendingPayment &&
         order.stage != OrderTrackingStage.failed;
@@ -1260,12 +1278,14 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                         width: double.infinity,
                       padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: t.surface,
                           borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFE5EBE8)),
+                        border: Border.all(color: PostCheckoutDesign.border(context)),
                           boxShadow: [
                             BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
+                            color: Colors.black.withValues(
+                              alpha: t.isDark ? 0.22 : 0.05,
+                            ),
                             blurRadius: 12,
                             offset: const Offset(0, 3),
                             ),
@@ -1300,7 +1320,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                               style: GoogleFonts.poppins(
                                     fontSize: 17,
                                 fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF1A2E24),
+                                    color: PostCheckoutDesign.ink(context),
                                 height: 1.2,
                               ),
                             ),
@@ -1310,7 +1330,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                               style: GoogleFonts.poppins(
                                     fontSize: 12,
                                 height: 1.45,
-                                    color: Colors.grey.shade700,
+                                    color: PostCheckoutDesign.muted(context),
                               ),
                             ),
                           ],
@@ -1327,13 +1347,21 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                       ),
                       decoration: BoxDecoration(
                         color: paymentConfirmed
-                            ? const Color(0xFFEFFAF4)
-                            : const Color(0xFFFFF7ED),
+                            ? (t.isDark
+                                ? AppColors.primary.withValues(alpha: 0.14)
+                                : const Color(0xFFEFFAF4))
+                            : (t.isDark
+                                ? Colors.orange.withValues(alpha: 0.12)
+                                : const Color(0xFFFFF7ED)),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: paymentConfirmed
-                              ? const Color(0xFFBBF7D0)
-                              : const Color(0xFFFED7AA),
+                              ? (t.isDark
+                                  ? AppColors.primary.withValues(alpha: 0.35)
+                                  : const Color(0xFFBBF7D0))
+                              : (t.isDark
+                                  ? Colors.orange.withValues(alpha: 0.35)
+                                  : const Color(0xFFFED7AA)),
                         ),
                       ),
                       child: Row(
@@ -1343,8 +1371,12 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                 ? Icons.verified_rounded
                                 : Icons.hourglass_top_rounded,
                             color: paymentConfirmed
-                                ? const Color(0xFF15803D)
-                                : const Color(0xFFB45309),
+                                ? (t.isDark
+                                    ? AppColors.primaryLight
+                                    : const Color(0xFF15803D))
+                                : (t.isDark
+                                    ? Colors.orange.shade300
+                                    : const Color(0xFFB45309)),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -1359,8 +1391,12 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
                                     color: paymentConfirmed
-                                        ? const Color(0xFF166534)
-                                        : const Color(0xFF92400E),
+                                        ? (t.isDark
+                                            ? AppColors.primaryLight
+                                            : const Color(0xFF166534))
+                                        : (t.isDark
+                                            ? Colors.orange.shade300
+                                            : const Color(0xFF92400E)),
                                   ),
                                 ),
                                 const SizedBox(height: 2),
@@ -1370,7 +1406,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                       : 'We are still waiting for payment verification.',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey.shade700,
+                                    color: PostCheckoutDesign.muted(context),
                                   ),
                                 ),
                               ],
@@ -1401,19 +1437,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
               child: isReady
                   ? Container(
                       key: const ValueKey('pickup-ready-map'),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border:
-                            Border.all(color: accent.withValues(alpha: 0.2)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 10,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
+                      decoration: PostCheckoutDesign.compactCard(context),
                       child: Column(
                         children: [
                           Padding(
@@ -1442,7 +1466,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                         style: GoogleFonts.poppins(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w600,
-                                          color: Colors.grey.shade500,
+                                          color: PostCheckoutDesign.muted(context),
                                         ),
                                       ),
                                       const SizedBox(height: 4),
@@ -1453,7 +1477,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                         style: GoogleFonts.poppins(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w600,
-                                          color: const Color(0xFF0F172A),
+                                          color: PostCheckoutDesign.ink(context),
                                           height: 1.35,
                                         ),
                                       ),
@@ -1496,17 +1520,13 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                         horizontal: 14,
                         vertical: 14,
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade200),
-                      ),
+                      decoration: PostCheckoutDesign.compactCard(context),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Icon(
                             Icons.storefront_outlined,
-                            color: Colors.grey.shade500,
+                            color: PostCheckoutDesign.muted(context),
                             size: 22,
                           ),
                           const SizedBox(width: 12),
@@ -1519,7 +1539,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                   style: GoogleFonts.poppins(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
-                                    color: Colors.grey.shade500,
+                                    color: PostCheckoutDesign.muted(context),
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -1530,7 +1550,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                   style: GoogleFonts.poppins(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w500,
-                                    color: const Color(0xFF334155),
+                                    color: PostCheckoutDesign.ink(context),
                                     height: 1.35,
                                   ),
                                 ),
@@ -1539,7 +1559,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                   'You can get directions once your order is ready for pickup.',
                                   style: GoogleFonts.poppins(
                                     fontSize: 12,
-                                    color: Colors.grey.shade600,
+                                    color: PostCheckoutDesign.muted(context),
                                     height: 1.4,
                                   ),
                                 ),
@@ -1556,17 +1576,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
             2,
             Container(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
+              decoration: PostCheckoutDesign.compactCard(context),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1575,7 +1585,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade700,
+                      color: PostCheckoutDesign.ink(context),
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -1593,11 +1603,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
               3,
               Container(
                 padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.grey.shade100, width: 1),
-                ),
+                decoration: PostCheckoutDesign.compactCard(context),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1609,7 +1615,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                           style: GoogleFonts.poppins(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade600,
+                            color: PostCheckoutDesign.muted(context),
                           ),
                         ),
                         InkWell(
@@ -1702,6 +1708,16 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
     );
   }
 
+  Widget _buildGuestOrderBody(OrderTrackingModel order, Color accent) {
+    return PostCheckoutGuestOrderContent(
+      order: order,
+      accent: accent,
+      onHome: _goHome,
+      onSupport: _callSupport,
+      isPickup: _isPickupOrderFor(order),
+    );
+  }
+
   void _showItemsSheet(OrderTrackingModel order) {
     showModalBottomSheet<void>(
       context: context,
@@ -1732,18 +1748,24 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
         builder: (context, provider, _) {
           final order = provider.order;
           final accent = PostCheckoutDesign.accent;
+          final theme = context.appColors;
           final isPickup = _isPickupOrderFor(order);
 
           final isFailed = order.stage == OrderTrackingStage.failed;
           final headerTitle = provider.isAwaitingPaymentConfirmation
               ? 'Confirming payment'
-              : order.stage == OrderTrackingStage.delivered
-                  ? 'Delivered'
-                  : 'Confirmation';
+              : _isGuestSession
+                  ? 'Order placed'
+                  : order.stage == OrderTrackingStage.delivered
+                      ? 'Delivered'
+                      : 'Confirmation';
 
           return Scaffold(
-            backgroundColor:
-                isFailed ? const Color(0xFFFFF6F5) : PostCheckoutDesign.pageBg,
+            backgroundColor: isFailed
+                ? (theme.isDark
+                    ? Colors.red.withValues(alpha: 0.08)
+                    : const Color(0xFFFFF6F5))
+                : PostCheckoutDesign.pageBg(context),
             body: Column(
               children: [
                 _buildConfirmationHeader(title: headerTitle),
@@ -1753,24 +1775,36 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.12),
+                      color: theme.isDark
+                          ? Colors.red.withValues(alpha: 0.14)
+                          : Colors.red.withValues(alpha: 0.12),
                       border: Border(
                         bottom: BorderSide(
-                            color: Colors.red.withValues(alpha: 0.3)),
+                          color: Colors.red.withValues(
+                            alpha: theme.isDark ? 0.4 : 0.3,
+                          ),
+                        ),
                       ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.emergency_rounded,
-                            size: 16, color: Colors.red.shade700),
+                        Icon(
+                          Icons.emergency_rounded,
+                          size: 16,
+                          color: theme.isDark
+                              ? Colors.red.shade300
+                              : Colors.red.shade700,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Urgent Order',
                           style: GoogleFonts.poppins(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: Colors.red.shade800,
+                            color: theme.isDark
+                                ? Colors.red.shade200
+                                : Colors.red.shade800,
                             letterSpacing: 0.2,
                           ),
                         ),
@@ -1782,19 +1816,21 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                       ? _buildFailedBody(order, accent)
                       : provider.isAwaitingPaymentConfirmation
                           ? _buildPendingBody(order, provider, accent)
-                          : _isPickupOrderFor(order)
-                              ? (order.stage == OrderTrackingStage.delivered
-                                  ? _buildPickedUpBody(order)
-                                  : _buildPickupTrackingBody(
+                          : _isGuestSession
+                              ? _buildGuestOrderBody(order, accent)
+                              : _isPickupOrderFor(order)
+                                  ? (order.stage == OrderTrackingStage.delivered
+                                      ? _buildPickedUpBody(order)
+                                      : _buildPickupTrackingBody(
+                                          order,
+                                          provider,
+                                          accent,
+                                        ))
+                                  : _buildDeliveryTrackingBody(
                                       order,
                                       provider,
                                       accent,
-                                    ))
-                              : _buildDeliveryTrackingBody(
-                                  order,
-                                  provider,
-                                  accent,
-                                ),
+                                    ),
                                                       ),
                                                     ],
             ),
@@ -2921,15 +2957,17 @@ class _DetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appColors;
     return SafeArea(
       top: false,
       child: Container(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.72,
         ),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        decoration: BoxDecoration(
+          color: t.sheetBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border(top: BorderSide(color: t.border)),
         ),
         padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
         child: SingleChildScrollView(
@@ -2943,7 +2981,7 @@ class _DetailSheet extends StatelessWidget {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 20),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: t.handleBar,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -2951,7 +2989,7 @@ class _DetailSheet extends StatelessWidget {
               Text(
                 title,
                 style: TextStyle(
-                  color: Colors.grey.shade900,
+                  color: t.ink,
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                 ),
@@ -2960,7 +2998,7 @@ class _DetailSheet extends StatelessWidget {
               Text(
                 subtitle,
                 style: TextStyle(
-                  color: Colors.grey.shade600,
+                  color: t.muted,
                   height: 1.35,
                 ),
               ),

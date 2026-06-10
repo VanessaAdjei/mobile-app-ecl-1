@@ -73,10 +73,12 @@ class AppRouteGenerator {
         final args = settings.arguments as Map<String, dynamic>?;
         final urlName = args?['urlName'] as String? ?? '';
         final isPrescribed = args?['isPrescribed'] as bool? ?? false;
+        final fromProductCard = args?['fromProductCard'] as bool? ?? false;
         return MaterialPageRoute(
           builder: (_) => ItemPage(
             urlName: urlName,
             isPrescribed: isPrescribed,
+            fromProductCard: fromProductCard,
           ),
         );
       case AppRoutes.categoryPage:
@@ -108,7 +110,7 @@ class AppRouteGenerator {
       case AppRoutes.signIn:
         final args = settings.arguments as Map<String, dynamic>?;
         final returnTo = args?['returnTo'] as String?;
-        return MaterialPageRoute(
+        return MaterialPageRoute<bool>(
           builder: (_) => SignInScreen(returnTo: returnTo),
         );
       case AppRoutes.profileScreen:

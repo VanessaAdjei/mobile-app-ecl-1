@@ -37,7 +37,7 @@ class OrderTrackingStatusCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      decoration: PostCheckoutDesign.compactCard(),
+      decoration: PostCheckoutDesign.compactCard(context),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(11),
         child: Stack(
@@ -61,7 +61,7 @@ class OrderTrackingStatusCard extends StatelessWidget {
                             ? Icons.storefront_outlined
                             : Icons.local_shipping_outlined,
                         size: 14,
-                        color: PostCheckoutDesign.muted,
+                        color: PostCheckoutDesign.muted(context),
                       ),
                       const SizedBox(width: 5),
                       Text(
@@ -69,7 +69,7 @@ class OrderTrackingStatusCard extends StatelessWidget {
                         style: GoogleFonts.poppins(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
-                          color: PostCheckoutDesign.muted,
+                          color: PostCheckoutDesign.muted(context),
                         ),
                       ),
                       const Spacer(),
@@ -103,7 +103,7 @@ class OrderTrackingStatusCard extends StatelessWidget {
                               style: GoogleFonts.poppins(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
-                                color: PostCheckoutDesign.ink,
+                                color: PostCheckoutDesign.ink(context),
                                 height: 1.2,
                                 letterSpacing: -0.25,
                               ),
@@ -116,7 +116,7 @@ class OrderTrackingStatusCard extends StatelessWidget {
                                 style: GoogleFonts.poppins(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w500,
-                                  color: PostCheckoutDesign.muted,
+                                  color: PostCheckoutDesign.muted(context),
                                 ),
                               ),
                             ],
@@ -188,7 +188,7 @@ class _DeliveredCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: PostCheckoutDesign.accentLight.withValues(alpha: 0.65),
+        color: PostCheckoutDesign.accentLight(context).withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: accent.withValues(alpha: 0.22)),
       ),
@@ -209,6 +209,7 @@ class _DeliveredCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   PostCheckoutDesign.logoMark(
+                    context,
                     size: 44,
                     borderColor: accent.withValues(alpha: 0.2),
                     overlay: PostCheckoutDesign.successCheckOverlay(size: 18),
@@ -226,7 +227,7 @@ class _DeliveredCard extends StatelessWidget {
                                 style: GoogleFonts.poppins(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
-                                  color: PostCheckoutDesign.ink,
+                                  color: PostCheckoutDesign.ink(context),
                                   letterSpacing: -0.25,
                                   height: 1.2,
                                 ),
@@ -258,7 +259,7 @@ class _DeliveredCard extends StatelessWidget {
                           stageLabel,
                           style: GoogleFonts.poppins(
                             fontSize: 11,
-                            color: PostCheckoutDesign.muted,
+                            color: PostCheckoutDesign.muted(context),
                             height: 1.35,
                           ),
                         ),
@@ -330,7 +331,7 @@ class _OrderIdRow extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: PostCheckoutDesign.muted,
+              color: PostCheckoutDesign.muted(context),
             ),
           ),
         ),

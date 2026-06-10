@@ -2,11 +2,13 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config/api_config.dart';
+import '../config/app_colors.dart';
 import '../models/product_model.dart';
 import '../models/product.dart' as models;
 import '../services/homepage_optimization_service.dart';
 import '../utils/product_detail_navigation.dart';
 import '../services/product_image_preload_service.dart';
+import '../utils/app_theme_colors.dart';
 import 'wishlist_button.dart';
 
 class HomeProductCard extends StatelessWidget {
@@ -21,6 +23,7 @@ class HomeProductCard extends StatelessWidget {
   final bool showName;
   final bool showHero;
   final bool showWishlistButton;
+  final bool compact;
 
   const HomeProductCard({
     super.key,
@@ -35,22 +38,23 @@ class HomeProductCard extends StatelessWidget {
     this.showName = true,
     this.showHero = true,
     this.showWishlistButton = false,
+    this.compact = false,
   });
 
-  static Widget _imagePlaceholder() {
+  static Widget _imagePlaceholder(BuildContext context) {
     return ColoredBox(
-      color: const Color(0xFFF3F4F6),
+      color: context.appColors.fieldBg,
       child: Center(
         child: Icon(Icons.medical_services_outlined,
-            size: 22, color: Color(0xFFD1D5DB)),
+            size: 22, color: context.appColors.muted),
       ),
     );
   }
 
   /// Do not pass a custom [cacheKey] with maxWidth/maxHeight — [ImageCacheManager]
   /// already prefixes `resized_w*h_`; a manual key breaks preload hits.
-  static Widget _homeCachedImage(String imageUrl) {
-    if (imageUrl.isEmpty) return _imagePlaceholder();
+  static Widget _homeCachedImage(BuildContext context, String imageUrl) {
+    if (imageUrl.isEmpty) return _imagePlaceholder(context);
     return CachedNetworkImage(
       imageUrl: imageUrl,
       cacheManager: ProductImagePreloadService.cacheManager,
@@ -61,33 +65,43 @@ class HomeProductCard extends StatelessWidget {
       maxHeightDiskCache: ProductImagePreloadService.homeThumbDiskSize,
       fadeInDuration: Duration.zero,
       fadeOutDuration: Duration.zero,
-      placeholder: (context, url) => _imagePlaceholder(),
+      placeholder: (context, url) => _imagePlaceholder(context),
       errorWidget: (_, __, ___) => Container(
-        color: Colors.grey[200],
-        child: const Center(child: Icon(Icons.broken_image, size: 16)),
+        color: context.appColors.fieldBg,
+        child: Center(
+          child: Icon(Icons.broken_image,
+              size: 16, color: context.appColors.muted),
+        ),
       ),
     );
   }
 
   // shorten product names so they dont get too long
-  String _truncateProductName(String name) {
-    if (name.length <= 20) return name;
-    return '${name.substring(0, 20)}...';
+  String _truncateProductName(String name, {int maxLength = 20}) {
+    if (name.length <= maxLength) return name;
+    return '${name.substring(0, maxLength)}...';
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
     final screenWidth = MediaQuery.of(context).size.width;
 
     final defaultFontSize =
         fontSize ?? (screenWidth < 400 ? 11 : (screenWidth < 600 ? 13 : 15));
 
     final imageUrl = ProductImagePreloadService.imageUrlFor(product);
+    final cardAspectRatio = compact ? 1.05 : 0.8;
+    final nameFontSize = defaultFontSize * (compact ? 0.68 : 0.8);
+    final priceBottomGap = compact ? 2.0 : 15.0;
+    final imageRadius = compact ? 5.0 : 8.0;
+    final wishlistSize = compact ? 10.0 : 14.0;
+    final maxNameLength = compact ? 16 : 20;
 
     return Container(
       margin: EdgeInsets.zero,
       child: AspectRatio(
-        aspectRatio: 0.8,
+        aspectRatio: cardAspectRatio,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -95,55 +109,58 @@ class HomeProductCard extends StatelessWidget {
               child: Container(
                 margin: EdgeInsets.zero,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(imageRadius),
                   // No boxShadow
                 ),
                 child: Stack(
                   children: [
                     InkWell(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(imageRadius),
                       onTap: onTap ??
                           () {
                             ProductDetailNavigation.pushNamed(
                               context,
                               urlName: product.urlName,
                               product: product,
+                              fromProductCard: true,
                             );
                           },
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(imageRadius),
                         child: showHero
                             ? Hero(
                                 tag:
                                     'product-image-${product.id}-${product.urlName}',
                                 child: Container(
-                                  color: Colors.grey[100],
-                                  child: _homeCachedImage(imageUrl),
+                                  color: theme.fieldBg,
+                                  child: _homeCachedImage(context, imageUrl),
                                 ),
                               )
                             : Container(
-                                color: Colors.grey[100],
-                                child: _homeCachedImage(imageUrl),
+                                color: theme.fieldBg,
+                                child: _homeCachedImage(context, imageUrl),
                               ),
                       ),
                     ),
                     if (showPrescriptionBadge &&
                         product.otcpom?.toLowerCase() == 'pom')
                       Positioned(
-                        bottom: 8,
+                        bottom: compact ? 4 : 8,
                         left: 2,
                         child: Container(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: compact ? 2 : 3,
+                            vertical: compact ? 0.5 : 1,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.red[700],
-                            borderRadius: BorderRadius.circular(3),
+                            borderRadius: BorderRadius.circular(compact ? 2 : 3),
                           ),
                           child: Text(
-                            'Prescription',
+                            compact ? 'Rx' : 'Prescription',
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 8,
+                              fontSize: compact ? 7 : 8,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -152,8 +169,8 @@ class HomeProductCard extends StatelessWidget {
                     // Wishlist button
                     if (showWishlistButton)
                       Positioned(
-                        top: 4,
-                        left: 4,
+                        top: compact ? 2 : 4,
+                        left: compact ? 2 : 4,
                         child: WishlistButton(
                           product: models.Product(
                             id: product.id,
@@ -173,7 +190,7 @@ class HomeProductCard extends StatelessWidget {
                             selfcare: product.selfcare ?? '',
                             accessories: product.accessories ?? '',
                           ),
-                          size: 14,
+                          size: wishlistSize,
                           color: Colors.white,
                           activeColor: Colors.green,
                         ),
@@ -183,20 +200,20 @@ class HomeProductCard extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.only(top: 0.0),
+              padding: EdgeInsets.only(top: compact ? 2 : 0),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (showName)
                     Text(
-                      _truncateProductName(product.name),
+                      _truncateProductName(product.name, maxLength: maxNameLength),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: defaultFontSize * 0.8,
+                        fontSize: nameFontSize,
                         fontWeight: FontWeight.w600,
-                        color: Colors.black87,
+                        color: theme.ink,
                       ),
                     ),
                   if (showPrice) ...[
@@ -204,13 +221,14 @@ class HomeProductCard extends StatelessWidget {
                       'GHS ${product.price}',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: defaultFontSize * 0.8,
+                        fontSize: nameFontSize,
                         fontWeight: FontWeight.w700,
-                        color: Colors.green[700],
+                        color: theme.isDark
+                            ? AppColors.primaryLight
+                            : Colors.green[700],
                       ),
                     ),
-                    // removed the old "In Stock" badge from bottom to avoid conflicts
-                    SizedBox(height: 15), // Minimal margin after price
+                    SizedBox(height: priceBottomGap),
                   ],
                 ],
               ),
@@ -284,6 +302,7 @@ class GenericProductCard extends StatelessWidget {
                         product: product is Product ? product : null,
                         raw: product,
                         isPrescribed: isPrescribed,
+                        fromProductCard: true,
                       );
                     },
                 child: ClipRRect(

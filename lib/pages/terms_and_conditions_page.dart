@@ -3,19 +3,19 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../config/app_colors.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
+import '../widgets/policy/legal_policy_theme.dart';
 
 /// Full Terms & Conditions — readable layout with section cards.
 class TermsAndConditionsPage extends StatelessWidget {
   const TermsAndConditionsPage({super.key});
 
-  static const Color _bodyText = Color(0xFF374151);
-
   @override
   Widget build(BuildContext context) {
     final year = DateTime.now().year;
+    final policy = LegalPolicyTheme.of(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFE5EDE8),
+      backgroundColor: policy.pageBg,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
@@ -31,21 +31,25 @@ class TermsAndConditionsPage extends StatelessWidget {
                 const _IntroSummaryCard(),
                 const SizedBox(height: 20),
                 _buildSection(
+                  context,
                   '1.0',
                   'Introduction',
                   'Welcome to your trusted partner in health, your provider of quality and affordable medicines through modern convenient platform.\n\nBy accessing or using our platform, you agree to comply with the Terms & Conditions associated with it. If you have any concerns about these terms, you may wish to discontinue use of this platform.',
                 ),
                 _buildSection(
+                  context,
                   '2.0',
                   'Purpose of the Platform',
                   'We are dedicated to providing you with a seamless experience, offering a comprehensive selection of prescription medications, over-the-counter essentials, premium wellness products, personal care products, home and hygiene products and several others delivered directly to your door.\n\nOur commitment to safety and authenticity means every order is handled by our team of professionals, ensuring you have the support and guidance you need.',
                 ),
                 _buildSection(
+                  context,
                   '3.0',
                   'Eligibility',
                   'Use of this platform is restricted to individuals who are at least 18 years old and capable of entering into legally binding agreements. Users are required to provide accurate personal, medical, and delivery information and to ensure that all details submitted remain up to date. The platform reserves the right to verify user information and take appropriate action where discrepancies are identified.',
                 ),
                 _buildSection(
+                  context,
                   '4.0',
                   'Prescription Policy',
                   'Prescription-only medicines require a valid prescription from a licensed healthcare professional. The platform reserves the right to:',
@@ -56,11 +60,13 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ],
                 ),
                 _buildSection(
+                  context,
                   '5.0',
                   'Product Information',
                   'We strive to ensure all product descriptions, prices and images are accurate. However, in some instances products and packaging may differ from displayed images.',
                 ),
                 _buildSection(
+                  context,
                   '6.0',
                   'Medical Disclaimer',
                   '',
@@ -71,6 +77,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ],
                 ),
                 _buildSection(
+                  context,
                   '7.0',
                   'Orders and Payments',
                   'Orders are subject to:',
@@ -82,6 +89,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                       'We reserve the right to:\n• Refuse or cancel any order\n• Revise quantities purchased\n• Payment must be made through approved methods.',
                 ),
                 _buildSection(
+                  context,
                   '8.0',
                   'Delivery Policy',
                   'Delivery timelines are estimates and may vary due to:',
@@ -94,21 +102,25 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ],
                 ),
                 _buildSection(
+                  context,
                   '9.0',
                   'Refund, Return & Cancellation Policy',
                   '',
                 ),
                 _buildSubSection(
+                  context,
                   '9.1',
                   'Refund',
                   'We are pleased to assist. However, note that we do not offer payment refunds for any purchases. We may be able to facilitate an exchange for an alternative product if your item meets our return policy.',
                 ),
                 _buildSubSection(
+                  context,
                   '9.2',
                   'Return Policy',
                   'At ECL, your health and safety are our top priorities. Due to the sensitive nature of pharmaceutical products and strict health regulations, our return policy is designed to ensure the integrity of the medications and products we provide.',
                 ),
                 _buildSubSection(
+                  context,
                   '9.2.1',
                   'Prescription Orders',
                   '',
@@ -118,6 +130,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ],
                 ),
                 _buildSubSection(
+                  context,
                   '9.2.2',
                   'OTC & General Merchandise',
                   'Over-the-Counter (OTC) Products & General Merchandise (e.g., vitamins, bandages, beauty products, shavers, clippers, personal care items etc.), you may return them within 24 hours of purchase under the following conditions.\n\nConditions:',
@@ -131,11 +144,13 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ],
                 ),
                 _buildSubSection(
+                  context,
                   '9.2.3',
                   'Cancellation Policy',
                   'Users are encouraged to review their orders carefully before confirming purchase to avoid the need for cancellations. Once an order has been successfully placed, the platform begins processing it promptly to ensure timely delivery; therefore, there may be a limited window within which cancellations can be accommodated.\n\nIf a user wishes to cancel an order, the request must be submitted through the appropriate customer service channels as soon as possible. The platform will make reasonable efforts to process such requests, but cannot guarantee cancellation if the order has already entered the dispatch stage.\n\nPlease note that once an order has been shipped or handed over to a delivery service provider, it can no longer be cancelled. In such cases, the order will be treated as completed and will fall under the platform\'s return and refund policy, where applicable. The platform reserves the right to decline cancellation requests that do not meet these conditions.',
                 ),
                 _buildSection(
+                  context,
                   '10.0',
                   'User Responsibilities',
                   'Users agree to:',
@@ -148,6 +163,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ],
                 ),
                 _buildSection(
+                  context,
                   '11.0',
                   'Intellectual Property',
                   '',
@@ -157,6 +173,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ],
                 ),
                 _buildSection(
+                  context,
                   '12.0',
                   'Privacy & Data Protection',
                   'User data is handled in accordance with:\n• Data Protection Act and Electronic Payment Act 2019 (987)\n• Management of sensitive health and personal information in compliance with the Data Protection Act, 2012 (843).\n\nInformation collected includes:',
@@ -167,6 +184,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ],
                 ),
                 _buildSection(
+                  context,
                   '13.0',
                   'Limitation of Liability',
                   'We are not liable for:',
@@ -179,6 +197,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ],
                 ),
                 _buildSection(
+                  context,
                   '14.0',
                   'Compliance with Laws',
                   'The platform operates in accordance with:',
@@ -189,6 +208,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ],
                 ),
                 _buildSection(
+                  context,
                   '15.0',
                   'Prohibited Activities',
                   'Users must NOT:',
@@ -200,6 +220,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ],
                 ),
                 _buildSection(
+                  context,
                   '16.0',
                   'Account Suspension',
                   'We reserve the right to:',
@@ -209,11 +230,13 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ],
                 ),
                 _buildSection(
+                  context,
                   '18.0',
                   'Amendments',
                   'We may update these Terms at any time without prior notice.\n\nContinued use of the platform constitutes acceptance of updates.',
                 ),
                 _buildSection(
+                  context,
                   '20.0',
                   'Contact Information',
                   'For support, complaints, or inquiries:',
@@ -236,15 +259,19 @@ class TermsAndConditionsPage extends StatelessWidget {
   }
 
   Widget _buildSection(
+    BuildContext context,
     String number,
     String title,
     String content, {
     List<String>? bulletPoints,
     String? additionalText,
   }) {
+    final policy = LegalPolicyTheme.of(context);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: _SectionCard(
+        policy: policy,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -259,7 +286,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFF111827),
+                      color: policy.titleInk,
                       height: 1.35,
                     ),
                   ),
@@ -272,14 +299,19 @@ class TermsAndConditionsPage extends StatelessWidget {
                 content,
                 style: GoogleFonts.poppins(
                   fontSize: 14,
-                  color: _bodyText,
+                  color: policy.bodyText,
                   height: 1.65,
                 ),
               ),
             ],
             if (bulletPoints != null && bulletPoints.isNotEmpty) ...[
               const SizedBox(height: 12),
-              _BulletPanel(children: bulletPoints.map(_bulletRow).toList()),
+              _BulletPanel(
+                policy: policy,
+                children: bulletPoints
+                    .map((p) => _bulletRow(context, p))
+                    .toList(),
+              ),
             ],
             if (additionalText != null) ...[
               const SizedBox(height: 10),
@@ -287,7 +319,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                 additionalText,
                 style: GoogleFonts.poppins(
                   fontSize: 14,
-                  color: _bodyText,
+                  color: policy.bodyText,
                   height: 1.65,
                 ),
               ),
@@ -299,25 +331,28 @@ class TermsAndConditionsPage extends StatelessWidget {
   }
 
   Widget _buildSubSection(
+    BuildContext context,
     String number,
     String title,
     String content, {
     List<String>? bulletPoints,
   }) {
+    final policy = LegalPolicyTheme.of(context);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Material(
-        color: Colors.white,
+        color: policy.cardBg,
         elevation: 0,
         shadowColor: Colors.transparent,
         borderRadius: BorderRadius.circular(18),
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            border: Border.all(color: policy.border),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
+                color: policy.cardShadow,
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -354,8 +389,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color:
-                                    AppColors.primary.withValues(alpha: 0.12),
+                                color: policy.badgeTintBg,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
@@ -363,7 +397,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                                 style: GoogleFonts.poppins(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
-                                  color: AppColors.accent,
+                                  color: policy.badgeTintInk,
                                 ),
                               ),
                             ),
@@ -374,7 +408,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                                 style: GoogleFonts.poppins(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF1F2937),
+                                  color: policy.titleInk,
                                   height: 1.3,
                                 ),
                               ),
@@ -387,7 +421,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                             content,
                             style: GoogleFonts.poppins(
                               fontSize: 13,
-                              color: _bodyText,
+                              color: policy.bodyText,
                               height: 1.6,
                             ),
                           ),
@@ -396,8 +430,9 @@ class TermsAndConditionsPage extends StatelessWidget {
                             bulletPoints.isNotEmpty) ...[
                           const SizedBox(height: 10),
                           _BulletPanel(
+                            policy: policy,
                             children: bulletPoints
-                                .map((p) => _bulletRow(p, compact: true))
+                                .map((p) => _bulletRow(context, p, compact: true))
                                 .toList(),
                           ),
                         ],
@@ -413,7 +448,13 @@ class TermsAndConditionsPage extends StatelessWidget {
     );
   }
 
-  Widget _bulletRow(String point, {bool compact = false}) {
+  Widget _bulletRow(
+    BuildContext context,
+    String point, {
+    bool compact = false,
+  }) {
+    final policy = LegalPolicyTheme.of(context);
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -422,7 +463,7 @@ class TermsAndConditionsPage extends StatelessWidget {
           child: Icon(
             Icons.fiber_manual_record,
             size: compact ? 7 : 8,
-            color: AppColors.primary,
+            color: policy.isDark ? AppColors.primaryLight : AppColors.primary,
           ),
         ),
         const SizedBox(width: 10),
@@ -431,7 +472,7 @@ class TermsAndConditionsPage extends StatelessWidget {
             point,
             style: GoogleFonts.poppins(
               fontSize: compact ? 13 : 14,
-              color: _bodyText,
+              color: policy.bodyText,
               height: 1.55,
             ),
           ),
@@ -446,15 +487,17 @@ class _IntroSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final policy = LegalPolicyTheme.of(context);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: policy.cardBg,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: policy.border),
         boxShadow: [
           BoxShadow(
-            color: AppColors.accent.withValues(alpha: 0.07),
+            color: policy.introShadow,
             blurRadius: 28,
             offset: const Offset(0, 12),
           ),
@@ -488,7 +531,7 @@ class _IntroSummaryCard extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF0F172A),
+                    color: policy.titleInk,
                     height: 1.25,
                   ),
                 ),
@@ -497,7 +540,7 @@ class _IntroSummaryCard extends StatelessWidget {
                   'By using Ernest Chemists Limited services you agree to these terms. The sections below explain how our platform works, your responsibilities, and our policies.',
                   style: GoogleFonts.poppins(
                     fontSize: 14,
-                    color: const Color(0xFF64748B),
+                    color: policy.subtitleInk,
                     height: 1.55,
                   ),
                 ),
@@ -511,8 +554,9 @@ class _IntroSummaryCard extends StatelessWidget {
 }
 
 class _BulletPanel extends StatelessWidget {
-  const _BulletPanel({required this.children});
+  const _BulletPanel({required this.policy, required this.children});
 
+  final LegalPolicyTheme policy;
   final List<Widget> children;
 
   @override
@@ -521,9 +565,9 @@ class _BulletPanel extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF4FAF7),
+        color: policy.bulletPanelBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFDCEEE4)),
+        border: Border.all(color: policy.bulletPanelBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -539,8 +583,9 @@ class _BulletPanel extends StatelessWidget {
 }
 
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({required this.child});
+  const _SectionCard({required this.policy, required this.child});
 
+  final LegalPolicyTheme policy;
   final Widget child;
 
   @override
@@ -549,12 +594,12 @@ class _SectionCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: policy.cardBg,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE5EBE7)),
+          border: Border.all(color: policy.border),
           boxShadow: [
             BoxShadow(
-              color: AppColors.accent.withValues(alpha: 0.06),
+              color: policy.cardShadow,
               blurRadius: 22,
               offset: const Offset(0, 10),
             ),
@@ -628,6 +673,8 @@ class _FooterStamp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final policy = LegalPolicyTheme.of(context);
+
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Center(
@@ -653,7 +700,7 @@ class _FooterStamp extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: const Color(0xFF94A3B8),
+                color: policy.footerMuted,
                 letterSpacing: 0.2,
               ),
             ),

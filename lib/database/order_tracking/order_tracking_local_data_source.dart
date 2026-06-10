@@ -12,7 +12,10 @@ abstract class OrderTrackingLocalDataSource {
     String? initialTransactionId,
   });
 
-  Future<void> createOrderPlacedNotification(OrderTrackingModel order);
+  Future<void> createOrderPlacedNotification(
+    OrderTrackingModel order, {
+    bool isGuestCheckout = false,
+  });
 
   Future<Map<String, DateTime>> loadStageTimestamps(String orderKey);
 
@@ -39,6 +42,15 @@ abstract class OrderTrackingLocalDataSource {
     String orderKey,
     int timelineIndex,
   );
+
+  Future<void> saveStatusHint({
+    required String status,
+    String? orderId,
+    String? orderNumber,
+    String? transactionId,
+  });
+
+  Future<List<String>> loadStatusHints(Set<String> lookupKeys);
 }
 
 class OrderTrackingLocalDataSourceImpl implements OrderTrackingLocalDataSource {
@@ -64,8 +76,11 @@ class OrderTrackingLocalDataSourceImpl implements OrderTrackingLocalDataSource {
   }
 
   @override
-  Future<void> createOrderPlacedNotification(OrderTrackingModel order) async {
-    await OrderNotificationService.createOrderPlacedNotification({
+  Future<void> createOrderPlacedNotification(
+    OrderTrackingModel order, {
+    bool isGuestCheckout = false,
+  }) async {
+    final orderData = {
       'id': order.orderId.isNotEmpty ? order.orderId : order.transactionId,
       'transaction_id': order.transactionId,
       'order_number':
@@ -73,6 +88,8 @@ class OrderTrackingLocalDataSourceImpl implements OrderTrackingLocalDataSource {
       'total_amount': order.totalAmount.toStringAsFixed(2),
       'status': order.stageLabel,
       'payment_method': order.paymentMethod,
+      'contact_number': order.contactNumber,
+      'email': _emailFromPaymentParams(order.paymentParams),
       'items': order.items
           .map((item) => {
                 'name': item.name,
@@ -83,7 +100,24 @@ class OrderTrackingLocalDataSourceImpl implements OrderTrackingLocalDataSource {
               })
           .toList(),
       'created_at': order.createdAt.toIso8601String(),
-    });
+    };
+
+    if (isGuestCheckout) {
+      await OrderNotificationService.createGuestOrderPlacedNotification(
+        orderData,
+      );
+      return;
+    }
+
+    await OrderNotificationService.createOrderPlacedNotification(orderData);
+  }
+
+  static String? _emailFromPaymentParams(Map<String, dynamic> params) {
+    for (final key in ['email', 'user_email', 'guest_email', 'customer_email']) {
+      final value = params[key]?.toString().trim();
+      if (value != null && value.isNotEmpty) return value;
+    }
+    return null;
   }
 
   static String _stageTimestampsKey(String orderKey) =>
@@ -160,6 +194,45 @@ class OrderTrackingLocalDataSourceImpl implements OrderTrackingLocalDataSource {
 
   static String _highestTimelineIndexKey(String orderKey) =>
       'order_highest_tl_idx_$orderKey';
+
+  static String _statusHintKey(String orderKey) => 'order_status_hint_$orderKey';
+
+  @override
+  Future<void> saveStatusHint({
+    required String status,
+    String? orderId,
+    String? orderNumber,
+    String? transactionId,
+  }) async {
+    final trimmed = status.trim();
+    if (trimmed.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final keys = <String>{
+      if (orderId != null) orderId.trim(),
+      if (orderNumber != null) orderNumber.trim(),
+      if (transactionId != null) transactionId.trim(),
+    }..removeWhere((value) => value.isEmpty);
+
+    for (final key in keys) {
+      await prefs.setString(_statusHintKey(key), trimmed);
+    }
+  }
+
+  @override
+  Future<List<String>> loadStatusHints(Set<String> lookupKeys) async {
+    if (lookupKeys.isEmpty) return const [];
+
+    final prefs = await SharedPreferences.getInstance();
+    final hints = <String>{};
+    for (final key in lookupKeys) {
+      final hint = prefs.getString(_statusHintKey(key))?.trim();
+      if (hint != null && hint.isNotEmpty) {
+        hints.add(hint);
+      }
+    }
+    return hints.toList(growable: false);
+  }
 
   @override
   Future<int> loadHighestTimelineIndex(String orderKey) async {

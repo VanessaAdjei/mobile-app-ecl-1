@@ -6,6 +6,7 @@ import '../models/product.dart' as catalog_product;
 import '../models/product_model.dart';
 import '../pages/itemdetail.dart';
 import '../services/product_detail_service.dart';
+import 'product_tap_guard.dart';
 
 /// Opens [ItemPage] with detail API warm-up + cache (used from every product list).
 class ProductDetailNavigation {
@@ -105,13 +106,31 @@ class ProductDetailNavigation {
     dynamic product,
     dynamic raw,
     bool? isPrescribed,
+    bool fromProductCard = false,
   }) {
     ProductDetailService.warmProductDetails(urlName);
     final preview = previewFor(urlName: urlName, product: product, raw: raw);
     return {
       'urlName': urlName,
       'isPrescribed': resolvePrescribed(preview: preview, explicit: isPrescribed),
+      'fromProductCard': fromProductCard,
     };
+  }
+
+  static bool _prepareOpenFromCard({
+    required String urlName,
+    dynamic product,
+    dynamic raw,
+  }) {
+    final preview = previewFor(urlName: urlName, product: product, raw: raw);
+    final key = ProductTapGuard.openKey(
+      urlName: urlName,
+      productId: preview?.id.toString(),
+    );
+    if (!ProductTapGuard.canOpen(key)) return false;
+    ProductTapGuard.recordOpen(key);
+    ProductTapGuard.hapticOnOpen();
+    return true;
   }
 
   static ItemPage itemPage({
@@ -119,15 +138,21 @@ class ProductDetailNavigation {
     dynamic product,
     dynamic raw,
     bool? isPrescribed,
+    bool fromProductCard = false,
   }) {
     if (urlName.trim().isEmpty) {
-      return ItemPage(urlName: urlName, isPrescribed: isPrescribed ?? false);
+      return ItemPage(
+        urlName: urlName,
+        isPrescribed: isPrescribed ?? false,
+        fromProductCard: fromProductCard,
+      );
     }
     ProductDetailService.warmProductDetails(urlName);
     final preview = previewFor(urlName: urlName, product: product, raw: raw);
     return ItemPage(
       urlName: urlName,
       isPrescribed: resolvePrescribed(preview: preview, explicit: isPrescribed),
+      fromProductCard: fromProductCard,
     );
   }
 
@@ -137,8 +162,17 @@ class ProductDetailNavigation {
     dynamic product,
     dynamic raw,
     bool? isPrescribed,
+    bool fromProductCard = false,
   }) {
     if (urlName.trim().isEmpty) return Future.value();
+    if (fromProductCard &&
+        !_prepareOpenFromCard(
+          urlName: urlName,
+          product: product,
+          raw: raw,
+        )) {
+      return Future.value();
+    }
     return Navigator.pushNamed<T>(
       context,
       AppRoutes.itemDetail,
@@ -147,6 +181,7 @@ class ProductDetailNavigation {
         product: product,
         raw: raw,
         isPrescribed: isPrescribed,
+        fromProductCard: fromProductCard,
       ),
     );
   }
@@ -157,8 +192,17 @@ class ProductDetailNavigation {
     dynamic product,
     dynamic raw,
     bool? isPrescribed,
+    bool fromProductCard = false,
   }) {
     if (urlName.trim().isEmpty) return Future.value();
+    if (fromProductCard &&
+        !_prepareOpenFromCard(
+          urlName: urlName,
+          product: product,
+          raw: raw,
+        )) {
+      return Future.value();
+    }
     return Navigator.push<T>(
       context,
       MaterialPageRoute(
@@ -167,6 +211,7 @@ class ProductDetailNavigation {
           product: product,
           raw: raw,
           isPrescribed: isPrescribed,
+          fromProductCard: fromProductCard,
         ),
       ),
     );

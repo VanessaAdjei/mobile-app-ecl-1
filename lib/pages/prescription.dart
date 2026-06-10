@@ -1097,6 +1097,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
       );
 
       if (_prescriptionService.uploadSucceeded(result)) {
+        await _prescriptionService.recordSuccessfulUpload(result);
         if (mounted) {
           await PrescriptionUploadStatusService.markUploadedFromItem(
             widget.item,

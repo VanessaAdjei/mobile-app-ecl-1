@@ -1089,6 +1089,8 @@ class PurchaseScreenState extends State<PurchaseScreen> {
               toolbarTitle: 'Your Orders',
               heroTitle: 'Your Orders',
               heroSubtitle: 'Track your purchase history',
+              centerTitle: true,
+              expandedTitleAlignment: Alignment.bottomCenter,
               onBack: () {
                 Navigator.pushReplacement(
                   context,

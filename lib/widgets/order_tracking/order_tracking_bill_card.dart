@@ -25,7 +25,7 @@ class OrderTrackingBillCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      decoration: PostCheckoutDesign.compactCard(),
+      decoration: PostCheckoutDesign.compactCard(context),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(11),
         child: Stack(
@@ -47,7 +47,7 @@ class OrderTrackingBillCard extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: PostCheckoutDesign.ink,
+                      color: PostCheckoutDesign.ink(context),
                       letterSpacing: -0.25,
                     ),
                   ),
@@ -69,7 +69,7 @@ class OrderTrackingBillCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     child: Divider(
                       height: 1,
-                      color: PostCheckoutDesign.border,
+                      color: PostCheckoutDesign.border(context),
                     ),
                   ),
                   Row(
@@ -79,7 +79,7 @@ class OrderTrackingBillCard extends StatelessWidget {
                         style: GoogleFonts.poppins(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: PostCheckoutDesign.ink,
+                          color: PostCheckoutDesign.ink(context),
                         ),
                       ),
                       const Spacer(),
@@ -128,7 +128,7 @@ class _BillRow extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 12,
             fontWeight: FontWeight.w500,
-            color: PostCheckoutDesign.muted,
+            color: PostCheckoutDesign.muted(context),
           ),
         ),
         const Spacer(),
@@ -137,7 +137,7 @@ class _BillRow extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: valueColor ?? PostCheckoutDesign.ink,
+            color: valueColor ?? PostCheckoutDesign.ink(context),
           ),
         ),
       ],

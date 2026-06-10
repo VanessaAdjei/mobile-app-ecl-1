@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/order_tracking_model.dart';
+import '../services/auth_service.dart';
 import '../services/order_notification_service.dart';
 import '../services/order_tracking_service.dart';
 import '../utils/non_ui_error_reporter.dart';
@@ -24,26 +25,38 @@ class OrderTrackingProvider extends ChangeNotifier {
   static const Duration _trackingPollInterval = Duration(seconds: 8);
 
   /// Callback for push-driven refresh (e.g. order_status / delivery notification). Set by the tracking screen.
-  static void Function()? onOrderStatusUpdateFromPush;
+  static void Function({String? status, String? orderId})?
+      onOrderStatusUpdateFromPush;
 
-  static final Set<void Function()> _pushRefreshListeners = {};
+  static final Set<void Function({String? status, String? orderId})>
+      _pushRefreshListeners = {};
 
   /// Callback when order reaches [OrderTrackingStage.orderConfirmed] (defer SnackBar until user leaves confirmation).
   static void Function(OrderTrackingModel order)? onOrderConfirmedStageUi;
 
-  static void registerPushRefresh(void Function() listener) {
+  static void registerPushRefresh(
+    void Function({String? status, String? orderId}) listener,
+  ) {
     _pushRefreshListeners.add(listener);
   }
 
-  static void unregisterPushRefresh(void Function() listener) {
+  static void unregisterPushRefresh(
+    void Function({String? status, String? orderId}) listener,
+  ) {
     _pushRefreshListeners.remove(listener);
   }
 
-  /// Call when a push notification indicates order status changed; refreshes immediately if tracking is active.
-  static void notifyOrderStatusChanged() {
-    onOrderStatusUpdateFromPush?.call();
-    for (final listener in List<void Function()>.from(_pushRefreshListeners)) {
-      listener();
+  /// Call when a push notification or background checker indicates order status changed.
+  static void notifyOrderStatusChanged({
+    String? status,
+    String? orderId,
+  }) {
+    onOrderStatusUpdateFromPush?.call(status: status, orderId: orderId);
+    for (final listener
+        in List<void Function({String? status, String? orderId})>.from(
+      _pushRefreshListeners,
+    )) {
+      listener(status: status, orderId: orderId);
     }
   }
   static const Duration _manualRefreshDelay = Duration(seconds: 10);
@@ -94,19 +107,55 @@ class OrderTrackingProvider extends ChangeNotifier {
     await _checkPaymentStatus();
   }
 
-  Future<void> refreshTracking() async {
+  Future<void> refreshTracking({
+    String? statusHint,
+    String? orderIdHint,
+  }) async {
     if (_isDisposed) return;
     try {
       final previousStage = _order.stage;
       _isRefreshing = true;
       _notifyListenersSafely();
-      _order = await _service.refreshOrder(
-        _order,
-        previousStage: previousStage,
-      );
+
+      if (statusHint != null &&
+          statusHint.trim().isNotEmpty &&
+          _matchesOrderHint(orderIdHint)) {
+        _order = await _service.applyKnownStatus(
+          _order,
+          statusHint.trim(),
+          previousStage: previousStage,
+        );
+        if (_isDisposed) return;
+        _notifyListenersSafely();
+      }
+
+      final isGuest = !(await AuthService.isLoggedIn());
+      if (isGuest) {
+        // Guest: local snapshot only (GET /orders unsupported); timeline from device.
+        _order = await _service.refreshOrder(
+          _order,
+          previousStage: previousStage,
+        );
+        _order = await _service.syncTimelineWithTimestamps(
+          _order,
+          previousStage: previousStage,
+        );
+      } else {
+        _order = await _service.refreshOrder(
+          _order,
+          previousStage: previousStage,
+        );
+        if (_isDisposed) return;
+        _order = await _service.syncTimelineWithTimestamps(
+          _order,
+          previousStage: previousStage,
+        );
+        if (_isDisposed) return;
+        await _notifyImportantStageChanges(previousStage);
+      }
+
       if (_isDisposed) return;
       _errorMessage = null;
-      await _notifyImportantStageChanges(previousStage);
     } catch (e, st) {
       NonUiErrorReporter.report('OrderTrackingProvider.refreshTracking', e, st);
     } finally {
@@ -252,6 +301,17 @@ class OrderTrackingProvider extends ChangeNotifier {
 
   void _startTrackingPolling() {
     _trackingPollTimer?.cancel();
+    unawaited(_startTrackingPollingAsync());
+  }
+
+  Future<void> _startTrackingPollingAsync() async {
+    if (_isDisposed) return;
+    if (!(await AuthService.isLoggedIn())) {
+      debugPrint(
+        'Guest tracking: no live /orders poll — SMS + local order details',
+      );
+      return;
+    }
     _trackingPollTimer = Timer.periodic(_trackingPollInterval, (_) {
       unawaited(refreshTracking());
     });
@@ -271,6 +331,20 @@ class OrderTrackingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _matchesOrderHint(String? orderIdHint) {
+    final hint = orderIdHint?.trim();
+    if (hint == null || hint.isEmpty) return true;
+
+    final keys = <String>{
+      _order.orderId,
+      _order.orderNumber,
+      _order.transactionId,
+      _order.paymentParams['order_id']?.toString() ?? '',
+    }..removeWhere((value) => value.isEmpty);
+
+    return keys.contains(hint);
+  }
+
   Future<void> _notifyImportantStageChanges(
     OrderTrackingStage previousStage,
   ) async {
@@ -287,23 +361,26 @@ class OrderTrackingProvider extends ChangeNotifier {
     if (current == OrderTrackingStage.orderConfirmed &&
         !_didNotifyOrderConfirmed) {
       _didNotifyOrderConfirmed = true;
-      try {
-        await OrderNotificationService.createOrderConfirmedNotification(
-          orderId: _order.orderId.isNotEmpty
-              ? _order.orderId
-              : _order.transactionId,
-          orderNumber: _order.orderNumber.isNotEmpty
-              ? _order.orderNumber
-              : _order.transactionId,
-          totalAmount: _order.totalAmount.toStringAsFixed(2),
-          items: _order.items.map((e) => e.toMap()).toList(),
-        );
-      } catch (e, st) {
-        NonUiErrorReporter.report(
-          'OrderTrackingProvider.createOrderConfirmedNotification',
-          e,
-          st,
-        );
+      final isGuest = !(await AuthService.isLoggedIn());
+      if (!isGuest) {
+        try {
+          await OrderNotificationService.createOrderConfirmedNotification(
+            orderId: _order.orderId.isNotEmpty
+                ? _order.orderId
+                : _order.transactionId,
+            orderNumber: _order.orderNumber.isNotEmpty
+                ? _order.orderNumber
+                : _order.transactionId,
+            totalAmount: _order.totalAmount.toStringAsFixed(2),
+            items: _order.items.map((e) => e.toMap()).toList(),
+          );
+        } catch (e, st) {
+          NonUiErrorReporter.report(
+            'OrderTrackingProvider.createOrderConfirmedNotification',
+            e,
+            st,
+          );
+        }
       }
       if (_isDisposed) return;
       try {
@@ -317,6 +394,9 @@ class OrderTrackingProvider extends ChangeNotifier {
       }
       return;
     }
+
+    final isGuest = !(await AuthService.isLoggedIn());
+    if (isGuest) return;
 
     final orderNumber = _order.orderNumber.isNotEmpty
         ? _order.orderNumber

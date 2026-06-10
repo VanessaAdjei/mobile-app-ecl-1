@@ -196,11 +196,6 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
         super.onCreate(savedInstanceState)
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        val safeData = IntentSanitizer.sanitizeActivityResultIntent(data)
-        super.onActivityResult(requestCode, resultCode, safeData)
-    }
-
     // Handle when app is opened from notification (never forward untrusted intents).
     override fun onNewIntent(intent: Intent) {
         val safeIntent = IntentSanitizer.sanitizeMainActivityIntent(

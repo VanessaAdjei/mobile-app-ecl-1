@@ -24,9 +24,11 @@ import '../services/stock_utility_service.dart';
 import '../models/product_model.dart';
 import 'search_results_page.dart';
 import '../config/app_colors.dart';
+import '../utils/app_theme_colors.dart';
 import '../cache/product_catalog_memory.dart';
 import '../cache/product_cache.dart';
 import 'package:flutter/foundation.dart';
+import '../widgets/category/subcategory_design.dart';
 import 'package:animations/animations.dart';
 
 /// Safe price label for category/search rows (`price` may be String or num).
@@ -149,6 +151,128 @@ void mergeUrlNameFromCatalogMaps(
       items[i] = p;
     }
   }
+}
+
+/// Page-based product grid (subcategory APIs return the full list).
+class _CategoryProductPagination {
+  static const int pageSize = 20;
+
+  static int totalPages(int count) {
+    if (count <= 0) return 1;
+    return (count + pageSize - 1) ~/ pageSize;
+  }
+
+  static List<dynamic> itemsForPage(List<dynamic> all, int page) {
+    if (all.isEmpty) return const [];
+    final safePage = page.clamp(0, totalPages(all.length) - 1);
+    final start = safePage * pageSize;
+    final end = (start + pageSize).clamp(0, all.length);
+    return all.sublist(start, end);
+  }
+
+  static int pageForIndex(int index) {
+    if (index < 0) return 0;
+    return index ~/ pageSize;
+  }
+
+  static String rangeLabel(int total, int page) {
+    if (total <= 0) return '0 items';
+    final start = page * pageSize + 1;
+    final end = ((page + 1) * pageSize).clamp(0, total);
+    return '$start–$end of $total';
+  }
+}
+
+Widget _buildCategoryProductPaginationBar({
+  required BuildContext context,
+  required int currentPage,
+  required int totalPages,
+  required int totalItems,
+  required VoidCallback? onPrevious,
+  required VoidCallback? onNext,
+}) {
+  if (totalPages <= 1) return const SizedBox.shrink();
+
+  final theme = context.appColors;
+  final canGoBack = currentPage > 0;
+  final canGoForward = currentPage < totalPages - 1;
+  final inactive = theme.muted.withValues(alpha: 0.45);
+  final active = theme.ink;
+
+  return DecoratedBox(
+    decoration: BoxDecoration(
+      color: theme.surface,
+      border: Border(
+        top: BorderSide(color: theme.border),
+      ),
+    ),
+    child: SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 44,
+              child: IconButton(
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                tooltip: 'Previous page',
+                icon: Icon(
+                  Icons.chevron_left_rounded,
+                  color: canGoBack ? active : inactive,
+                ),
+                onPressed: canGoBack ? onPrevious : null,
+              ),
+            ),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Page ${currentPage + 1} of $totalPages',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: active,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _CategoryProductPagination.rangeLabel(
+                      totalItems,
+                      currentPage,
+                    ),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      color: theme.muted,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: 44,
+              child: IconButton(
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                tooltip: 'Next page',
+                icon: Icon(
+                  Icons.chevron_right_rounded,
+                  color: canGoForward ? active : inactive,
+                ),
+                onPressed: canGoForward ? onNext : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 /// Lookup maps from disk/memory catalog caches (no network).
@@ -473,10 +597,12 @@ Widget _productDetailOpenErrorScaffold(
   );
 }
 
-Widget _buildCatalogErrorPanel({
+Widget _buildCatalogErrorPanel(
+  BuildContext context, {
   required String errorMessage,
   required VoidCallback onRetry,
 }) {
+  final theme = context.appColors;
   final kind = AppErrorUtils.classifyProductError(errorMessage);
   return Center(
     child: Padding(
@@ -494,7 +620,7 @@ Widget _buildCatalogErrorPanel({
             AppErrorUtils.catalogLoadTitle(kind),
             style: TextStyle(
               fontSize: 16,
-              color: Colors.grey.shade700,
+              color: theme.ink,
               fontWeight: FontWeight.w600,
             ),
             textAlign: TextAlign.center,
@@ -502,7 +628,7 @@ Widget _buildCatalogErrorPanel({
           const SizedBox(height: 8),
           Text(
             AppErrorUtils.catalogLoadMessage(kind, detail: errorMessage),
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+            style: TextStyle(fontSize: 14, color: theme.muted),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -511,7 +637,7 @@ Widget _buildCatalogErrorPanel({
             icon: const Icon(Icons.refresh),
             label: const Text('Try again'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green.shade700,
+              backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
             ),
           ),
@@ -1066,6 +1192,7 @@ class CategoryPageState extends State<CategoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -1084,7 +1211,7 @@ class CategoryPageState extends State<CategoryPage> {
       },
       child: Scaffold(
         appBar: null,
-        backgroundColor: const Color(0xFFF6F8FA),
+        backgroundColor: theme.pageBg,
         body: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -1097,7 +1224,8 @@ class CategoryPageState extends State<CategoryPage> {
                   toolbarTitle: 'Shop',
                   heroTitle: 'Shop',
                   heroSubtitle: 'Browse all products',
-                  centerTitle: false,
+                  centerTitle: true,
+                  expandedTitleAlignment: Alignment.bottomCenter,
                   onBack: () {
                     if (widget.isBulkPurchase) {
                       Navigator.pushReplacement(
@@ -1136,9 +1264,9 @@ class CategoryPageState extends State<CategoryPage> {
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: theme.surface,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        border: Border.all(color: theme.searchBorder),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.04),
@@ -1183,14 +1311,14 @@ class CategoryPageState extends State<CategoryPage> {
                                   });
                                 }
                               },
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 14.5,
-                                color: Colors.black87,
+                                color: theme.inputText,
                               ),
                               decoration: InputDecoration(
                                 hintText: "Search category products...",
                                 hintStyle: TextStyle(
-                                  color: Colors.grey.shade400,
+                                  color: theme.inputHint,
                                   fontSize: 15,
                                 ),
                                 border: InputBorder.none,
@@ -1203,7 +1331,7 @@ class CategoryPageState extends State<CategoryPage> {
                             IconButton(
                               icon: Icon(
                                 Icons.clear_rounded,
-                                color: Colors.grey.shade400,
+                                color: theme.inputHint,
                                 size: 20,
                               ),
                               onPressed: () {
@@ -1290,10 +1418,10 @@ class CategoryPageState extends State<CategoryPage> {
                         child: Container(
                           constraints: const BoxConstraints(maxHeight: 450),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: theme.surface,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: Colors.grey.shade200,
+                              color: theme.border,
                               width: 1,
                             ),
                           ),
@@ -1317,7 +1445,7 @@ class CategoryPageState extends State<CategoryPage> {
                                   ),
                                   border: Border(
                                     bottom: BorderSide(
-                                      color: Colors.grey.shade200,
+                                      color: theme.border,
                                       width: 1,
                                     ),
                                   ),
@@ -1345,14 +1473,14 @@ class CategoryPageState extends State<CategoryPage> {
                                         style: TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w600,
-                                          color: Colors.grey.shade800,
+                                          color: theme.ink,
                                         ),
                                       ),
                                     ),
                                     IconButton(
                                       icon: Icon(
                                         Icons.close_rounded,
-                                        color: Colors.grey.shade600,
+                                        color: theme.muted,
                                         size: 20,
                                       ),
                                       onPressed: () {
@@ -1381,7 +1509,7 @@ class CategoryPageState extends State<CategoryPage> {
                                             Icon(
                                               Icons.search_off_rounded,
                                               size: 40,
-                                              color: Colors.grey.shade400,
+                                              color: theme.muted,
                                             ),
                                             const SizedBox(height: 10),
                                             Text(
@@ -1389,7 +1517,7 @@ class CategoryPageState extends State<CategoryPage> {
                                               style: TextStyle(
                                                 fontSize: 15,
                                                 fontWeight: FontWeight.w500,
-                                                color: Colors.grey.shade600,
+                                                color: theme.ink,
                                               ),
                                             ),
                                             const SizedBox(height: 3),
@@ -1397,7 +1525,7 @@ class CategoryPageState extends State<CategoryPage> {
                                               'Try a different search term',
                                               style: TextStyle(
                                                 fontSize: 13,
-                                                color: Colors.grey.shade500,
+                                                color: theme.muted,
                                               ),
                                             ),
                                           ],
@@ -1483,6 +1611,7 @@ class CategoryPageState extends State<CategoryPage> {
   }
 
   Widget _buildMainContent() {
+    final theme = context.appColors;
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1498,22 +1627,22 @@ class CategoryPageState extends State<CategoryPage> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF0F172A),
+                    color: theme.ink,
                   ),
                 ),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: theme.surface,
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: theme.searchBorder),
                   ),
                   child: Text(
                     '${_filteredCategories.length} found',
                     style: TextStyle(
                       fontSize: 11,
-                      color: const Color(0xFF475569),
+                      color: theme.muted,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -1529,6 +1658,7 @@ class CategoryPageState extends State<CategoryPage> {
   }
 
   Widget _buildSearchResultItem(Product suggestion) {
+    final theme = context.appColors;
     if (suggestion.name == '__VIEW_MORE__') {
       return Material(
         color: Colors.transparent,
@@ -1597,9 +1727,9 @@ class CategoryPageState extends State<CategoryPage> {
           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: theme.surface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade200),
+            border: Border.all(color: theme.border),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),
@@ -1649,7 +1779,7 @@ class CategoryPageState extends State<CategoryPage> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade900,
+                    color: theme.ink,
                     height: 1.2,
                   ),
                   maxLines: 2,
@@ -1658,7 +1788,7 @@ class CategoryPageState extends State<CategoryPage> {
               ),
               Icon(
                 Icons.chevron_right_rounded,
-                color: Colors.grey.shade400,
+                color: theme.muted,
                 size: 18,
               ),
             ],
@@ -1752,6 +1882,7 @@ class CategoryPageState extends State<CategoryPage> {
 
   Widget _buildErrorState() {
     return _buildCatalogErrorPanel(
+      context,
       errorMessage: _errorMessage,
       onRetry: () {
         setState(() {
@@ -1873,16 +2004,18 @@ class CategoryPageSkeletonBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
     return Shimmer.fromColors(
-      baseColor: Colors.grey[400]!,
-      highlightColor: Colors.grey[200]!,
+      baseColor: theme.isDark ? Colors.grey.shade800 : Colors.grey.shade400,
+      highlightColor:
+          theme.isDark ? Colors.grey.shade700 : Colors.grey.shade200,
       child: Column(
         children: [
           Container(
             margin: EdgeInsets.all(16),
             height: 50,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: theme.surface,
               borderRadius: BorderRadius.circular(8),
             ),
           ),
@@ -1896,7 +2029,7 @@ class CategoryPageSkeletonBody extends StatelessWidget {
                   width: 120,
                   height: 20,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: theme.surface,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -1904,7 +2037,7 @@ class CategoryPageSkeletonBody extends StatelessWidget {
                   width: 60,
                   height: 16,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: theme.surface,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -1927,7 +2060,7 @@ class CategoryPageSkeletonBody extends StatelessWidget {
               itemBuilder: (context, index) {
                 return Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: theme.surface,
                     borderRadius: BorderRadius.circular(20),
                   ),
                 );
@@ -1946,37 +2079,35 @@ class SubcategoryPageSkeletonBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final shimmer = SubcategoryDesign.shimmerColors(context);
     return Shimmer.fromColors(
-      baseColor: Colors.grey[400]!,
-      highlightColor: Colors.grey[200]!,
+      baseColor: shimmer.$1,
+      highlightColor: shimmer.$2,
       child: Row(
         children: [
-          // Sidebar skeleton
           Container(
             width: 200,
-            color: Colors.white,
+            color: SubcategoryDesign.railBg(context),
             child: Column(
               children: [
-                // Header skeleton
                 Container(
                   height: 50,
-                  margin: EdgeInsets.all(8),
+                  margin: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.grey[300],
+                    color: SubcategoryDesign.railHeaderBg(context),
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                // Sidebar items skeleton
                 Expanded(
                   child: ListView.builder(
-                    padding: EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(8),
                     itemCount: 6,
                     itemBuilder: (context, index) {
                       return Container(
                         height: 40,
-                        margin: EdgeInsets.only(bottom: 8),
+                        margin: const EdgeInsets.only(bottom: 8),
                         decoration: BoxDecoration(
-                          color: Colors.grey[300],
+                          color: SubcategoryDesign.unselectedItemBg(context),
                           borderRadius: BorderRadius.circular(8),
                         ),
                       );
@@ -1986,20 +2117,17 @@ class SubcategoryPageSkeletonBody extends StatelessWidget {
               ],
             ),
           ),
-          // Main content skeleton
           Expanded(
             child: Column(
               children: [
-                // Header skeleton
                 Container(
                   height: 60,
-                  margin: EdgeInsets.all(16),
+                  margin: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: SubcategoryDesign.contentBg(context),
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                // Products grid skeleton
                 Expanded(
                   child: GridView.builder(
                     padding: const EdgeInsets.fromLTRB(12, 14, 12, 24),
@@ -2014,8 +2142,8 @@ class SubcategoryPageSkeletonBody extends StatelessWidget {
                     itemBuilder: (context, index) {
                       return Container(
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.all(Radius.circular(14)),
+                          color: context.appColors.surface,
+                          borderRadius: const BorderRadius.all(Radius.circular(14)),
                         ),
                       );
                     },
@@ -2036,25 +2164,24 @@ class ProductListPageSkeletonBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final shimmer = SubcategoryDesign.shimmerColors(context);
     return Shimmer.fromColors(
-      baseColor: Colors.grey[400]!,
-      highlightColor: Colors.grey[200]!,
+      baseColor: shimmer.$1,
+      highlightColor: shimmer.$2,
       child: Column(
         children: [
-          // Header skeleton
           Container(
             height: 80,
-            margin: EdgeInsets.all(16),
+            margin: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.appColors.surface,
               borderRadius: BorderRadius.circular(8),
             ),
           ),
-          // Products grid skeleton
           Expanded(
             child: GridView.builder(
-              padding: EdgeInsets.all(16),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              padding: const EdgeInsets.all(16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 childAspectRatio: 0.55,
                 crossAxisSpacing: 16,
@@ -2064,7 +2191,7 @@ class ProductListPageSkeletonBody extends StatelessWidget {
               itemBuilder: (context, index) {
                 return Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: context.appColors.surface,
                     borderRadius: BorderRadius.circular(16),
                   ),
                 );
@@ -2213,6 +2340,8 @@ class SubcategoryPage extends StatefulWidget {
 class SubcategoryPageState extends State<SubcategoryPage> {
   List<dynamic> subcategories = [];
   List<dynamic> products = [];
+  List<dynamic> _allProducts = [];
+  int _currentProductPage = 0;
   bool isLoading = true;
   String errorMessage = '';
   int? selectedSubcategoryId;
@@ -2344,6 +2473,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       selectedSubcategoryId = subcategoryId;
       isLoading = true;
       products = [];
+      _allProducts = [];
+      _currentProductPage = 0;
       errorMessage = '';
     });
 
@@ -2357,7 +2488,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
 
       if (mounted) {
         setState(() {
-          products = cachedProducts;
+          _applyPagedProducts(cachedProducts);
           isLoading = false;
         });
       }
@@ -2466,11 +2597,40 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     });
   }
 
+  void _applyPagedProducts(List<dynamic> all, {int page = 0}) {
+    _allProducts = all;
+    final total = _CategoryProductPagination.totalPages(all.length);
+    _currentProductPage = page.clamp(0, total - 1);
+    products =
+        _CategoryProductPagination.itemsForPage(all, _currentProductPage);
+  }
+
+  void _goToProductPage(int page) {
+    if (_allProducts.isEmpty || !mounted) return;
+    final total = _CategoryProductPagination.totalPages(_allProducts.length);
+    final safe = page.clamp(0, total - 1);
+    if (safe == _currentProductPage) return;
+    setState(() {
+      _currentProductPage = safe;
+      products = _CategoryProductPagination.itemsForPage(
+        _allProducts,
+        _currentProductPage,
+      );
+    });
+    if (scrollController.hasClients) {
+      scrollController.jumpTo(0);
+    }
+  }
+
+  void _ensurePagedThroughProductIndex(int index) {
+    _goToProductPage(_CategoryProductPagination.pageForIndex(index));
+  }
+
   void handleProductsSuccess(dynamic data) {
     if (!mounted) return;
 
     setState(() {
-      products = data['data'];
+      _applyPagedProducts(List<dynamic>.from(data['data'] as List));
       isLoading = false;
       errorMessage = '';
     });
@@ -2504,6 +2664,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     setState(() {
       isLoading = false;
       products = [];
+      _allProducts = [];
+      _currentProductPage = 0;
       errorMessage = '';
     });
   }
@@ -2598,11 +2760,12 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       });
 
       // Find the index of the searched product
-      final productIndex = products.indexWhere(
+      final productIndex = _allProducts.indexWhere(
         (product) => product['id'] == widget.searchedProductId,
       );
 
       if (productIndex != -1) {
+        _ensurePagedThroughProductIndex(productIndex);
         // Wait for the widget to be built and then scroll
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && scrollController.hasClients) {
@@ -2627,13 +2790,13 @@ class SubcategoryPageState extends State<SubcategoryPage> {
 
   void _setupScrollListener() {
     scrollController.addListener(() {
-      if (mounted) {
-        final shouldShow = scrollController.offset > 300;
-        if (showScrollToTop != shouldShow) {
-          setState(() {
-            showScrollToTop = shouldShow;
-          });
-        }
+      if (!mounted || !scrollController.hasClients) return;
+
+      final shouldShow = scrollController.offset > 300;
+      if (showScrollToTop != shouldShow) {
+        setState(() {
+          showScrollToTop = shouldShow;
+        });
       }
     });
   }
@@ -2681,8 +2844,9 @@ class SubcategoryPageState extends State<SubcategoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F7F4),
+      backgroundColor: theme.pageBg,
       appBar: null,
       body: Column(
         children: [
@@ -2783,8 +2947,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   Widget _buildScrollToTopButton() {
     return FloatingActionButton(
       mini: true,
-      backgroundColor: Colors.green.shade700,
-      child: Icon(Icons.keyboard_arrow_up, color: Colors.white),
+      backgroundColor: SubcategoryDesign.accent(context),
+      child: const Icon(Icons.keyboard_arrow_up, color: Colors.white),
       onPressed: () {
         scrollController.animateTo(
           0,
@@ -2823,7 +2987,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
         final sideNavWidth = isTablet ? 210.0 : 128.0;
 
         return Container(
-          color: const Color(0xFFF3F7F4),
+          color: SubcategoryDesign.canvasBg(context),
           child: Row(
             children: [
               AnimatedContainer(
@@ -2833,13 +2997,15 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                     ? sideNavWidth
                     : _kSubcategoryRailCollapsedWidth,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8FBF8),
-                  border: const Border(
-                    right: BorderSide(color: Color(0xFFDDE7DE)),
+                  color: SubcategoryDesign.railBg(context),
+                  border: Border(
+                    right: BorderSide(color: SubcategoryDesign.railBorder(context)),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
+                      color: Colors.black.withValues(
+                        alpha: context.appColors.isDark ? 0.28 : 0.05,
+                      ),
                       blurRadius: 10,
                       offset: const Offset(2, 0),
                     ),
@@ -2855,10 +3021,12 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                   children: [
                     Container(
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFAFCFB),
+                        color: SubcategoryDesign.contentBg(context),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
+                            color: Colors.black.withValues(
+                              alpha: context.appColors.isDark ? 0.18 : 0.04,
+                            ),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -2870,14 +3038,17 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                               padding: const EdgeInsets.all(8),
                               child: Row(
                                 children: [
-                                  Icon(Icons.category_outlined,
-                                      size: 18, color: Colors.grey.shade600),
+                                  Icon(
+                                    Icons.category_outlined,
+                                    size: 18,
+                                    color: SubcategoryDesign.muted(context),
+                                  ),
                                   const SizedBox(width: 8),
                                   Text(
                                     'Categories',
                                     style: TextStyle(
                                       fontSize: 14,
-                                      color: Colors.grey.shade600,
+                                      color: SubcategoryDesign.muted(context),
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
@@ -2900,40 +3071,14 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     return Stack(
       children: [
         const SubcategoryPageSkeletonBody(),
-        // Add a loading indicator overlay
         Positioned(
           top: 100,
           left: 0,
           right: 0,
           child: Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Loading subcategories...',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
+            child: SubcategoryDesign.loadingOverlayPill(
+              context,
+              'Loading subcategories...',
             ),
           ),
         ),
@@ -2954,17 +3099,20 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       children: [
         Container(
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-          decoration: const BoxDecoration(
-            color: Color(0xFFF8FAFC),
+          decoration: BoxDecoration(
+            color: SubcategoryDesign.railHeaderBg(context),
             border: Border(
-              bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+              bottom: BorderSide(
+                color: SubcategoryDesign.railBorder(context),
+                width: 1,
+              ),
             ),
           ),
           child: Center(
             child: Tooltip(
               message: 'Expand subcategory list',
               child: Material(
-                color: const Color(0xFFECFDF3),
+                color: SubcategoryDesign.railActionBg(context),
                 borderRadius: BorderRadius.circular(12),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12),
@@ -2974,7 +3122,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                     padding: const EdgeInsets.all(8),
                     child: Icon(
                       Icons.view_sidebar_rounded,
-                      color: Colors.green.shade800,
+                      color: SubcategoryDesign.selectedInk(context),
                       size: 22,
                     ),
                   ),
@@ -3004,13 +3152,13 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? const Color(0xFFECFDF3)
-                          : Colors.white,
+                          ? SubcategoryDesign.selectedTint(context)
+                          : SubcategoryDesign.unselectedItemBg(context),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: isSelected
-                            ? const Color(0xFFBBF7D0)
-                            : const Color(0xFFE2E8F0),
+                            ? SubcategoryDesign.selectedBorder(context)
+                            : SubcategoryDesign.railBorder(context),
                         width: 1,
                       ),
                     ),
@@ -3022,7 +3170,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                           height: 18,
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF16A34A)
+                                ? SubcategoryDesign.accent(context)
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(999),
                           ),
@@ -3036,8 +3184,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                                 ? FontWeight.w800
                                 : FontWeight.w600,
                             color: isSelected
-                                ? const Color(0xFF166534)
-                                : const Color(0xFF475569),
+                                ? SubcategoryDesign.selectedInk(context)
+                                : SubcategoryDesign.unselectedInk(context),
                           ),
                         ),
                       ],
@@ -3057,10 +3205,13 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       children: [
         Container(
           padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
-          decoration: const BoxDecoration(
-            color: Color(0xFFF2F8F2),
+          decoration: BoxDecoration(
+            color: SubcategoryDesign.railHeaderBg(context),
             border: Border(
-              bottom: BorderSide(color: Color(0xFFDDE7DE), width: 1),
+              bottom: BorderSide(
+                color: SubcategoryDesign.railBorder(context),
+                width: 1,
+              ),
             ),
           ),
           child: Row(
@@ -3069,12 +3220,12 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
-                  child: const Text(
+                  child: Text(
                     'Subcategory',
                     style: TextStyle(
-                    fontSize: 13,
+                      fontSize: 13,
                       fontWeight: FontWeight.w800,
-                    color: Color(0xFF1F2937),
+                      color: SubcategoryDesign.ink(context),
                       letterSpacing: 0.3,
                     ),
                   ),
@@ -3083,7 +3234,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
               Tooltip(
                 message: 'Collapse list — more space for products',
                 child: Material(
-                  color: const Color(0xFFE9F5EA),
+                  color: SubcategoryDesign.railActionBg(context),
                   borderRadius: BorderRadius.circular(10),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(10),
@@ -3094,7 +3245,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                       child: Icon(
                         Icons.keyboard_double_arrow_left_rounded,
                         size: 20,
-                        color: const Color(0xFF166534),
+                        color: SubcategoryDesign.selectedInk(context),
                       ),
                     ),
                   ),
@@ -3122,13 +3273,14 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                       duration: const Duration(milliseconds: 180),
                       curve: Curves.easeInOut,
                       decoration: BoxDecoration(
-                        color:
-                            isSelected ? const Color(0xFFECFDF3) : Colors.white,
+                        color: isSelected
+                            ? SubcategoryDesign.selectedTint(context)
+                            : SubcategoryDesign.unselectedItemBg(context),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: isSelected
-                              ? const Color(0xFFBBF7D0)
-                              : const Color(0xFFDDE7DE),
+                              ? SubcategoryDesign.selectedBorder(context)
+                              : SubcategoryDesign.railBorder(context),
                           width: 1,
                         ),
                       ),
@@ -3145,7 +3297,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                             margin: const EdgeInsets.only(right: 8),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? const Color(0xFF16A34A)
+                                  ? SubcategoryDesign.accent(context)
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(999),
                             ),
@@ -3159,8 +3311,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                                     ? FontWeight.w600
                                     : FontWeight.w400,
                                 color: isSelected
-                                    ? const Color(0xFF166534)
-                                    : const Color(0xFF475569),
+                                    ? SubcategoryDesign.selectedInk(context)
+                                    : SubcategoryDesign.unselectedInk(context),
                                 height: 1.2,
                               ),
                               maxLines: 2,
@@ -3168,14 +3320,10 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                             ),
                           ),
                           if (isSelected)
-                            const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: Icon(
-                                Icons.check,
-                                size: 13,
-                                color: Color(0xFF16A34A),
-                              ),
+                            Icon(
+                              Icons.check,
+                              size: 13,
+                              color: SubcategoryDesign.accent(context),
                             ),
                         ],
                       ),
@@ -3204,13 +3352,13 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
-          colors: [Color(0xFFF7FBF7), Color(0xFFFBFCFB)],
+          colors: SubcategoryDesign.headerBandGradient(context),
         ),
         border: Border(
-          bottom: BorderSide(color: const Color(0xFFDDE7DE)),
+          bottom: BorderSide(color: SubcategoryDesign.railBorder(context)),
         ),
       ),
       child: Row(
@@ -3218,12 +3366,12 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFFE6F4E9),
+              color: SubcategoryDesign.iconWell(context),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.category_outlined,
-              color: Color(0xFF2E7D32),
+              color: SubcategoryDesign.accent(context),
               size: 18,
             ),
           ),
@@ -3237,19 +3385,19 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                   selectedSubcategoryId != null
                       ? (selectedSubcategory['name'] ?? 'All Products')
                       : 'All Products',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15.5,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF1F2937),
+                    color: SubcategoryDesign.ink(context),
                     height: 1.2,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${products.length} products available',
-                  style: const TextStyle(
+                  '${_allProducts.length} products available',
+                  style: TextStyle(
                     fontSize: 12,
-                    color: Color(0xFF64748B),
+                    color: SubcategoryDesign.muted(context),
                     height: 1.2,
                   ),
                 ),
@@ -3259,16 +3407,16 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: const Color(0xFFE8F5E9),
+              color: SubcategoryDesign.countChipBg(context),
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: const Color(0xFFC8E6C9)),
+              border: Border.all(color: SubcategoryDesign.countChipBorder(context)),
             ),
             child: Text(
-              '${products.length}',
-              style: const TextStyle(
+              '${_allProducts.length}',
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF166534),
+                color: SubcategoryDesign.selectedInk(context),
               ),
             ),
           ),
@@ -3283,14 +3431,14 @@ class SubcategoryPageState extends State<SubcategoryPage> {
         ? 'loading'
         : errorMessage.isNotEmpty
             ? 'error'
-            : products.isEmpty
+            : _allProducts.isEmpty
                 ? 'empty'
                 : 'grid';
     if (isLoading) {
       child = buildProductsLoadingState();
     } else if (errorMessage.isNotEmpty) {
       child = buildProductsErrorState();
-    } else if (products.isEmpty) {
+    } else if (_allProducts.isEmpty) {
       child = buildEmptyState();
     } else {
       child = buildProductsGrid();
@@ -3309,6 +3457,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
 
   Widget buildProductsErrorState() {
     return _buildCatalogErrorPanel(
+      context,
       errorMessage: errorMessage,
       onRetry: () {
         setState(() {
@@ -3341,27 +3490,34 @@ class SubcategoryPageState extends State<SubcategoryPage> {
         final childAspectRatio =
             (cellWidth / (imageHeight + footerHeight)).clamp(0.46, 0.82);
 
-        return RefreshIndicator(
-          color: Colors.green.shade700,
-          onRefresh: _refreshSelectedSubcategory,
-          child: GridView.builder(
-          controller: scrollController,
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.fromLTRB(
-            horizontalPadding,
-            14,
-            horizontalPadding,
-            24,
-          ),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            childAspectRatio: childAspectRatio,
-            crossAxisSpacing: spacing,
-            mainAxisSpacing: spacing,
-          ),
-          itemCount: products.length,
-          itemBuilder: (context, index) {
-            final product = products[index];
+        final totalPages =
+            _CategoryProductPagination.totalPages(_allProducts.length);
+
+        return Column(
+          children: [
+            Expanded(
+              child: RefreshIndicator(
+                color: SubcategoryDesign.accent(context),
+                backgroundColor: SubcategoryDesign.contentBg(context),
+                onRefresh: _refreshSelectedSubcategory,
+                child: GridView.builder(
+                  controller: scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    14,
+                    horizontalPadding,
+                    12,
+                  ),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    childAspectRatio: childAspectRatio,
+                    crossAxisSpacing: spacing,
+                    mainAxisSpacing: spacing,
+                  ),
+                  itemCount: products.length,
+                  itemBuilder: (context, index) {
+                    final product = products[index];
             final isHighlighted = highlightedProductId == product['id'];
             final productKey = product['id'] ?? index;
 
@@ -3400,8 +3556,19 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                 ),
               ),
             );
-          },
-          ),
+                  },
+                ),
+              ),
+            ),
+            _buildCategoryProductPaginationBar(
+              context: context,
+              currentPage: _currentProductPage,
+              totalPages: totalPages,
+              totalItems: _allProducts.length,
+              onPrevious: () => _goToProductPage(_currentProductPage - 1),
+              onNext: () => _goToProductPage(_currentProductPage + 1),
+            ),
+          ],
         );
       },
     );
@@ -3423,15 +3590,18 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   Widget buildSubcategoriesLoadingState() {
     return Center(
       child: CircularProgressIndicator(
-        valueColor: AlwaysStoppedAnimation<Color>(Colors.green.shade700),
+        valueColor: AlwaysStoppedAnimation<Color>(
+          SubcategoryDesign.accent(context),
+        ),
       ),
     );
   }
 
   Widget buildProductsLoadingState() {
+    final shimmer = SubcategoryDesign.shimmerColors(context);
     return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
+      baseColor: shimmer.$1,
+      highlightColor: shimmer.$2,
       child: GridView.builder(
         padding: const EdgeInsets.fromLTRB(12, 14, 12, 24),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -3445,8 +3615,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
         itemBuilder: (context, index) {
           return Container(
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.all(Radius.circular(14)),
+              color: context.appColors.surface,
+              borderRadius: const BorderRadius.all(Radius.circular(14)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3455,7 +3625,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                   child: Container(
                     margin: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
+                      color: SubcategoryDesign.imageWellTop(context),
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
@@ -3469,7 +3639,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                         height: 10,
                         width: 48,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
+                          color: SubcategoryDesign.railBorder(context),
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),
@@ -3477,7 +3647,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                       Container(
                         height: 12,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
+                          color: SubcategoryDesign.railBorder(context),
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),
@@ -3486,7 +3656,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                         height: 12,
                         width: 72,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
+                          color: SubcategoryDesign.railBorder(context),
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),
@@ -3503,6 +3673,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
 
   Widget buildErrorState(String message) {
     return _buildCatalogErrorPanel(
+      context,
       errorMessage: message,
       onRetry: () {
         setState(() {
@@ -3522,24 +3693,24 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           Icon(
             Icons.shopping_bag_outlined,
             size: 64,
-            color: Colors.grey.shade400,
+            color: SubcategoryDesign.muted(context),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Text(
             'There is no product available currently',
             style: TextStyle(
               fontSize: 16,
-              color: Colors.grey.shade600,
+              color: SubcategoryDesign.ink(context),
               fontWeight: FontWeight.w500,
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             'Please check back later',
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey.shade500,
+              color: SubcategoryDesign.muted(context),
             ),
             textAlign: TextAlign.center,
           ),
@@ -3581,6 +3752,7 @@ class ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
     if (product is! Map) {
       return const SizedBox.shrink();
     }
@@ -3602,6 +3774,7 @@ class ProductCard extends StatelessWidget {
     final titleSize = compact ? 11.0 : 12.5;
     final priceSize = compact ? 12.0 : 13.0;
     final actionSize = compact ? 24.0 : 28.0;
+    final disabledGradient = SubcategoryDesign.disabledActionGradient(context);
 
     return Material(
       color: Colors.transparent,
@@ -3610,16 +3783,10 @@ class ProductCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(cardRadius),
         child: Ink(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: theme.surface,
             borderRadius: BorderRadius.circular(cardRadius),
-            border: Border.all(color: const Color(0xFFE8ECE9)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            border: Border.all(color: theme.border),
+            boxShadow: SubcategoryDesign.cardShadow(context),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3643,8 +3810,8 @@ class ProductCard extends StatelessWidget {
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                               colors: [
-                                const Color(0xFFF4FAF6),
-                                const Color(0xFFE8F3EC),
+                                SubcategoryDesign.imageWellTop(context),
+                                SubcategoryDesign.imageWellBottom(context),
                               ],
                             ),
                           ),
@@ -3670,25 +3837,25 @@ class ProductCard extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            errorWidget: (_, __, ___) => const Center(
+                            errorWidget: (_, __, ___) => Center(
                               child: Icon(
                                 Icons.medical_services_outlined,
-                                color: Color(0xFFB0BEC5),
+                                color: SubcategoryDesign.placeholderIcon(context),
                                 size: 32,
                               ),
                             ),
                           )
                         else
-                          const Center(
+                          Center(
                             child: Icon(
                               Icons.medical_services_outlined,
-                              color: Color(0xFFB0BEC5),
+                              color: SubcategoryDesign.placeholderIcon(context),
                               size: 32,
                             ),
                           ),
                         if (!inStock)
                           Container(
-                            color: Colors.white.withValues(alpha: 0.55),
+                            color: SubcategoryDesign.outOfStockScrim(context),
                             alignment: Alignment.center,
                             child: Container(
                               padding: const EdgeInsets.symmetric(
@@ -3752,20 +3919,20 @@ class ProductCard extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF0FDF4),
+                          color: SubcategoryDesign.brandChipBg(context),
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(
-                            color: const Color(0xFFBBF7D0),
+                            color: SubcategoryDesign.brandChipBorder(context),
                           ),
                         ),
                         child: Text(
                           brandName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF166534),
+                            color: SubcategoryDesign.selectedInk(context),
                             letterSpacing: 0.2,
                           ),
                         ),
@@ -3777,7 +3944,7 @@ class ProductCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: titleSize,
                         fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1E293B),
+                        color: theme.ink,
                         height: compact ? 1.2 : 1.25,
                       ),
                     ),
@@ -3793,8 +3960,10 @@ class ProductCard extends StatelessWidget {
                               fontSize: priceSize,
                               fontWeight: FontWeight.w700,
                               color: inStock
-                                  ? AppColors.primaryDark
-                                  : Colors.grey.shade500,
+                                  ? (theme.isDark
+                                      ? AppColors.primaryLight
+                                      : AppColors.primaryDark)
+                                  : theme.muted,
                             ),
                           ),
                         ),
@@ -3809,8 +3978,8 @@ class ProductCard extends StatelessWidget {
                                       AppColors.primaryDark,
                                     ]
                                   : [
-                                      Colors.grey.shade300,
-                                      Colors.grey.shade400,
+                                      disabledGradient.$1,
+                                      disabledGradient.$2,
                                     ],
                             ),
                             borderRadius: BorderRadius.circular(compact ? 6 : 8),
@@ -3818,7 +3987,9 @@ class ProductCard extends StatelessWidget {
                           child: Icon(
                             Icons.arrow_forward_rounded,
                             size: compact ? 14 : 16,
-                            color: inStock ? Colors.white : Colors.grey.shade600,
+                            color: inStock
+                                ? Colors.white
+                                : SubcategoryDesign.muted(context),
                           ),
                         ),
                       ],
@@ -3898,6 +4069,8 @@ class ProductListPage extends StatefulWidget {
 
 class ProductListPageState extends State<ProductListPage> {
   List<dynamic> products = [];
+  List<dynamic> _allProducts = [];
+  int _currentProductPage = 0;
   bool isLoading = true;
   String errorMessage = '';
   final ScrollController scrollController = ScrollController();
@@ -3917,15 +4090,52 @@ class ProductListPageState extends State<ProductListPage> {
     super.initState();
     debugPrint('🔍 ProductListPage initState() called');
     fetchProducts();
-    scrollController.addListener(() {
+    scrollController.addListener(_onProductListScroll);
+  }
+
+  void _onProductListScroll() {
+    if (!mounted || !scrollController.hasClients) return;
+
+    final shouldShow = scrollController.offset > 300;
+    if (showScrollToTop != shouldShow) {
       setState(() {
-        showScrollToTop = scrollController.offset > 300;
+        showScrollToTop = shouldShow;
       });
+    }
+  }
+
+  void _applyPagedProducts(List<dynamic> all, {int page = 0}) {
+    _allProducts = all;
+    final total = _CategoryProductPagination.totalPages(all.length);
+    _currentProductPage = page.clamp(0, total - 1);
+    products =
+        _CategoryProductPagination.itemsForPage(all, _currentProductPage);
+  }
+
+  void _goToProductPage(int page) {
+    if (_allProducts.isEmpty || !mounted) return;
+    final total = _CategoryProductPagination.totalPages(_allProducts.length);
+    final safe = page.clamp(0, total - 1);
+    if (safe == _currentProductPage) return;
+    setState(() {
+      _currentProductPage = safe;
+      products = _CategoryProductPagination.itemsForPage(
+        _allProducts,
+        _currentProductPage,
+      );
     });
+    if (scrollController.hasClients) {
+      scrollController.jumpTo(0);
+    }
+  }
+
+  void _ensurePagedThroughProductIndex(int index) {
+    _goToProductPage(_CategoryProductPagination.pageForIndex(index));
   }
 
   @override
   void dispose() {
+    scrollController.removeListener(_onProductListScroll);
     scrollController.dispose();
     highlightTimer?.cancel();
     super.dispose();
@@ -3944,7 +4154,9 @@ class ProductListPageState extends State<ProductListPage> {
       debugPrint('🔍 Using cached products for category ${widget.categoryId}');
       if (mounted) {
         setState(() {
-          products = _listCache[widget.categoryId]!;
+          _applyPagedProducts(
+            List<dynamic>.from(_listCache[widget.categoryId]!),
+          );
           isLoading = false;
           errorMessage = '';
         });
@@ -3959,6 +4171,9 @@ class ProductListPageState extends State<ProductListPage> {
       setState(() {
         isLoading = true;
         errorMessage = '';
+        products = [];
+        _allProducts = [];
+        _currentProductPage = 0;
       });
 
       final result = await _catalogService.subcategoryProductsResult(
@@ -3995,7 +4210,7 @@ class ProductListPageState extends State<ProductListPage> {
               '🔍 WARNING: Category API does not include otcpom field!');
         }
 
-        products = loaded;
+        _allProducts = loaded;
         debugPrint('🔍 About to call _enhanceProductsWithOtcpom()');
         try {
           await _enhanceProductsWithOtcpom();
@@ -4007,6 +4222,7 @@ class ProductListPageState extends State<ProductListPage> {
 
         if (!mounted) return;
         setState(() {
+          _applyPagedProducts(_allProducts);
           isLoading = false;
         });
 
@@ -4043,28 +4259,28 @@ class ProductListPageState extends State<ProductListPage> {
 
     final local = buildLocalCatalogLookupMaps();
     mergeUrlNameFromCatalogMaps(
-      products,
+      _allProducts,
       local.urlByProductId,
       local.urlByNameLower,
     );
 
     final missingIndices = <int>[];
-    for (var i = 0; i < products.length; i++) {
-      if (products[i]['otcpom'] != null &&
-          products[i]['otcpom'].toString().isNotEmpty) {
+    for (var i = 0; i < _allProducts.length; i++) {
+      if (_allProducts[i]['otcpom'] != null &&
+          _allProducts[i]['otcpom'].toString().isNotEmpty) {
         continue;
       }
-      final name = products[i]['name']?.toString().toLowerCase();
+      final name = _allProducts[i]['name']?.toString().toLowerCase();
       final fromLocal = name != null ? local.otcpomByNameLower[name] : null;
       if (fromLocal != null && fromLocal.isNotEmpty) {
-        products[i]['otcpom'] = fromLocal;
+        _allProducts[i]['otcpom'] = fromLocal;
       } else {
         missingIndices.add(i);
       }
     }
 
-    if (products.any((p) => slugForProductDetailPage(p) == null)) {
-      await mergeProductSlugsFromNetwork(products, _catalogService);
+    if (_allProducts.any((p) => slugForProductDetailPage(p) == null)) {
+      await mergeProductSlugsFromNetwork(_allProducts, _catalogService);
     }
 
     if (missingIndices.isNotEmpty) {
@@ -4079,7 +4295,7 @@ class ProductListPageState extends State<ProductListPage> {
 
   Future<void> _fetchOtcpomDataFromAPI(List<int> indices) async {
     await Future.wait(indices.map((i) async {
-      final product = products[i];
+      final product = _allProducts[i];
       final productId = product['id'];
       if (productId == null) return;
       try {
@@ -4093,7 +4309,7 @@ class ProductListPageState extends State<ProductListPage> {
           timeout: const Duration(seconds: 8),
         );
         if (otcpom != null) {
-          products[i]['otcpom'] = otcpom;
+          _allProducts[i]['otcpom'] = otcpom;
         }
       } catch (e) {
         debugPrint(
@@ -4111,11 +4327,12 @@ class ProductListPageState extends State<ProductListPage> {
       });
 
       // Find the index of the searched product
-      final productIndex = products.indexWhere(
+      final productIndex = _allProducts.indexWhere(
         (product) => product['id'] == widget.searchedProductId,
       );
 
       if (productIndex != -1) {
+        _ensurePagedThroughProductIndex(productIndex);
         // Wait for the widget to be built and then scroll
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && scrollController.hasClients) {
@@ -4140,8 +4357,9 @@ class ProductListPageState extends State<ProductListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
     return Scaffold(
-      backgroundColor: Color(0xFFF8F9FA),
+      backgroundColor: theme.pageBg,
       appBar: null,
       body: Column(
         children: [
@@ -4195,7 +4413,7 @@ class ProductListPageState extends State<ProductListPage> {
                           ),
                           const SizedBox(height: 1),
                           Text(
-                            '${products.length} products found',
+                            '${_allProducts.length} products found',
                             style: Theme.of(context)
                                 .textTheme
                                 .bodySmall
@@ -4239,7 +4457,7 @@ class ProductListPageState extends State<ProductListPage> {
                           ),
                           SizedBox(height: 4),
                           Text(
-                            '${products.length} products found',
+                            '${_allProducts.length} products found',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey.shade600,
@@ -4282,64 +4500,84 @@ class ProductListPageState extends State<ProductListPage> {
       return _buildErrorState();
     }
 
-    if (products.isEmpty) {
+    if (_allProducts.isEmpty) {
       return _buildEmptyState();
     }
 
-    return RefreshIndicator(
-      onRefresh: () => fetchProducts(forceRefresh: true),
-      color: Colors.green.shade700,
-      child: GridView.builder(
-        controller: scrollController,
-        physics: AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: MediaQuery.of(context).size.width > 600 ? 3 : 2,
-          childAspectRatio: MediaQuery.of(context).size.width > 600 ? 0.74 : 0.68,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-        ),
-        itemCount: products.length,
-        itemBuilder: (context, index) {
-          final product = products[index];
-          final isHighlighted = highlightedProductId == product['id'];
-          final productKey = product['id'] ?? index;
+    final totalPages =
+        _CategoryProductPagination.totalPages(_allProducts.length);
 
-          return Container(
-            key: ValueKey('list_product_$productKey'),
-            decoration: isHighlighted
-                ? BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.primary, width: 2.5),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.2),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  )
-                : null,
-            child: OpenContainer(
-              transitionType: ContainerTransitionType.fadeThrough,
-              openColor: Theme.of(context).scaffoldBackgroundColor,
-              closedColor: Colors.transparent,
-              closedElevation: 0,
-              openElevation: 0,
-              transitionDuration: Duration(milliseconds: 200),
-              closedShape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+    return Column(
+      children: [
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () => fetchProducts(forceRefresh: true),
+            color: Colors.green.shade700,
+            child: GridView.builder(
+              controller: scrollController,
+              physics: AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount:
+                    MediaQuery.of(context).size.width > 600 ? 3 : 2,
+                childAspectRatio:
+                    MediaQuery.of(context).size.width > 600 ? 0.74 : 0.68,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
               ),
-              openBuilder: (context, _) =>
-                  _CategoryProductDetailRoute(product: product),
-              closedBuilder: (context, openContainer) => ProductCard(
-                product: product,
-                onTap: openContainer,
-              ),
+              itemCount: products.length,
+              itemBuilder: (context, index) {
+                final product = products[index];
+                final isHighlighted = highlightedProductId == product['id'];
+                final productKey = product['id'] ?? index;
+
+                return Container(
+                  key: ValueKey('list_product_$productKey'),
+                  decoration: isHighlighted
+                      ? BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          border:
+                              Border.all(color: AppColors.primary, width: 2.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.2),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        )
+                      : null,
+                  child: OpenContainer(
+                    transitionType: ContainerTransitionType.fadeThrough,
+                    openColor: Theme.of(context).scaffoldBackgroundColor,
+                    closedColor: Colors.transparent,
+                    closedElevation: 0,
+                    openElevation: 0,
+                    transitionDuration: Duration(milliseconds: 200),
+                    closedShape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    openBuilder: (context, _) =>
+                        _CategoryProductDetailRoute(product: product),
+                    closedBuilder: (context, openContainer) => ProductCard(
+                      product: product,
+                      onTap: openContainer,
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
+          ),
+        ),
+        _buildCategoryProductPaginationBar(
+          context: context,
+          currentPage: _currentProductPage,
+          totalPages: totalPages,
+          totalItems: _allProducts.length,
+          onPrevious: () => _goToProductPage(_currentProductPage - 1),
+          onNext: () => _goToProductPage(_currentProductPage + 1),
+        ),
+      ],
     );
   }
 
@@ -4347,40 +4585,14 @@ class ProductListPageState extends State<ProductListPage> {
     return Stack(
       children: [
         const ProductListPageSkeletonBody(),
-        // Add a loading indicator overlay
         Positioned(
           top: 100,
           left: 0,
           right: 0,
           child: Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Loading products...',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
+            child: SubcategoryDesign.loadingOverlayPill(
+              context,
+              'Loading products...',
             ),
           ),
         ),
@@ -4390,6 +4602,7 @@ class ProductListPageState extends State<ProductListPage> {
 
   Widget _buildErrorState() {
     return _buildCatalogErrorPanel(
+      context,
       errorMessage: errorMessage,
       onRetry: () {
         setState(() {

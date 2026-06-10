@@ -128,7 +128,17 @@ class WishlistItem {
     }
 
     // Create product using Product.fromJson
-    final product = Product.fromJson(productData);
+    var product = Product.fromJson(productData);
+
+    final rootProductId = json['product_id'];
+    final resolvedId = product.id > 0
+        ? product.id
+        : (rootProductId is int
+            ? rootProductId
+            : int.tryParse(rootProductId?.toString() ?? '') ?? 0);
+    if (resolvedId > 0 && resolvedId != product.id) {
+      product = product.copyWith(id: resolvedId);
+    }
 
     return WishlistItem(
       id: wishlistItemId,

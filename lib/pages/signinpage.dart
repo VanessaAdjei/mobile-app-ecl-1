@@ -23,6 +23,9 @@ class SignInScreen extends StatefulWidget {
 }
 
 class SignInScreenState extends State<SignInScreen> {
+  static const Color _fieldTextColor = Color(0xFF1F2937);
+  static const Color _fieldHintColor = Color(0xFF6B7280);
+
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -599,10 +602,15 @@ class SignInScreenState extends State<SignInScreen> {
                           TextFormField(
                             controller: _emailController,
                             autofillHints: const [AutofillHints.email],
+                            style: const TextStyle(
+                              color: _fieldTextColor,
+                              fontSize: 14,
+                            ),
+                            cursorColor: Colors.green.shade700,
                             decoration: InputDecoration(
                               hintText: 'Enter your email address',
-                              hintStyle: TextStyle(
-                                color: Colors.grey.shade500,
+                              hintStyle: const TextStyle(
+                                color: _fieldHintColor,
                                 fontSize: 13,
                               ),
                               prefixIcon: Icon(
@@ -663,10 +671,15 @@ class SignInScreenState extends State<SignInScreen> {
                           TextFormField(
                             controller: _passwordController,
                             obscureText: _obscurePassword,
+                            style: const TextStyle(
+                              color: _fieldTextColor,
+                              fontSize: 14,
+                            ),
+                            cursorColor: Colors.green.shade700,
                             decoration: InputDecoration(
                               hintText: 'Enter your password',
-                              hintStyle: TextStyle(
-                                color: Colors.grey.shade500,
+                              hintStyle: const TextStyle(
+                                color: _fieldHintColor,
                                 fontSize: 13,
                               ),
                               prefixIcon: Icon(

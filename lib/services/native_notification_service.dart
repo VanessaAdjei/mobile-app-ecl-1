@@ -367,18 +367,6 @@ class NativeNotificationService {
     }
   }
 
-  /// Test notification
-  static Future<void> testNotification() async {
-    await showNotification(
-      title: 'Test Notification 📱',
-      body: 'This is a test notification from Ernest Chemist!',
-      payload: json.encode({
-        'type': 'test',
-        'message': 'Test notification',
-      }),
-    );
-  }
-
   /// Get notification payload when app is opened from notification
   static Future<String?> getNotificationPayload() async {
     try {

@@ -1,4 +1,5 @@
 import 'package:eclapp/models/order_status_step.dart';
+import 'package:eclapp/utils/app_theme_colors.dart';
 import 'package:eclapp/utils/order_timestamp_parser.dart';
 import 'package:eclapp/widgets/post_checkout/post_checkout_design.dart';
 import 'dart:async';
@@ -50,7 +51,7 @@ class PostCheckoutOrderProgressCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      decoration: PostCheckoutDesign.compactCard(),
+      decoration: PostCheckoutDesign.compactCard(context),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(11),
         child: Stack(
@@ -125,6 +126,7 @@ class _OrderProgressHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appColors;
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 12, 11),
       decoration: BoxDecoration(
@@ -132,12 +134,12 @@ class _OrderProgressHeader extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            PostCheckoutDesign.accentLight.withValues(alpha: 0.85),
-            Colors.white,
+            PostCheckoutDesign.accentLight(context).withValues(alpha: 0.85),
+            t.surface,
           ],
         ),
         border: Border(
-          bottom: BorderSide(color: PostCheckoutDesign.border),
+          bottom: BorderSide(color: PostCheckoutDesign.border(context)),
         ),
       ),
       child: Column(
@@ -150,7 +152,7 @@ class _OrderProgressHeader extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: t.surface,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: accent.withValues(alpha: 0.18)),
                   boxShadow: [
@@ -177,7 +179,7 @@ class _OrderProgressHeader extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: PostCheckoutDesign.ink,
+                        color: PostCheckoutDesign.ink(context),
                         letterSpacing: -0.25,
                         height: 1.1,
                       ),
@@ -188,7 +190,7 @@ class _OrderProgressHeader extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
-                        color: PostCheckoutDesign.muted,
+                        color: PostCheckoutDesign.muted(context),
                         height: 1.25,
                       ),
                       maxLines: 1,
@@ -201,7 +203,7 @@ class _OrderProgressHeader extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: t.surface,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: accent.withValues(alpha: 0.2)),
                 ),
@@ -214,7 +216,7 @@ class _OrderProgressHeader extends StatelessWidget {
                         fontSize: 7,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.8,
-                        color: PostCheckoutDesign.muted,
+                        color: PostCheckoutDesign.muted(context),
                       ),
                     ),
                     const SizedBox(height: 1),
@@ -235,7 +237,7 @@ class _OrderProgressHeader extends StatelessWidget {
                             style: GoogleFonts.poppins(
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
-                              color: PostCheckoutDesign.muted,
+                              color: PostCheckoutDesign.muted(context),
                               height: 1,
                             ),
                           ),
@@ -256,7 +258,7 @@ class _OrderProgressHeader extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  ColoredBox(color: PostCheckoutDesign.border),
+                  ColoredBox(color: PostCheckoutDesign.border(context)),
                   FractionallySizedBox(
                     alignment: Alignment.centerLeft,
                     widthFactor: progress.clamp(0.0, 1.0),
@@ -386,6 +388,7 @@ class _ProgressStepRowState extends State<_ProgressStepRow> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appColors;
     final done = step.isCompleted;
     final current = step.isCurrent;
     final pending = !done && !current;
@@ -446,7 +449,7 @@ class _ProgressStepRowState extends State<_ProgressStepRow> {
                 ),
                 decoration: current
                     ? BoxDecoration(
-                        color: Colors.white,
+                        color: t.surface,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: accent.withValues(alpha: 0.2),
@@ -475,11 +478,11 @@ class _ProgressStepRowState extends State<_ProgressStepRow> {
                                   current ? FontWeight.w600 : FontWeight.w500,
                               letterSpacing: current ? -0.2 : 0,
                               color: pending
-                                  ? PostCheckoutDesign.muted
+                                  ? PostCheckoutDesign.muted(context)
                                       .withValues(alpha: 0.5)
                                   : done
-                                      ? PostCheckoutDesign.muted
-                                      : PostCheckoutDesign.ink,
+                                      ? PostCheckoutDesign.muted(context)
+                                      : PostCheckoutDesign.ink(context),
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -493,7 +496,7 @@ class _ProgressStepRowState extends State<_ProgressStepRow> {
                               style: GoogleFonts.poppins(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w500,
-                                color: PostCheckoutDesign.muted,
+                                color: PostCheckoutDesign.muted(context),
                                 height: 1.2,
                               ),
                               maxLines: 1,
@@ -525,7 +528,7 @@ class _ProgressStepRowState extends State<_ProgressStepRow> {
                                   '·',
                                   style: GoogleFonts.poppins(
                                     fontSize: 11,
-                                    color: PostCheckoutDesign.muted,
+                                    color: PostCheckoutDesign.muted(context),
                                   ),
                                 ),
                               ),
@@ -537,7 +540,7 @@ class _ProgressStepRowState extends State<_ProgressStepRow> {
                                 hint,
                                 style: GoogleFonts.poppins(
                                   fontSize: 10,
-                                  color: PostCheckoutDesign.muted,
+                                  color: PostCheckoutDesign.muted(context),
                                   height: 1.3,
                                 ),
                                 maxLines: 1,
@@ -585,7 +588,7 @@ class _TimelineConnector extends StatelessWidget {
                   ],
                 )
               : null,
-          color: filled ? null : PostCheckoutDesign.border,
+          color: filled ? null : PostCheckoutDesign.border(context),
         ),
       ),
     );
@@ -645,14 +648,14 @@ class _StepNode extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: PostCheckoutDesign.pageBg,
+        color: PostCheckoutDesign.pageBg(context),
         shape: BoxShape.circle,
-        border: Border.all(color: PostCheckoutDesign.border),
+        border: Border.all(color: PostCheckoutDesign.border(context)),
       ),
       child: Icon(
         icon,
         size: 12,
-        color: PostCheckoutDesign.muted.withValues(alpha: 0.45),
+        color: PostCheckoutDesign.muted(context).withValues(alpha: 0.45),
       ),
     );
   }

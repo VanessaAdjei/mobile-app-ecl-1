@@ -3,11 +3,11 @@
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../config/api_config.dart';
+import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../models/product_model.dart';
 import '../services/auth_service.dart';
@@ -16,7 +16,8 @@ import 'itemdetail.dart';
 import 'package:shimmer/shimmer.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_typeahead/flutter_typeahead.dart';
+import 'package:eclapp/widgets/safe_typeahead_field.dart';
+import 'package:eclapp/widgets/typeahead_box_style.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'search_results_page.dart';
 import 'dart:convert';
@@ -28,8 +29,6 @@ import '../services/product_image_preload_service.dart';
 import '../services/homepage_optimization_service.dart';
 import '../widgets/empty_state.dart';
 import 'section_products_page.dart';
-import 'package:animations/animations.dart';
-import 'package:visibility_detector/visibility_detector.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/native_notification_service.dart';
@@ -37,9 +36,11 @@ import '../services/native_notification_service.dart';
 import '../widgets/clearance_sale_banner.dart';
 import '../widgets/home/home_promo_banner_carousel.dart';
 import '../widgets/home/home_popular_products_strip.dart';
+import '../utils/product_tap_guard.dart';
 import '../services/category_optimization_service.dart';
 import '../services/product_catalog_service.dart';
 import '../utils/product_detail_navigation.dart';
+import '../utils/app_theme_colors.dart';
 import '../utils/app_error_utils.dart';
 import 'categories.dart';
 import '../cache/product_cache.dart';
@@ -48,6 +49,25 @@ import '../utils/catalog_timer.dart';
 export '../cache/product_cache.dart';
 
 const String prescribedShieldAsset = 'assets/images/prescribed_shield.png';
+
+TextStyle _homePoppins({
+  double? fontSize,
+  FontWeight? fontWeight,
+  Color? color,
+  double? height,
+  double? letterSpacing,
+  FontStyle? fontStyle,
+}) {
+  return TextStyle(
+    fontFamily: 'Poppins',
+    fontSize: fontSize,
+    fontWeight: fontWeight,
+    color: color,
+    height: height,
+    letterSpacing: letterSpacing,
+    fontStyle: fontStyle,
+  );
+}
 
 class ImagePreloader {
   static final Map<String, bool> _preloadedImages = {};
@@ -123,112 +143,6 @@ Map<String, List<Product>> categorizeProductsForHome(List<Product> allProducts) 
 Map<String, List<Product>> _processProductsIsolate(List<Product> allProducts) =>
     categorizeProductsForHome(allProducts);
 
-class SafeTypeAheadField extends StatefulWidget {
-  final TextEditingController controller;
-  final Function(String) onSubmitted;
-  final Future<List<Product>> Function(String) suggestionsCallback;
-  final Widget Function(BuildContext, Product) itemBuilder;
-  final Function(Product) onSuggestionSelected;
-  final Widget Function(BuildContext)? noItemsFoundBuilder;
-  final bool hideOnEmpty;
-  final bool hideOnLoading;
-  final Duration debounceDuration;
-  final SuggestionsBoxDecoration suggestionsBoxDecoration;
-  final double suggestionsBoxVerticalOffset;
-  final SuggestionsBoxController? suggestionsBoxController;
-
-  const SafeTypeAheadField({
-    super.key,
-    required this.controller,
-    required this.onSubmitted,
-    required this.suggestionsCallback,
-    required this.itemBuilder,
-    required this.onSuggestionSelected,
-    this.noItemsFoundBuilder,
-    this.hideOnEmpty = true,
-    this.hideOnLoading = false,
-    this.debounceDuration = const Duration(milliseconds: 300),
-    required this.suggestionsBoxDecoration,
-    this.suggestionsBoxVerticalOffset = 0,
-    this.suggestionsBoxController,
-  });
-
-  @override
-  State<SafeTypeAheadField> createState() => _SafeTypeAheadFieldState();
-}
-
-class _SafeTypeAheadFieldState extends State<SafeTypeAheadField> {
-  bool _isDisposed = false;
-
-  @override
-  void dispose() {
-    _isDisposed = true;
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isDisposed || !mounted) return const SizedBox.shrink();
-
-    try {
-      return TypeAheadField<Product>(
-        textFieldConfiguration: TextFieldConfiguration(
-          controller: widget.controller,
-          decoration: InputDecoration(
-            hintText: 'Search medicines, products...',
-            prefixIcon: const Icon(Icons.search, color: Colors.grey),
-            filled: true,
-            fillColor: Colors.grey[100],
-            suffixIcon: widget.controller.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      if (mounted && !_isDisposed) {
-                        widget.controller.clear();
-                        setState(() {});
-                      }
-                    },
-                  )
-                : null,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(30),
-              borderSide: BorderSide.none,
-            ),
-            contentPadding: const EdgeInsets.symmetric(vertical: 12),
-          ),
-          onSubmitted: (value) {
-            if (mounted && !_isDisposed) widget.onSubmitted(value);
-          },
-        ),
-        suggestionsCallback: (pattern) async {
-          if (pattern.isEmpty || !mounted || _isDisposed) return [];
-          try {
-            return await widget.suggestionsCallback(pattern);
-          } catch (e) {
-            return [];
-          }
-        },
-        itemBuilder: (context, suggestion) {
-          if (!mounted || _isDisposed) return const SizedBox.shrink();
-          return widget.itemBuilder(context, suggestion);
-        },
-        onSuggestionSelected: (suggestion) {
-          if (mounted && !_isDisposed) widget.onSuggestionSelected(suggestion);
-        },
-        noItemsFoundBuilder: widget.noItemsFoundBuilder,
-        hideOnEmpty: widget.hideOnEmpty,
-        hideOnLoading: widget.hideOnLoading,
-        debounceDuration: widget.debounceDuration,
-        suggestionsBoxDecoration: widget.suggestionsBoxDecoration,
-        suggestionsBoxVerticalOffset: widget.suggestionsBoxVerticalOffset,
-        suggestionsBoxController: widget.suggestionsBoxController,
-      );
-    } catch (e) {
-      return const SizedBox.shrink();
-    }
-  }
-}
-
 class ErrorDisplayWidget extends StatelessWidget {
   final VoidCallback? onRetry;
 
@@ -236,20 +150,21 @@ class ErrorDisplayWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.wifi_off_rounded, size: 50, color: Colors.grey[400]),
+          Icon(Icons.wifi_off_rounded, size: 50, color: theme.muted),
           const SizedBox(height: 16),
           Text('No Internet Connection',
             style: TextStyle(
               fontSize: 16,
-              color: Colors.grey[700],
+              color: theme.ink,
                   fontWeight: FontWeight.w500)),
           const SizedBox(height: 8),
           Text('Please check your connection and try again',
-              style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+              style: TextStyle(fontSize: 14, color: theme.muted)),
           if (onRetry != null) ...[
             const SizedBox(height: 16),
             TextButton.icon(
@@ -274,8 +189,8 @@ class SliverSearchBarDelegate extends SliverPersistentHeaderDelegate {
       BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
       color: shrinkOffset > 0
-          ? Theme.of(context).appBarTheme.backgroundColor
-          : Colors.white,
+          ? AppThemeColors.headerBackground
+          : Theme.of(context).scaffoldBackgroundColor,
       child: builder(shrinkOffset),
     );
   }
@@ -1111,7 +1026,6 @@ class HomePageState extends State<HomePage>
         );
         if (granted) {
           unawaited(prefs.setBool('notification_prompt_attempted', true));
-          await NativeNotificationService.testNotification();
         }
       }
 
@@ -1138,6 +1052,8 @@ class HomePageState extends State<HomePage>
 
   Future<void> _runSpotlightTourWithRetry() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+
     final justFinished = prefs.getBool('just_finished_onboarding') ?? false;
     final forceTour =
         justFinished || !(prefs.getBool('has_seen_smart_tips') ?? false);
@@ -1154,12 +1070,14 @@ class HomePageState extends State<HomePage>
         await Future<void>.delayed(
           Duration(milliseconds: justFinished ? 80 : 350 * (attempt + 1)),
         );
+        if (!mounted) return;
         continue;
       }
       if (attempt > 0) {
         await Future<void>.delayed(
           Duration(milliseconds: justFinished ? 120 : 400 * attempt),
         );
+        if (!mounted) return;
       }
       final shown = await HomePageTour.maybeStart(
         context: context,
@@ -1175,6 +1093,7 @@ class HomePageState extends State<HomePage>
         scrollController: _scrollController,
         force: forceTour && attempt == 0,
       );
+      if (!mounted) return;
       if (shown) {
         if (justFinished) {
           await prefs.setBool('just_finished_onboarding', false);
@@ -1814,12 +1733,12 @@ class HomePageState extends State<HomePage>
                       const SizedBox(width: 8),
                 Column(children: [
                   Text("We're Here to Help!",
-                            style: GoogleFonts.poppins(
+                            style: _homePoppins(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                           color: Colors.grey.shade800)),
                   Text('Choose your preferred way to get in touch',
-                            style: GoogleFonts.poppins(
+                            style: _homePoppins(
                               fontSize: 11,
                               color: Colors.grey.shade600,
                           height: 1.1)),
@@ -1912,13 +1831,13 @@ class HomePageState extends State<HomePage>
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title,
-                    style: GoogleFonts.poppins(
+                    style: _homePoppins(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: Colors.grey.shade800)),
               const SizedBox(height: 2),
               Text(subtitle,
-                    style: GoogleFonts.poppins(
+                    style: _homePoppins(
                       fontSize: 12, color: Colors.grey.shade600, height: 1.2)),
               const SizedBox(height: 4),
                   Container(
@@ -1927,7 +1846,7 @@ class HomePageState extends State<HomePage>
                       color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6)),
                 child: Text(phone,
-                      style: GoogleFonts.poppins(
+                      style: _homePoppins(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
                         color: color)),
@@ -1956,17 +1875,17 @@ class HomePageState extends State<HomePage>
               Icon(Icons.email_outlined, color: Colors.green.shade600),
               const SizedBox(width: 8),
           Text('Email Not Available',
-                style: GoogleFonts.poppins(
+                style: _homePoppins(
                   fontSize: 18, fontWeight: FontWeight.w600)),
         ]),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
               Text(
                 'No email app found on your device. Here are alternative ways to contact us:',
-                style: GoogleFonts.poppins(
+                style: _homePoppins(
                   fontSize: 14, color: Colors.grey.shade700)),
               const SizedBox(height: 16),
           Text('Email Address:',
-                style: GoogleFonts.poppins(
+                style: _homePoppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: Colors.grey.shade800)),
@@ -1980,7 +1899,7 @@ class HomePageState extends State<HomePage>
             child: Row(children: [
                     Expanded(
                   child: Text(email,
-                        style: GoogleFonts.poppins(
+                        style: _homePoppins(
                           fontSize: 14,
                           color: Colors.green.shade700,
                           fontWeight: FontWeight.w500))),
@@ -2008,7 +1927,7 @@ class HomePageState extends State<HomePage>
               const SizedBox(height: 12),
               Text(
                 'You can copy the email address and use it in your preferred email app.',
-                style: GoogleFonts.poppins(
+                style: _homePoppins(
                   fontSize: 12,
                   color: Colors.grey.shade600,
                   fontStyle: FontStyle.italic)),
@@ -2017,7 +1936,7 @@ class HomePageState extends State<HomePage>
             TextButton(
               onPressed: () => Navigator.pop(context),
             child: Text('OK',
-                style: GoogleFonts.poppins(
+                style: _homePoppins(
                     color: Colors.green.shade600, fontWeight: FontWeight.w600)),
           ),
         ],
@@ -2050,6 +1969,7 @@ class HomePageState extends State<HomePage>
     // Only block on catalog — product cards show placeholders while images warm.
     final shouldShowSkeleton = _products.isEmpty;
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: shouldShowSkeleton
           ? _buildSkeletonWithLoading(
               loadingImages:
@@ -2131,7 +2051,7 @@ class HomePageState extends State<HomePage>
     final primary = Theme.of(context).colorScheme.primary;
 
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).scaffoldBackgroundColor,
       child: LayoutBuilder(builder: (context, constraints) {
         final screenWidth = constraints.maxWidth;
         final isTablet = screenWidth >= 600;
@@ -2146,12 +2066,13 @@ class HomePageState extends State<HomePage>
             SmartRefresher(
           controller: _refreshController,
           onRefresh: _handleRefresh,
-          child: CustomScrollView(
+          child: ProductTapScrollScope(
+            child: CustomScrollView(
             controller: _scrollController,
             slivers: [
               SliverAppBar(
                 automaticallyImplyLeading: false,
-                backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+                backgroundColor: AppThemeColors.headerBackground,
                 toolbarHeight: isTablet ? 80 : 60,
                 floating: false,
                 pinned: false,
@@ -2267,7 +2188,7 @@ class HomePageState extends State<HomePage>
                               Expanded(
                                 child: Text(
                                   'Popular right now',
-                                  style: GoogleFonts.poppins(
+                                  style: _homePoppins(
                                     color: Colors.white,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
@@ -2327,6 +2248,7 @@ class HomePageState extends State<HomePage>
             ],
           ),
         ),
+        ),
             if (_isBackgroundRefreshing)
               Positioned(
                 top: 0,
@@ -2357,8 +2279,19 @@ class HomePageState extends State<HomePage>
         child: Builder(builder: (context) {
           if (!mounted) return const SizedBox.shrink();
             try {
-              return SafeTypeAheadField(
+              return SafeTypeAheadField<Product>(
                 controller: _searchController,
+                suffixIconBuilder: (controller) => controller.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          if (mounted) {
+                            controller.clear();
+                            setState(() {});
+                          }
+                        },
+                      )
+                    : null,
                 onSubmitted: (value) {
                   if (value.trim().isNotEmpty) {
                   _pushOnce(
@@ -2411,7 +2344,7 @@ class HomePageState extends State<HomePage>
                       child: ListTile(
                         leading: Icon(Icons.list, color: Colors.green[700]),
                       title: Text('View All Results',
-                          style: GoogleFonts.poppins(
+                          style: _homePoppins(
                             color: Colors.green[700],
                               fontWeight: FontWeight.bold)),
                       ),
@@ -2428,7 +2361,7 @@ class HomePageState extends State<HomePage>
                     margin:
                         const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.appColors.surface,
                       borderRadius: BorderRadius.circular(9),
                       boxShadow: [
                         BoxShadow(
@@ -2437,7 +2370,7 @@ class HomePageState extends State<HomePage>
                             offset: const Offset(0, 1))
                       ],
                       border: Border.all(
-                          color: Colors.grey.withValues(alpha: 0.06))),
+                          color: context.appColors.border)),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(9),
                       onTap: () {
@@ -2499,10 +2432,10 @@ class HomePageState extends State<HomePage>
                                 Text(suggestion.name,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.poppins(
+                                    style: _homePoppins(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600,
-                                        color: Colors.black87)),
+                                        color: context.appColors.ink)),
                               ]),
                         ),
                       ]),
@@ -2534,16 +2467,16 @@ class HomePageState extends State<HomePage>
                     ).then((_) => _clearSearch());
                   }
                 },
-                noItemsFoundBuilder: (context) => Padding(
+                emptyBuilder: (context) => Padding(
                 padding: const EdgeInsets.all(12),
                   child: Text('No products found',
-                      style: TextStyle(color: Colors.grey)),
+                      style: TextStyle(color: context.appColors.muted)),
                 ),
                 hideOnEmpty: true,
                 hideOnLoading: false,
               debounceDuration: const Duration(milliseconds: 250),
-                suggestionsBoxDecoration: SuggestionsBoxDecoration(
-                  color: Colors.white,
+                boxStyle: TypeAheadBoxStyle(
+                  color: context.appColors.surface,
                   borderRadius: BorderRadius.circular(isTablet ? 24 : 18),
                   elevation: isTablet ? 15 : 10,
                 ),
@@ -2597,7 +2530,7 @@ class HomePageState extends State<HomePage>
                     const SizedBox(width: 8),
                     Expanded(
               child: Text('Shop',
-                        style: GoogleFonts.poppins(
+                        style: _homePoppins(
                           color: Colors.white,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -2613,7 +2546,7 @@ class HomePageState extends State<HomePage>
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Text('See all',
-                                style: GoogleFonts.poppins(
+                                style: _homePoppins(
                                   color: Colors.white,
                                   fontSize: 12,
                             fontWeight: FontWeight.w600)),
@@ -2638,13 +2571,17 @@ class HomePageState extends State<HomePage>
               itemBuilder: (_, __) => Container(
                     margin: const EdgeInsets.only(right: 8),
                     child: Shimmer.fromColors(
-                      baseColor: Colors.grey[300]!,
-                      highlightColor: Colors.grey[100]!,
+                      baseColor: context.appColors.isDark
+                          ? Colors.grey.shade800
+                          : Colors.grey.shade300,
+                      highlightColor: context.appColors.isDark
+                          ? Colors.grey.shade700
+                          : Colors.grey.shade100,
                       child: Container(
                         width: 90,
                         height: 38,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.appColors.surface,
                           borderRadius: BorderRadius.circular(19))),
                         ),
                       ),
@@ -2665,6 +2602,7 @@ class HomePageState extends State<HomePage>
                 final category = _categories[index];
                 final categoryName = category['name'] ?? '';
                 final hasSubcategories = _categoryHasSubcategories(category);
+                final theme = context.appColors;
                 return Container(
                   margin: const EdgeInsets.only(right: 8),
                   child: Material(
@@ -2692,22 +2630,26 @@ class HomePageState extends State<HomePage>
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: theme.surface,
                           borderRadius: BorderRadius.circular(19),
                           border: Border.all(
-                            color: Colors.green.shade700, width: 1.5),
+                            color: AppThemeColors.headerBackground,
+                            width: 1.5),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
+                              color: Colors.black.withValues(
+                                  alpha: theme.isDark ? 0.25 : 0.05),
                               blurRadius: 6,
                               offset: const Offset(0, 2))
                           ],
                         ),
                       child: Text(categoryName,
-                            style: GoogleFonts.poppins(
+                            style: _homePoppins(
                               fontSize: isTablet ? 12 : 11,
                               fontWeight: FontWeight.w600,
-                              color: Colors.green.shade800,
+                              color: theme.isDark
+                                  ? Colors.white
+                                  : Colors.green.shade800,
                               letterSpacing: 0.1)),
                       ),
                     ),
@@ -2737,6 +2679,7 @@ class HomePageState extends State<HomePage>
 
   // ─── Special offers ────────────────────────────────────────────────────────
   Widget _buildSpecialOffers() {
+    final theme = context.appColors;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const SizedBox(height: 12),
         Container(
@@ -2744,7 +2687,7 @@ class HomePageState extends State<HomePage>
         decoration:
             BoxDecoration(borderRadius: BorderRadius.circular(12), boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
+                color: Colors.black.withValues(alpha: theme.isDark ? 0.35 : 0.1),
                 blurRadius: 8,
               offset: const Offset(0, 4))
         ]),
@@ -2757,28 +2700,28 @@ class HomePageState extends State<HomePage>
               Container(
                 width: double.infinity,
             padding: const EdgeInsets.all(12),
-            decoration: const BoxDecoration(
-                  color: Colors.white,
+            decoration: BoxDecoration(
+                  color: theme.surface,
                   borderRadius:
-                    BorderRadius.vertical(bottom: Radius.circular(12))),
+                    const BorderRadius.vertical(bottom: Radius.circular(12))),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('SPECIAL OFFER: FREE DELIVERY + 5% OFF',
-                      style: GoogleFonts.poppins(
-                        color: Colors.green[700],
+                      style: _homePoppins(
+                        color: AppColors.primaryLight,
                         fontWeight: FontWeight.bold,
                       fontSize: 14)),
               const SizedBox(height: 4),
               Text('Free delivery on GHS 150+ · 5% off on GHS 500+',
                       style: TextStyle(
-                        color: Colors.grey[800],
+                        color: theme.ink,
                         fontSize: 12,
                       fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
                     Text(
                       'Enjoy free delivery for orders of GHS 150 and above, plus 5% off all orders of GHS 500 and above.',
                       style: TextStyle(
-                      color: Colors.grey[600], fontSize: 11, height: 1.3)),
+                      color: theme.muted, fontSize: 11, height: 1.3)),
             ]),
           ),
         ]),
@@ -2838,9 +2781,10 @@ class HomePageState extends State<HomePage>
                     const SizedBox(width: 8),
                     Flexible(
                         child:
-                            buildSectionHeading(title, color, hideIcon: true)),
+                            buildSectionHeading(context, title, color,
+                                hideIcon: true)),
                   ])
-                : buildSectionHeading(title, color),
+                : buildSectionHeading(context, title, color),
               ),
               TextButton(
                 onPressed: () {
@@ -2877,7 +2821,7 @@ class HomePageState extends State<HomePage>
           mainAxisSpacing: isTablet ? 8 : 0,
           crossAxisSpacing: isTablet ? 8 : 0,
         ),
-        itemBuilder: (context, index) => AnimatedVisibilityProductCard(
+        itemBuilder: (context, index) => HomeProductCard(
               key: ValueKey(
                 'home-$_homeImageWarmGeneration-'
                 '${products[index].id}-'
@@ -2887,6 +2831,8 @@ class HomePageState extends State<HomePage>
               fontSize: fontSize * 1.1,
               padding: padding * 0.8,
               imageHeight: imageHeight * 0.85,
+              showWishlistButton: true,
+              showHero: false,
         ),
       ),
         if (products.isEmpty)
@@ -2904,14 +2850,19 @@ class HomePageSkeletonBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isTablet = MediaQuery.of(context).size.width > 600;
+    final theme = context.appColors;
+    final shimmerBase =
+        theme.isDark ? Colors.grey.shade800 : Colors.grey.shade300;
+    final shimmerHighlight =
+        theme.isDark ? Colors.grey.shade700 : Colors.grey.shade100;
 
     return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
+      baseColor: shimmerBase,
+      highlightColor: shimmerHighlight,
       child: CustomScrollView(slivers: [
           SliverAppBar(
           automaticallyImplyLeading: false,
-          backgroundColor: const Color(0xFF4CAF50),
+          backgroundColor: AppThemeColors.headerBackground,
           toolbarHeight: isTablet ? 80 : 60,
           flexibleSpace: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -2942,7 +2893,7 @@ class HomePageSkeletonBody extends StatelessWidget {
               height: isTablet ? 220 : 140,
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.surface,
                   borderRadius: BorderRadius.circular(12))),
         ),
           SliverToBoxAdapter(
@@ -2957,7 +2908,7 @@ class HomePageSkeletonBody extends StatelessWidget {
                       height: isTablet ? 110 : 90,
                       margin: const EdgeInsets.symmetric(horizontal: 4),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: theme.surface,
                           borderRadius: BorderRadius.circular(12))),
               ),
             ),
@@ -2972,7 +2923,7 @@ class HomePageSkeletonBody extends StatelessWidget {
                 width: 120,
                 height: 20,
                 decoration: BoxDecoration(
-                color: Colors.white,
+                color: theme.surface,
                     borderRadius: BorderRadius.circular(4))),
               ),
             ),
@@ -2989,14 +2940,14 @@ class HomePageSkeletonBody extends StatelessWidget {
                   Container(
                       width: 60,
                       height: 60,
-                    decoration: const BoxDecoration(
-                          color: Colors.white, shape: BoxShape.circle)),
+                    decoration: BoxDecoration(
+                          color: theme.surface, shape: BoxShape.circle)),
                   const SizedBox(height: 6),
                   Container(
                       width: 60,
                       height: 12,
                       decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: theme.surface,
                           borderRadius: BorderRadius.circular(4))),
                 ]),
                     ),
@@ -3013,13 +2964,13 @@ class HomePageSkeletonBody extends StatelessWidget {
                       width: 150,
                       height: 24,
                       decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: theme.surface,
                           borderRadius: BorderRadius.circular(4))),
                   Container(
                       width: 60,
                       height: 20,
                       decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: theme.surface,
                           borderRadius: BorderRadius.circular(4))),
                 ]),
           ),
@@ -3027,8 +2978,8 @@ class HomePageSkeletonBody extends StatelessWidget {
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           sliver: SliverGrid(
-            delegate: SliverChildBuilderDelegate(
-              (_, __) => _buildProductCardSkeleton(),
+              delegate: SliverChildBuilderDelegate(
+              (_, __) => _buildProductCardSkeleton(theme),
               childCount: isTablet ? 9 : 6,
             ),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -3044,17 +2995,18 @@ class HomePageSkeletonBody extends StatelessWidget {
     );
   }
 
-  Widget _buildProductCardSkeleton() {
+  Widget _buildProductCardSkeleton(AppThemeColors theme) {
+    final block = theme.isDark ? Colors.grey.shade700 : Colors.grey.shade200;
     return Container(
       margin: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(12)),
+          color: theme.surface, borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
           flex: 3,
                   child: Container(
               decoration: BoxDecoration(
-                    color: Colors.grey[200],
+                    color: block,
                   borderRadius:
                       const BorderRadius.vertical(top: Radius.circular(12)))),
         ),
@@ -3070,14 +3022,14 @@ class HomePageSkeletonBody extends StatelessWidget {
                       width: double.infinity,
                       height: 12,
                       decoration: BoxDecoration(
-                          color: Colors.grey[200],
+                          color: block,
                           borderRadius: BorderRadius.circular(4))),
                   const SizedBox(height: 4),
                 Container(
                   width: 80,
                   height: 12,
                   decoration: BoxDecoration(
-                    color: Colors.grey[200],
+                    color: block,
                           borderRadius: BorderRadius.circular(4))),
                   const Spacer(),
                   Row(
@@ -3087,13 +3039,13 @@ class HomePageSkeletonBody extends StatelessWidget {
                   width: 60,
                             height: 16,
                   decoration: BoxDecoration(
-                                color: Colors.grey[200],
+                                color: block,
                                 borderRadius: BorderRadius.circular(4))),
                         Container(
                             width: 32,
                             height: 32,
                             decoration: BoxDecoration(
-                                color: Colors.grey[200],
+                                color: block,
                                 shape: BoxShape.circle)),
                       ]),
                 ]),
@@ -3117,12 +3069,12 @@ class _SearchBarSkeletonDelegate extends SliverPersistentHeaderDelegate {
   Widget build(
       BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
-      color: Colors.white,
+      color: Theme.of(context).scaffoldBackgroundColor,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Container(
           height: isTablet ? 55 : 50,
           decoration: BoxDecoration(
-              color: Colors.grey[200],
+              color: context.appColors.skeleton,
               borderRadius: BorderRadius.circular(25))),
     );
   }
@@ -3140,7 +3092,13 @@ String getProductImageUrl(String? url) {
   return ApiConfig.getImageOrStorageUrl(url);
 }
 
-Widget buildSectionHeading(String title, Color color, {bool hideIcon = false}) {
+Widget buildSectionHeading(
+  BuildContext context,
+  String title,
+  Color color, {
+  bool hideIcon = false,
+}) {
+  final ink = context.appColors.ink;
   String? assetPath;
   switch (title.toLowerCase()) {
     case 'medication':
@@ -3189,10 +3147,10 @@ Widget buildSectionHeading(String title, Color color, {bool hideIcon = false}) {
     Flexible(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(title,
-              style: GoogleFonts.poppins(
+              style: _homePoppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.black87,
+                color: ink,
                 letterSpacing: 0.2),
             overflow: TextOverflow.ellipsis,
             maxLines: 1),
@@ -3254,7 +3212,7 @@ Widget buildCapsuleHeading(String title, Color color) {
           Icon(_getIconForSection(title), color: color, size: 16),
             const SizedBox(width: 8),
           Text(title,
-              style: GoogleFonts.poppins(
+              style: _homePoppins(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: color,
@@ -3265,91 +3223,3 @@ Widget buildCapsuleHeading(String title, Color color) {
   );
 }
 
-// ─── Animated product card ─────────────────────────────────────────────────────
-class AnimatedVisibilityProductCard extends StatefulWidget {
-  final Product product;
-  final double? fontSize;
-  final double? padding;
-  final double? imageHeight;
-
-  const AnimatedVisibilityProductCard({
-    super.key,
-    required this.product,
-    this.fontSize,
-    this.padding,
-    this.imageHeight,
-  });
-
-  @override
-  State<AnimatedVisibilityProductCard> createState() =>
-      _AnimatedVisibilityProductCardState();
-}
-
-class _AnimatedVisibilityProductCardState
-    extends State<AnimatedVisibilityProductCard>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  bool _visible = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 250));
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onVisibilityChanged(VisibilityInfo info) {
-    if (!mounted) return;
-    if (info.visibleFraction > 0.1 && !_visible) {
-      setState(() => _visible = true);
-      _controller.forward(from: 0);
-    } else if (info.visibleFraction == 0 && _visible) {
-      setState(() => _visible = false);
-      _controller.reset();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return VisibilityDetector(
-      key: widget.key ?? UniqueKey(),
-      onVisibilityChanged: _onVisibilityChanged,
-      child: OpenContainer(
-        transitionType: ContainerTransitionType.fadeThrough,
-        openColor: Theme.of(context).scaffoldBackgroundColor,
-        closedColor: Colors.transparent,
-        closedElevation: 0,
-        openElevation: 0,
-        transitionDuration: const Duration(milliseconds: 200),
-        closedShape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(8))),
-        openBuilder: (context, _) => ProductDetailNavigation.itemPage(
-          urlName: widget.product.urlName,
-          product: widget.product,
-        ),
-        closedBuilder: (context, openContainer) => HomeProductCard(
-          product: widget.product,
-          fontSize: widget.fontSize,
-          padding: widget.padding,
-          imageHeight: widget.imageHeight,
-          showWishlistButton: true,
-          onTap: () {
-            ProductDetailNavigation.routeArguments(
-              urlName: widget.product.urlName,
-              product: widget.product,
-            );
-            WidgetsBinding.instance
-                .addPostFrameCallback((_) => openContainer());
-          },
-          showHero: false,
-        ),
-      ),
-    );
-  }
-}

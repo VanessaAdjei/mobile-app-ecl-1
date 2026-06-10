@@ -1,4 +1,5 @@
 import 'package:eclapp/config/app_colors.dart';
+import 'package:eclapp/utils/app_theme_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -48,6 +49,32 @@ class CartCheckoutSummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
+    final titleColor =
+        theme.isDark ? AppColors.primaryLight : AppColors.primaryDark;
+    final inkColor = theme.isDark ? theme.ink : _ink;
+    final mutedColor = theme.isDark ? theme.muted : _muted;
+    final badgeBg = theme.isDark ? theme.fieldBg : Colors.white;
+    final badgeBorder = theme.isDark ? theme.border : _border;
+    final panelBorder = theme.isDark ? theme.accentBorder : _greenBorder;
+    final panelGradient = theme.isDark
+        ? LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              theme.surface,
+              AppColors.primary.withValues(alpha: 0.12),
+            ],
+          )
+        : const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFF4FAF7),
+              Color(0xFFEEF9F3),
+            ],
+          );
+
     final amountStr = amount.toStringAsFixed(2);
     final whole = amountStr.split('.').first;
     final cents = amountStr.split('.').last;
@@ -60,16 +87,9 @@ class CartCheckoutSummaryRow extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(pad),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFF4FAF7),
-            Color(0xFFEEF9F3),
-          ],
-        ),
+        gradient: panelGradient,
         borderRadius: BorderRadius.circular(_comfortable ? 14 : 12),
-        border: Border.all(color: _greenBorder),
+        border: Border.all(color: panelBorder),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -103,7 +123,7 @@ class CartCheckoutSummaryRow extends StatelessWidget {
                               style: GoogleFonts.poppins(
                                 fontSize: _comfortable ? 11 : 10,
                                 fontWeight: FontWeight.w600,
-                                color: AppColors.primaryDark,
+                                color: titleColor,
                                 letterSpacing: 0.1,
                               ),
                             ),
@@ -117,9 +137,9 @@ class CartCheckoutSummaryRow extends StatelessWidget {
                                   vertical: _comfortable ? 2 : 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: badgeBg,
                                   borderRadius: BorderRadius.circular(999),
-                                  border: Border.all(color: _border),
+                                  border: Border.all(color: badgeBorder),
                                 ),
                                 child: Text(
                                   badgeLabel!,
@@ -128,7 +148,7 @@ class CartCheckoutSummaryRow extends StatelessWidget {
                                   style: GoogleFonts.poppins(
                                     fontSize: _comfortable ? 9 : 8,
                                     fontWeight: FontWeight.w600,
-                                    color: _muted,
+                                    color: mutedColor,
                                   ),
                                 ),
                               ),
@@ -166,7 +186,7 @@ class CartCheckoutSummaryRow extends StatelessWidget {
                                     style: GoogleFonts.poppins(
                                       fontSize: _comfortable ? 24 : 22,
                                       fontWeight: FontWeight.w700,
-                                      color: _ink,
+                                      color: inkColor,
                                       height: 1,
                                       letterSpacing: -0.6,
                                     ),
@@ -176,7 +196,7 @@ class CartCheckoutSummaryRow extends StatelessWidget {
                                     style: GoogleFonts.poppins(
                                       fontSize: _comfortable ? 15 : 14,
                                       fontWeight: FontWeight.w600,
-                                      color: _muted,
+                                      color: mutedColor,
                                       height: 1,
                                       letterSpacing: -0.2,
                                     ),
@@ -194,7 +214,7 @@ class CartCheckoutSummaryRow extends StatelessWidget {
                             footerHint!,
                             style: GoogleFonts.poppins(
                               fontSize: _comfortable ? 9 : 8,
-                              color: _muted,
+                              color: mutedColor,
                               height: 1.2,
                             ),
                           ),
@@ -242,17 +262,23 @@ class CartCheckoutBottomShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
     final outerPad = comfortable
         ? const EdgeInsets.fromLTRB(14, 12, 14, 10)
         : const EdgeInsets.fromLTRB(14, 10, 14, 8);
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+        border: theme.isDark
+            ? Border(top: BorderSide(color: theme.border))
+            : null,
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.1),
+            color: theme.isDark
+                ? Colors.black.withValues(alpha: 0.35)
+                : AppColors.primary.withValues(alpha: 0.1),
             blurRadius: 20,
             offset: const Offset(0, -6),
           ),

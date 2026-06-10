@@ -7,6 +7,7 @@ import 'package:eclapp/services/category_optimization_service.dart';
 import 'package:eclapp/services/homepage_optimization_service.dart';
 import 'package:eclapp/services/product_image_preload_service.dart';
 import 'package:eclapp/utils/catalog_timer.dart';
+import 'package:eclapp/utils/flutter_test_env.dart';
 import 'package:flutter/foundation.dart';
 
 /// Warms priority catalog first, full catalog in background.
@@ -160,6 +161,10 @@ class HomePreloadService {
   }
 
   static void startOnboardingPreload() {
+    if (isFlutterTest) {
+      _preloadComplete = true;
+      return;
+    }
     unawaited(_prefetchCatalogIfStale());
     if (_preloadFuture != null) return;
     debugPrint(

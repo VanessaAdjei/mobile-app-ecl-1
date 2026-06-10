@@ -1,6 +1,7 @@
 import 'package:eclapp/models/order_tracking_model.dart';
 import 'package:eclapp/services/order_tracking_service.dart';
 import 'package:eclapp/widgets/post_checkout/post_checkout_design.dart';
+import 'package:eclapp/utils/app_theme_colors.dart';
 import 'package:eclapp/providers/order_tracking_provider.dart';
 import 'package:eclapp/widgets/post_checkout/post_checkout_action_buttons.dart';
 import 'package:eclapp/widgets/post_checkout/post_checkout_entrance.dart';
@@ -55,15 +56,24 @@ class _PostCheckoutOrderContentState extends State<PostCheckoutOrderContent> {
     );
   }
 
-  /// Prefer the timeline’s current step so the header card stays in sync with it.
+  /// Prefer the timeline’s current step; fall back to [order.stage] when it is ahead.
   static OrderTrackingStage _displayStage(OrderTrackingModel order) {
+    final tracking = OrderTrackingService();
+    var timelineStage = order.stage;
     for (final step in order.timelineSteps) {
       if (!step.isCurrent) continue;
       for (final stage in OrderTrackingStage.values) {
-        if (stage.name == step.id) return stage;
+        if (stage.name == step.id) {
+          timelineStage = stage;
+          break;
+        }
       }
+      break;
     }
-    return order.stage;
+
+    final orderIdx = tracking.stageTimelineIndex(order.stage);
+    final timelineIdx = tracking.stageTimelineIndex(timelineStage);
+    return orderIdx > timelineIdx ? order.stage : timelineStage;
   }
 
   static bool _isPaymentSuccessStage(OrderTrackingStage stage) {
@@ -124,7 +134,7 @@ class _PostCheckoutOrderContentState extends State<PostCheckoutOrderContent> {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return ColoredBox(
-      color: PostCheckoutDesign.pageBg,
+      color: PostCheckoutDesign.pageBg(context),
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -140,100 +150,116 @@ class _PostCheckoutOrderContentState extends State<PostCheckoutOrderContent> {
               ),
               padding: EdgeInsets.fromLTRB(14, 10, 14, 24 + bottomInset),
               children: [
-          _enter(
-            _isDelivered
-                ? _DeliveredStatusCard(
-                    order: order,
-                    accent: accent,
-                    orderRef: _orderRef,
-                  )
-                : _isPaymentSuccessStage(displayStage)
-                    ? _PaidStatusCard(
-                        order: order,
-                        displayStage: displayStage,
-                        accent: accent,
-                        orderRef: _orderRef,
-                      )
-                    : _StatusHeader(
-                        order: order,
-                        displayStage: displayStage,
-                        accent: accent,
-                        orderRef: _orderRef,
+                _enter(
+                  _isDelivered
+                      ? _DeliveredStatusCard(
+                          order: order,
+                          accent: accent,
+                          orderRef: _orderRef,
+                        )
+                      : _isPaymentSuccessStage(displayStage)
+                          ? _PaidStatusCard(
+                              order: order,
+                              displayStage: displayStage,
+                              accent: accent,
+                              orderRef: _orderRef,
+                            )
+                          : _StatusHeader(
+                              order: order,
+                              displayStage: displayStage,
+                              accent: accent,
+                              orderRef: _orderRef,
+                            ),
+                  index++,
+                ),
+                if (_isDelivered) ...[
+                  const SizedBox(height: 10),
+                  _enter(
+                    _DeliveredMessageCard(accent: accent),
+                    index++,
+                  ),
+                ],
+                if (!_isDelivered) ...[
+                  const SizedBox(height: 10),
+                  _enter(
+                    _OrderPlacedDetailsCard(
+                      placedAt: placedAt,
+                      totalAmount: order.totalAmount,
+                      address: address,
+                      isPickup: _isPickup,
+                      accent: accent,
+                    ),
+                    index++,
+                  ),
+                ],
+                if (order.contactNumber.trim().isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _enter(
+                    _SmsUpdatesNoticeCard(
+                      phone: order.contactNumber.trim(),
+                      accent: accent,
+                    ),
+                    index++,
+                  ),
+                ],
+                if (!_isPickup &&
+                    (order.stage == OrderTrackingStage.outForDelivery ||
+                        order.stage == OrderTrackingStage.arrived)) ...[
+                  const SizedBox(height: 12),
+                  _enter(
+                    _DeliveryOtpNoticeCard(accent: accent),
+                    index++,
+                  ),
+                ],
+                if (provider.errorMessage != null &&
+                    provider.errorMessage!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _enter(
+                    _AlertBanner(
+                      message: provider.errorMessage!,
+                      onTap: provider.refreshTracking,
+                    ),
+                    index++,
+                  ),
+                ],
+                if (!_isDelivered) ...[
+                  const SizedBox(height: 12),
+                  _enter(
+                    PostCheckoutOrderProgressCard(
+                      key: ValueKey(
+                        order.timelineSteps
+                            .where((step) => step.isCurrent)
+                            .map((step) => step.id)
+                            .join('-'),
                       ),
-            index++,
-          ),
-          if (_isDelivered) ...[
-            const SizedBox(height: 10),
-            _enter(
-              _DeliveredMessageCard(accent: accent),
-              index++,
-            ),
-          ],
-          if (!_isDelivered) ...[
-            const SizedBox(height: 10),
-            _enter(
-              _OrderPlacedDetailsCard(
-                placedAt: placedAt,
-                totalAmount: order.totalAmount,
-                address: address,
-                isPickup: _isPickup,
-                accent: accent,
-              ),
-              index++,
-            ),
-          ],
-          if (!_isPickup &&
-              (order.stage == OrderTrackingStage.outForDelivery ||
-                  order.stage == OrderTrackingStage.arrived)) ...[
-            const SizedBox(height: 12),
-            _enter(
-              _DeliveryOtpNoticeCard(accent: accent),
-              index++,
-            ),
-          ],
-          if (provider.errorMessage != null &&
-              provider.errorMessage!.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _enter(
-              _AlertBanner(
-                message: provider.errorMessage!,
-                onTap: provider.refreshTracking,
-              ),
-              index++,
-            ),
-          ],
-          if (!_isDelivered) ...[
-            const SizedBox(height: 12),
-            _enter(
-              PostCheckoutOrderProgressCard(
-                steps: order.timelineSteps,
-                accent: accent,
-                animate: true,
-              ),
-              index++,
-            ),
-          ],
-          if (order.items.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _enter(
-              PostCheckoutOrderItemsCard(
-                items: order.items,
-                accent: accent,
-                animate: true,
-              ),
-              index++,
-            ),
-          ],
-          const SizedBox(height: 16),
-          _enter(
-            PostCheckoutActionButtons(
-              accent: accent,
-              onHome: widget.onHome,
-              onSupport: widget.onSupport,
-              animate: false,
-            ),
-            index++,
-          ),
+                      steps: order.timelineSteps,
+                      accent: accent,
+                      animate: true,
+                    ),
+                    index++,
+                  ),
+                ],
+                if (order.items.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _enter(
+                    PostCheckoutOrderItemsCard(
+                      items: order.items,
+                      accent: accent,
+                      animate: true,
+                    ),
+                    index++,
+                  ),
+                ],
+                const SizedBox(height: 16),
+                _enter(
+                  PostCheckoutActionButtons(
+                    accent: accent,
+                    onHome: widget.onHome,
+                    onSupport: widget.onSupport,
+                    animate: false,
+                  ),
+                  index++,
+                ),
               ],
             ),
           ),
@@ -260,7 +286,7 @@ class _PostCheckoutScrollHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = PostCheckoutDesign.pageBg;
+    final bg = PostCheckoutDesign.pageBg(context);
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Column(
@@ -294,7 +320,7 @@ class _PostCheckoutScrollHint extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: PostCheckoutDesign.ink,
+                  color: PostCheckoutDesign.ink(context),
                 ),
               ),
             ],
@@ -325,7 +351,8 @@ class PostCheckoutPendingContent extends StatefulWidget {
       _PostCheckoutPendingContentState();
 }
 
-class _PostCheckoutPendingContentState extends State<PostCheckoutPendingContent> {
+class _PostCheckoutPendingContentState
+    extends State<PostCheckoutPendingContent> {
   final ScrollController _scrollController = ScrollController();
   bool _showScrollHint = false;
 
@@ -387,7 +414,7 @@ class _PostCheckoutPendingContentState extends State<PostCheckoutPendingContent>
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return ColoredBox(
-      color: PostCheckoutDesign.pageBg,
+      color: PostCheckoutDesign.pageBg(context),
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -403,67 +430,69 @@ class _PostCheckoutPendingContentState extends State<PostCheckoutPendingContent>
               ),
               padding: EdgeInsets.fromLTRB(14, 10, 14, 24 + bottomInset),
               children: [
-          PostCheckoutEntrance(
-            index: 0,
-            child: _PendingStatusCard(
-              accent: accent,
-              checking: checking,
-              orderRef: orderRef,
-            ),
-          ),
-          const SizedBox(height: 10),
-          PostCheckoutEntrance(
-            index: 1,
-            child: _OrderPlacedDetailsCard(
-              placedAt: placedAt,
-              totalAmount: order.totalAmount,
-              address: address,
-              isPickup: _isPickup,
-              accent: accent,
-            ),
-          ),
-          if (order.items.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            PostCheckoutEntrance(
-              index: 2,
-              child: PostCheckoutOrderItemsCard(
-                items: order.items,
-                accent: accent,
-                animate: true,
-              ),
-            ),
-          ],
-          const SizedBox(height: 14),
-          PostCheckoutEntrance(
-            index: 3,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEEF9F3),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFBBEAD3)),
-              ),
-              child: Text(
-                'Stay here or go home — we will keep checking and update this screen.',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: Colors.grey.shade700,
-                  height: 1.45,
+                PostCheckoutEntrance(
+                  index: 0,
+                  child: _PendingStatusCard(
+                    accent: accent,
+                    checking: checking,
+                    orderRef: orderRef,
+                  ),
                 ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          PostCheckoutEntrance(
-            index: 4,
-            child: PostCheckoutActionButtons(
-              accent: accent,
-              onHome: widget.onHome,
-              showSupport: false,
-              animate: false,
-            ),
-          ),
+                const SizedBox(height: 10),
+                PostCheckoutEntrance(
+                  index: 1,
+                  child: _OrderPlacedDetailsCard(
+                    placedAt: placedAt,
+                    totalAmount: order.totalAmount,
+                    address: address,
+                    isPickup: _isPickup,
+                    accent: accent,
+                  ),
+                ),
+                if (order.items.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  PostCheckoutEntrance(
+                    index: 2,
+                    child: PostCheckoutOrderItemsCard(
+                      items: order.items,
+                      accent: accent,
+                      animate: true,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                PostCheckoutEntrance(
+                  index: 3,
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: PostCheckoutDesign.accentLight(context),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: accent.withValues(alpha: 0.22),
+                      ),
+                    ),
+                    child: Text(
+                      'Stay here or go home — we will keep checking and update this screen.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: PostCheckoutDesign.ink(context),
+                        height: 1.45,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                PostCheckoutEntrance(
+                  index: 4,
+                  child: PostCheckoutActionButtons(
+                    accent: accent,
+                    onHome: widget.onHome,
+                    showSupport: false,
+                    animate: false,
+                  ),
+                ),
               ],
             ),
           ),
@@ -522,12 +551,13 @@ class _PaidStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appColors;
     final message = OrderTrackingService().stageMessage(displayStage).trim();
 
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: PostCheckoutDesign.accentLight.withValues(alpha: 0.55),
+        color: PostCheckoutDesign.accentLight(context).withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: accent.withValues(alpha: 0.18)),
       ),
@@ -548,6 +578,7 @@ class _PaidStatusCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   PostCheckoutDesign.logoMark(
+                    context,
                     size: 36,
                     borderColor: accent.withValues(alpha: 0.2),
                     overlay: PostCheckoutDesign.successCheckOverlay(),
@@ -565,7 +596,7 @@ class _PaidStatusCard extends StatelessWidget {
                                 style: GoogleFonts.poppins(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: PostCheckoutDesign.ink,
+                                  color: PostCheckoutDesign.ink(context),
                                   letterSpacing: -0.2,
                                   height: 1.2,
                                 ),
@@ -577,7 +608,9 @@ class _PaidStatusCard extends StatelessWidget {
                                 vertical: 3,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.85),
+                                color: t.isDark
+                                    ? t.surface.withValues(alpha: 0.85)
+                                    : Colors.white.withValues(alpha: 0.85),
                                 borderRadius: BorderRadius.circular(4),
                                 border: Border.all(
                                   color: accent.withValues(alpha: 0.15),
@@ -601,7 +634,7 @@ class _PaidStatusCard extends StatelessWidget {
                             message,
                             style: GoogleFonts.poppins(
                               fontSize: 11,
-                              color: PostCheckoutDesign.muted,
+                              color: PostCheckoutDesign.muted(context),
                               height: 1.35,
                             ),
                             maxLines: 2,
@@ -642,7 +675,7 @@ class _DeliveredStatusCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: PostCheckoutDesign.accentLight.withValues(alpha: 0.65),
+        color: PostCheckoutDesign.accentLight(context).withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: accent.withValues(alpha: 0.22)),
       ),
@@ -663,6 +696,7 @@ class _DeliveredStatusCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   PostCheckoutDesign.logoMark(
+                    context,
                     size: 44,
                     borderColor: accent.withValues(alpha: 0.2),
                     overlay: PostCheckoutDesign.successCheckOverlay(size: 18),
@@ -680,7 +714,7 @@ class _DeliveredStatusCard extends StatelessWidget {
                                 style: GoogleFonts.poppins(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
-                                  color: PostCheckoutDesign.ink,
+                                  color: PostCheckoutDesign.ink(context),
                                   letterSpacing: -0.25,
                                   height: 1.2,
                                 ),
@@ -740,7 +774,7 @@ class _DeliveredMessageCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: PostCheckoutDesign.compactCard(),
+      decoration: PostCheckoutDesign.compactCard(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -750,7 +784,7 @@ class _DeliveredMessageCard extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 13,
               fontWeight: FontWeight.w500,
-              color: PostCheckoutDesign.ink,
+              color: PostCheckoutDesign.ink(context),
               height: 1.5,
             ),
           ),
@@ -760,7 +794,7 @@ class _DeliveredMessageCard extends StatelessWidget {
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 12,
-              color: PostCheckoutDesign.muted,
+              color: PostCheckoutDesign.muted(context),
               height: 1.5,
             ),
           ),
@@ -772,7 +806,7 @@ class _DeliveredMessageCard extends StatelessWidget {
                 Container(
                   width: 28,
                   height: 1.5,
-                  color: PostCheckoutDesign.border,
+                  color: PostCheckoutDesign.border(context),
                 ),
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 8),
@@ -786,7 +820,7 @@ class _DeliveredMessageCard extends StatelessWidget {
                 Container(
                   width: 28,
                   height: 1.5,
-                  color: PostCheckoutDesign.border,
+                  color: PostCheckoutDesign.border(context),
                 ),
               ],
             ),
@@ -823,7 +857,7 @@ class _PostCheckoutMetricColumn extends StatelessWidget {
             fontSize: 9,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.7,
-            color: PostCheckoutDesign.muted,
+            color: PostCheckoutDesign.muted(context),
           ),
         ),
         const SizedBox(height: 3),
@@ -835,7 +869,7 @@ class _PostCheckoutMetricColumn extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: valueColor ?? PostCheckoutDesign.ink,
+            color: valueColor ?? PostCheckoutDesign.ink(context),
             height: 1.2,
             letterSpacing: -0.15,
           ),
@@ -884,7 +918,7 @@ class _StatusHeader extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-      decoration: PostCheckoutDesign.compactCard(),
+      decoration: PostCheckoutDesign.compactCard(context),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -907,7 +941,7 @@ class _StatusHeader extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: PostCheckoutDesign.ink,
+                    color: PostCheckoutDesign.ink(context),
                     height: 1.2,
                     letterSpacing: -0.2,
                   ),
@@ -922,7 +956,7 @@ class _StatusHeader extends StatelessWidget {
                     stageMessage,
                     style: GoogleFonts.poppins(
                       fontSize: 11,
-                      color: PostCheckoutDesign.muted,
+                      color: PostCheckoutDesign.muted(context),
                       height: 1.35,
                     ),
                     maxLines: 2,
@@ -952,7 +986,7 @@ class _OrderIdRow extends StatelessWidget {
     return Text.rich(
       TextSpan(
         style:
-            GoogleFonts.poppins(fontSize: 11, color: PostCheckoutDesign.muted),
+            GoogleFonts.poppins(fontSize: 11, color: PostCheckoutDesign.muted(context)),
         children: [
           const TextSpan(text: 'Order '),
           TextSpan(
@@ -986,7 +1020,7 @@ class _PendingStatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: PostCheckoutDesign.compactCard(),
+      decoration: PostCheckoutDesign.compactCard(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -996,9 +1030,10 @@ class _PendingStatusCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 PostCheckoutDesign.logoMark(
+                  context,
                   size: 36,
                   backgroundColor: accent.withValues(alpha: 0.06),
-                  borderColor: PostCheckoutDesign.border,
+                  borderColor: PostCheckoutDesign.border(context),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -1010,7 +1045,7 @@ class _PendingStatusCard extends StatelessWidget {
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: PostCheckoutDesign.ink,
+                          color: PostCheckoutDesign.ink(context),
                           letterSpacing: -0.2,
                         ),
                       ),
@@ -1021,7 +1056,7 @@ class _PendingStatusCard extends StatelessWidget {
                             : 'Waiting for verification',
                         style: GoogleFonts.poppins(
                           fontSize: 11,
-                          color: PostCheckoutDesign.muted,
+                          color: PostCheckoutDesign.muted(context),
                           height: 1.35,
                         ),
                       ),
@@ -1039,7 +1074,7 @@ class _PendingStatusCard extends StatelessWidget {
               ],
             ),
           ),
-          Divider(height: 1, color: PostCheckoutDesign.border),
+          Divider(height: 1, color: PostCheckoutDesign.border(context)),
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 10, 8, 11),
             child: _PendingProgressStrip(accent: accent, isActive: checking),
@@ -1074,7 +1109,7 @@ class _OrderPlacedDetailsCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-      decoration: PostCheckoutDesign.compactCard(),
+      decoration: PostCheckoutDesign.compactCard(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1091,7 +1126,7 @@ class _OrderPlacedDetailsCard extends StatelessWidget {
                 Container(
                   width: 1,
                   margin: const EdgeInsets.symmetric(horizontal: 10),
-                  color: PostCheckoutDesign.border,
+                  color: PostCheckoutDesign.border(context),
                 ),
                 Expanded(
                   child: _PostCheckoutMetricColumn(
@@ -1107,7 +1142,7 @@ class _OrderPlacedDetailsCard extends StatelessWidget {
           if (hasAddress) ...[
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 9),
-              child: Divider(height: 1, color: PostCheckoutDesign.border),
+              child: Divider(height: 1, color: PostCheckoutDesign.border(context)),
             ),
             Text.rich(
               TextSpan(
@@ -1118,7 +1153,7 @@ class _OrderPlacedDetailsCard extends StatelessWidget {
                       fontSize: 9,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.6,
-                      color: PostCheckoutDesign.muted,
+                      color: PostCheckoutDesign.muted(context),
                     ),
                   ),
                   TextSpan(
@@ -1127,7 +1162,7 @@ class _OrderPlacedDetailsCard extends StatelessWidget {
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
                       height: 1.35,
-                      color: PostCheckoutDesign.ink,
+                      color: PostCheckoutDesign.ink(context),
                     ),
                   ),
                 ],
@@ -1136,6 +1171,61 @@ class _OrderPlacedDetailsCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Order status updates are delivered by SMS; in-app tracking is available here too.
+class _SmsUpdatesNoticeCard extends StatelessWidget {
+  const _SmsUpdatesNoticeCard({
+    required this.phone,
+    required this.accent,
+  });
+
+  final String phone;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.appColors;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: BoxDecoration(
+        color: t.isDark
+            ? Colors.green.withValues(alpha: 0.12)
+            : Colors.green.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: t.isDark
+              ? Colors.green.withValues(alpha: 0.35)
+              : Colors.green.shade200,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.sms_outlined,
+            size: 20,
+            color: t.isDark ? Colors.green.shade300 : Colors.green.shade700,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'We will send delivery updates to $phone by text. '
+              'This screen keeps your order details here; dispatch and delivery '
+              'updates arrive by SMS.',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: PostCheckoutDesign.ink(context),
+                height: 1.4,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1154,7 +1244,7 @@ class _DeliveryOtpNoticeCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       decoration: BoxDecoration(
-        color: PostCheckoutDesign.accentLight.withValues(alpha: 0.55),
+        color: PostCheckoutDesign.accentLight(context).withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: accent.withValues(alpha: 0.18)),
       ),
@@ -1173,7 +1263,7 @@ class _DeliveryOtpNoticeCard extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: PostCheckoutDesign.ink,
+                color: PostCheckoutDesign.ink(context),
                 height: 1.4,
               ),
             ),
@@ -1192,8 +1282,11 @@ class _AlertBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appColors;
     return Material(
-      color: Colors.orange.shade50,
+      color: t.isDark
+          ? Colors.orange.withValues(alpha: 0.12)
+          : Colors.orange.shade50,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -1202,12 +1295,18 @@ class _AlertBanner extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              Icon(Icons.refresh_rounded, color: Colors.orange.shade800),
+              Icon(
+                Icons.refresh_rounded,
+                color: t.isDark ? Colors.orange.shade300 : Colors.orange.shade800,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   message,
-                  style: GoogleFonts.poppins(fontSize: 12),
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: PostCheckoutDesign.ink(context),
+                  ),
                 ),
               ),
             ],
@@ -1287,8 +1386,9 @@ class _PendingProgressStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appColors;
     final labels = ['Payment', 'Verify', 'Confirmed'];
-    final lineColor = Colors.grey.shade300;
+    final lineColor = t.border;
     final activeLine = accent.withValues(alpha: 0.5);
 
     Widget step(int index) {
@@ -1305,7 +1405,7 @@ class _PendingProgressStrip extends StatelessWidget {
               decoration: BoxDecoration(
                 color: activeStep
                     ? accent.withValues(alpha: 0.12)
-                    : Colors.grey.shade100,
+                    : t.fieldBg,
                 shape: BoxShape.circle,
                 border: Border.all(
                   color:
@@ -1327,7 +1427,7 @@ class _PendingProgressStrip extends StatelessWidget {
                         : Icon(
                             Icons.more_horiz,
                             size: 12,
-                            color: Colors.grey.shade500,
+                            color: t.muted,
                           ),
               ),
             ).animate(target: isActive && index == 1 ? 1 : 0).scale(
@@ -1344,7 +1444,7 @@ class _PendingProgressStrip extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 8,
                 fontWeight: FontWeight.w500,
-                color: PostCheckoutDesign.muted,
+                color: PostCheckoutDesign.muted(context),
               ),
             ),
           ],

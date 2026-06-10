@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/product_model.dart';
 import '../utils/product_detail_navigation.dart';
+import '../utils/product_tap_guard.dart';
 import '../widgets/product_card.dart';
 import '../widgets/app_header_bar.dart';
 
@@ -52,8 +53,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
         product.category,
       ].join(' ').toLowerCase();
       // Match when every typed word appears somewhere in the product text.
-      final matchesQuery =
-          tokens.isEmpty || tokens.every(haystack.contains);
+      final matchesQuery = tokens.isEmpty || tokens.every(haystack.contains);
       final matchesCategory = _selectedCategory == 'All' ||
           (product.category.toLowerCase() == _selectedCategory.toLowerCase() ||
               (product.otcpom?.toLowerCase() ==
@@ -196,68 +196,72 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                       // (filter chips row removed)
                       // results grid
                       Expanded(
-                        child: GridView.builder(
-                          padding: EdgeInsets.zero,
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 0,
-                            mainAxisSpacing: 0,
-                            childAspectRatio: 1,
-                          ),
-                          itemCount: _filteredProducts!.length,
-                          itemBuilder: (context, index) {
-                            final product = _filteredProducts![index];
-                            return AnimatedOpacity(
-                              opacity: 1.0,
-                              duration:
-                                  Duration(milliseconds: 350 + index * 40),
-                              curve: Curves.easeIn,
-                              child: GestureDetector(
-                                onTap: () {
-                                  ProductDetailNavigation.push(
-                                    context,
-                                    urlName: product.urlName,
-                                    product: product,
-                                  );
-                                },
-                                child: Stack(
-                                  children: [
-                                    GenericProductCard(
+                        child: ProductTapScrollScope(
+                          child: GridView.builder(
+                            padding: EdgeInsets.zero,
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 0,
+                              mainAxisSpacing: 0,
+                              childAspectRatio: 1,
+                            ),
+                            itemCount: _filteredProducts!.length,
+                            itemBuilder: (context, index) {
+                              final product = _filteredProducts![index];
+                              return AnimatedOpacity(
+                                opacity: 1.0,
+                                duration:
+                                    Duration(milliseconds: 350 + index * 40),
+                                curve: Curves.easeIn,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    ProductDetailNavigation.push(
+                                      context,
+                                      urlName: product.urlName,
                                       product: product,
-                                      showPrice: true,
-                                      showPrescriptionBadge: true,
-                                      // Remove or minimize internal padding if supported
-                                      padding: 0,
-                                    ),
-                                    // badge showing if its prescribed
-                                    if (product.otcpom?.toLowerCase() == 'pom')
-                                      Positioned(
-                                        left: 8,
-                                        top: 8,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 7, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Colors.red[700],
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                          child: Text(
-                                            'Prescription',
-                                            style: GoogleFonts.poppins(
-                                              color: Colors.white,
-                                              fontSize: 9.5,
-                                              fontWeight: FontWeight.w600,
+                                      fromProductCard: true,
+                                    );
+                                  },
+                                  child: Stack(
+                                    children: [
+                                      GenericProductCard(
+                                        product: product,
+                                        showPrice: true,
+                                        showPrescriptionBadge: true,
+                                        // Remove or minimize internal padding if supported
+                                        padding: 0,
+                                      ),
+                                      // badge showing if its prescribed
+                                      if (product.otcpom?.toLowerCase() ==
+                                          'pom')
+                                        Positioned(
+                                          left: 8,
+                                          top: 8,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 7, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.red[700],
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              'Prescription',
+                                              style: GoogleFonts.poppins(
+                                                color: Colors.white,
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
+                              );
+                            },
+                          ),
                         ),
                       ),
                     ],

@@ -83,6 +83,7 @@ class _OptimizedProductCardState extends State<OptimizedProductCard>
         context,
         urlName: widget.product.urlName,
         product: widget.product,
+        fromProductCard: true,
       );
     }
   }

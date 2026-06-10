@@ -5,7 +5,9 @@ import '../models/order_status_step.dart';
 import '../models/order_tracking_model.dart';
 import '../models/order_tracking_page_details.dart';
 import '../repositories/order_tracking_repository.dart';
+import '../services/auth_service.dart';
 import '../services/delivery_service.dart';
+import '../services/guest_local_order_service.dart';
 import '../utils/order_steps_api_logger.dart';
 import '../utils/order_timestamp_parser.dart';
 import '../utils/order_tracking_page_resolver.dart';
@@ -105,11 +107,16 @@ class OrderTrackingService {
   Future<void> handleOrderConfirmed({
     required OrderTrackingModel order,
     String? initialTransactionId,
-  }) {
-    return _repository.handleOrderConfirmed(
+  }) async {
+    final isGuestCheckout = !(await AuthService.isLoggedIn());
+    await _repository.handleOrderConfirmed(
       order: order,
       initialTransactionId: initialTransactionId,
+      isGuestCheckout: isGuestCheckout,
     );
+    if (isGuestCheckout) {
+      await GuestLocalOrderService.instance.syncFromOrder(order);
+    }
   }
 
   static const List<OrderTrackingStage> _timelineOrder = [
@@ -303,8 +310,105 @@ class OrderTrackingService {
       }
     }
 
+    final flatStatus = snapshot['status']?.toString() ??
+        snapshot['order_status']?.toString();
+    if (flatStatus != null && flatStatus.trim().isNotEmpty) {
+      final stepId =
+          _effectiveTimelineStage(normalizeStage(flatStatus)).name;
+      final statusAt = parseAt(
+        snapshot['updated_at'] ??
+            snapshot['status_updated_at'] ??
+            snapshot['modified_at'],
+      );
+      if (statusAt != null) {
+        putStageTime(stepId, statusAt);
+      }
+    }
+
     OrderStepsApiLogger.logParsedStageTimes(times);
     return times;
+  }
+
+  /// When GET /orders returns multiple rows for one checkout, keep the furthest status.
+  String pickFurthestRawStatus(
+    Iterable<Map<String, dynamic>> snapshots, {
+    String? fallback,
+    Iterable<String> extraStatuses = const [],
+  }) {
+    String? bestRaw = fallback?.trim().isNotEmpty == true ? fallback!.trim() : null;
+    var bestIdx = bestRaw == null ? -1 : _timelineIndex(normalizeStage(bestRaw));
+
+    void consider(String? raw) {
+      if (raw == null || raw.trim().isEmpty) return;
+      final trimmed = raw.trim();
+      final idx = _timelineIndex(normalizeStage(trimmed));
+      if (idx > bestIdx) {
+        bestIdx = idx;
+        bestRaw = trimmed;
+      }
+    }
+
+    for (final snapshot in snapshots) {
+      final resolved = resolveAuthoritativeRawStatus(snapshot);
+      consider(resolved);
+    }
+    for (final raw in extraStatuses) {
+      consider(raw);
+    }
+
+    return bestRaw ?? fallback ?? '';
+  }
+
+  Set<String> _orderLookupKeys(OrderTrackingModel order) {
+    return <String>{
+      order.transactionId,
+      order.orderNumber,
+      order.orderId,
+      order.paymentParams['order_id']?.toString() ?? '',
+    }..removeWhere((value) => value.isEmpty);
+  }
+
+  Future<OrderTrackingModel> applyKnownStatus(
+    OrderTrackingModel order,
+    String rawStatus, {
+    OrderTrackingStage? previousStage,
+  }) async {
+    if (rawStatus.trim().isEmpty) return order;
+
+    final orderKey = _orderStorageKey(order);
+    final previous = previousStage ?? order.stage;
+    await primeMonotonicCache(orderKey);
+
+    final apiStage = normalizeStage(rawStatus);
+    final stage = coalesceMonotonicStageSync(
+      orderKey,
+      apiStage,
+      rawStatus: rawStatus,
+    );
+    persistMonotonicIndexAsync(orderKey, apiStage);
+
+    if (previous != stage) {
+      await _recordStageAdvance(orderKey, previous, stage);
+    }
+
+    final stageTimes = await _resolveStageTimes(
+      orderKey: orderKey,
+      createdAt: order.createdAt,
+      currentStage: stage,
+    );
+    final timelineSteps = buildTimeline(
+      stage,
+      createdAt: order.createdAt,
+      stageTimes: stageTimes,
+    );
+
+    return order.copyWith(
+      rawStatus: rawStatus,
+      stage: stage,
+      stageLabel: stageLabel(stage),
+      stageMessage: stageMessage(stage),
+      timelineSteps: timelineSteps,
+    );
   }
 
   Future<Map<String, DateTime>> _resolveStageTimes({
@@ -348,11 +452,14 @@ class OrderTrackingService {
     final curIdx = _timelineIndex(current);
     if (curIdx <= prevIdx) return;
 
-    await _repository.recordStageTimestampIfAbsent(
-      orderKey,
-      _effectiveTimelineStage(current).name,
-      DateTime.now(),
-    );
+    final now = DateTime.now();
+    for (var i = prevIdx + 1; i <= curIdx; i++) {
+      await _repository.recordStageTimestampIfAbsent(
+        orderKey,
+        _timelineOrder[i].name,
+        now,
+      );
+    }
   }
 
   Future<OrderTrackingModel> syncTimelineWithTimestamps(
@@ -418,13 +525,29 @@ class OrderTrackingService {
       checkoutOrderId: checkoutOrderId,
     );
     final localFuture = _repository.loadStageTimestamps(orderKey);
+    final hintsFuture =
+        _repository.loadStatusHints(_orderLookupKeys(currentOrder));
     final primeFuture = primeMonotonicCache(orderKey);
 
     final snapshot = await snapshotFuture;
     final local = await localFuture;
+    final hints = await hintsFuture;
     await primeFuture;
 
     if (snapshot == null) {
+      final hintedStatus = pickFurthestRawStatus(
+        const [],
+        fallback: currentOrder.rawStatus,
+        extraStatuses: hints,
+      );
+      if (hintedStatus.isNotEmpty &&
+          hintedStatus.toLowerCase() != currentOrder.rawStatus.toLowerCase()) {
+        return applyKnownStatus(
+          currentOrder,
+          hintedStatus,
+          previousStage: previous,
+        );
+      }
       if (previous != currentOrder.stage) {
         await _recordStageAdvance(orderKey, previous, currentOrder.stage);
       }
@@ -442,7 +565,11 @@ class OrderTrackingService {
       );
     }
 
-    final resolved = resolveAuthoritativeRawStatus(snapshot);
+    final resolved = pickFurthestRawStatus(
+      [snapshot],
+      fallback: currentOrder.rawStatus,
+      extraStatuses: hints,
+    );
     final rawStatus = resolved.isNotEmpty ? resolved : currentOrder.rawStatus;
     final apiStage = normalizeStage(rawStatus);
     final stage = coalesceMonotonicStageSync(
@@ -565,33 +692,35 @@ class OrderTrackingService {
 
   /// Picks the furthest-along status when the API sends conflicting values.
   String resolveAuthoritativeRawStatus(Map<String, dynamic> snapshot) {
-    final flat = snapshot['status']?.toString() ??
-        snapshot['order_status']?.toString() ??
-        '';
-    final flatStage = normalizeStage(flat.isEmpty ? null : flat);
-    final flatIdx = _timelineIndex(flatStage);
-
-    final history =
-        snapshot['status_history'] ?? snapshot['order_status_history'];
-    if (history is! List || history.isEmpty) {
-      return flat;
-    }
-
     String? bestRaw;
-    var bestIdx = flatIdx;
-    for (final item in history) {
-      if (item is! Map) continue;
-      final map = Map<String, dynamic>.from(item);
-      final raw = map['status']?.toString() ?? map['order_status']?.toString();
-      if (raw == null || raw.isEmpty) continue;
-      final idx = _timelineIndex(normalizeStage(raw));
+    var bestIdx = -1;
+
+    void consider(String? raw) {
+      if (raw == null || raw.trim().isEmpty) return;
+      final trimmed = raw.trim();
+      final idx = _timelineIndex(normalizeStage(trimmed));
       if (idx > bestIdx) {
         bestIdx = idx;
-        bestRaw = raw;
+        bestRaw = trimmed;
       }
     }
 
-    return bestRaw ?? flat;
+    consider(snapshot['status']?.toString());
+    consider(snapshot['order_status']?.toString());
+    consider(snapshot['delivery_status']?.toString());
+
+    final history =
+        snapshot['status_history'] ?? snapshot['order_status_history'];
+    if (history is List) {
+      for (final item in history) {
+        if (item is! Map) continue;
+        final map = Map<String, dynamic>.from(item);
+        consider(map['status']?.toString());
+        consider(map['order_status']?.toString());
+      }
+    }
+
+    return bestRaw ?? '';
   }
 
   OrderTrackingStage normalizeStage(String? rawStatus) {
@@ -616,7 +745,18 @@ class OrderTrackingService {
         status.contains('out_for_delivery') ||
         status == 'shipped' ||
         status.contains('shipped') ||
-        status.contains('out for')) {
+        status.contains('out for') ||
+        status.contains('in transit') ||
+        status.contains('in_transit') ||
+        status.contains('on the way') ||
+        status.contains('on_the_way') ||
+        status.contains('en route') ||
+        status.contains('en_route') ||
+        status.contains('on route') ||
+        status.contains('on_route') ||
+        status.contains('with courier') ||
+        status.contains('with_courier') ||
+        status.contains('delivery in progress')) {
       return OrderTrackingStage.outForDelivery;
     }
     if (status.contains('ready for dispatch') ||
@@ -729,17 +869,12 @@ class OrderTrackingService {
     final effectiveStage = _effectiveTimelineStage(stage);
     final currentIndex = _timelineOrder.indexOf(effectiveStage);
 
-    final hasTrackedStages = stageTimes.isNotEmpty;
-
     return _timelineOrder.asMap().entries.map((entry) {
       final stepStage = entry.value;
       final stepIndex = entry.key;
       final stepId = stepStage.name;
-      final isCurrent = currentIndex == stepIndex;
-      final isCompleted = hasTrackedStages
-          ? stageTimes.containsKey(stepId) && stepIndex < currentIndex
-          : stepIndex < currentIndex &&
-              (stepIndex == 0 || stepIndex == currentIndex - 1);
+      final isCurrent = currentIndex >= 0 && currentIndex == stepIndex;
+      final isCompleted = currentIndex >= 0 && stepIndex < currentIndex;
 
       DateTime? occurredAt;
       if (isCompleted || isCurrent) {

@@ -94,6 +94,27 @@ class EclExpandableSliverAppBar extends StatelessWidget {
     return kToolbarHeight + _flexRegionHeight();
   }
 
+  EdgeInsets _expandedTextPadding() {
+    final x = expandedTitleAlignment.x;
+    if (x <= -0.3) return const EdgeInsets.fromLTRB(16, 0, 64, 8);
+    if (x >= 0.3) return const EdgeInsets.fromLTRB(64, 0, 16, 8);
+    return const EdgeInsets.fromLTRB(56, 0, 56, 8);
+  }
+
+  CrossAxisAlignment _expandedCrossAxis() {
+    final x = expandedTitleAlignment.x;
+    if (x <= -0.3) return CrossAxisAlignment.start;
+    if (x >= 0.3) return CrossAxisAlignment.end;
+    return CrossAxisAlignment.center;
+  }
+
+  TextAlign _expandedTextAlign() {
+    final x = expandedTitleAlignment.x;
+    if (x <= -0.3) return TextAlign.start;
+    if (x >= 0.3) return TextAlign.end;
+    return TextAlign.center;
+  }
+
   @override
   Widget build(BuildContext context) {
     final sub = heroSubtitle?.trim();
@@ -180,16 +201,17 @@ class EclExpandableSliverAppBar extends StatelessWidget {
                       ),
                     )
                   : Align(
-                      alignment: Alignment.bottomLeft,
+                      alignment: expandedTitleAlignment,
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 64, 8),
+                        padding: _expandedTextPadding(),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: _expandedCrossAxis(),
                           children: [
                             if (!hideHero && heroTitle.trim().isNotEmpty) ...[
                               Text(
                                 heroTitle,
+                                textAlign: _expandedTextAlign(),
                                 style: heroTitleStyle ??
                                     GoogleFonts.poppins(
                                       fontSize: 18,
@@ -204,6 +226,7 @@ class EclExpandableSliverAppBar extends StatelessWidget {
                                 sub,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
+                                textAlign: _expandedTextAlign(),
                                 style: heroTitleStyle ??
                                     GoogleFonts.poppins(
                                       fontSize: 17,
@@ -216,6 +239,7 @@ class EclExpandableSliverAppBar extends StatelessWidget {
                             if (!hideHero && hasSub) ...[
                               Text(
                                 sub,
+                                textAlign: _expandedTextAlign(),
                                 style: heroSubtitleStyle ??
                                     GoogleFonts.poppins(
                                       fontSize: 12,

@@ -579,6 +579,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       validator: validator,
       inputFormatters: inputFormatters,
       onChanged: onChanged,
+      style: const TextStyle(color: Color(0xFF1F2937), fontSize: 14),
+      cursorColor: Colors.green.shade700,
       autofillHints: keyboardType == TextInputType.emailAddress
           ? const [AutofillHints.email]
           : null,
@@ -628,6 +630,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       controller: controller,
       obscureText: !isVisible,
       validator: validator,
+      style: const TextStyle(color: Color(0xFF1F2937), fontSize: 14),
+      cursorColor: Colors.green.shade700,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: Colors.green.shade600),

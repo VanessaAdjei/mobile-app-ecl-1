@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../config/app_colors.dart';
+import '../../utils/app_theme_colors.dart';
 
 /// Single line in the payment bill breakdown.
 class PaymentSummaryRow extends StatelessWidget {
@@ -21,6 +22,8 @@ class PaymentSummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appColors;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
@@ -32,8 +35,8 @@ class PaymentSummaryRow extends StatelessWidget {
               color: isDiscount
                   ? AppColors.primary
                   : isHighlighted
-                      ? AppColors.primaryDark
-                      : Colors.grey[600],
+                      ? (t.isDark ? AppColors.primaryLight : AppColors.primaryDark)
+                      : t.muted,
             ),
             const SizedBox(width: 9),
           ],
@@ -46,8 +49,8 @@ class PaymentSummaryRow extends StatelessWidget {
                 color: isDiscount
                     ? AppColors.primary
                     : isHighlighted
-                        ? Colors.grey[800]
-                        : Colors.grey[700],
+                        ? t.ink
+                        : t.muted,
               ),
             ),
           ),
@@ -62,7 +65,7 @@ class PaymentSummaryRow extends StatelessWidget {
                   ? AppColors.primary
                   : isHighlighted
                       ? AppColors.primary
-                      : Colors.grey[800],
+                      : t.ink,
             ),
           ),
         ],

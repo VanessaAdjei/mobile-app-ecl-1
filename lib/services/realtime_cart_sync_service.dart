@@ -95,8 +95,11 @@ class RealtimeCartSyncService {
   }
 
   Future<bool> _canSyncWithServer() async {
+    if (!await AuthService.isLoggedIn()) return false;
     final token = await AuthService.getToken();
-    return token != null && token.isNotEmpty;
+    if (token == null || token.isEmpty) return false;
+    final hashedLink = await AuthService.getHashedLink();
+    return hashedLink != null && hashedLink.isNotEmpty;
   }
 
   Future<void> forceImmediateSync() async {

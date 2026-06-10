@@ -19,6 +19,7 @@ import 'package:eclapp/pages/map_picker_page.dart';
 import '../utils/app_error_utils.dart';
 import '../widgets/checkout_progress_stepper.dart';
 import '../config/app_colors.dart';
+import '../utils/app_theme_colors.dart';
 
 class DeliveryPage extends StatefulWidget {
   const DeliveryPage({super.key});
@@ -83,6 +84,7 @@ class DeliveryPageState extends State<DeliveryPage> {
 
   /// True when [deliveryFee] came from save-billing or calculate-delivery-fee API.
   bool _deliveryFeeFromApi = false;
+
   /// Order summary amounts — populated only from save-billing-add responses.
   bool _apiOrderSummaryReady = false;
   double? _apiSubtotal;
@@ -133,7 +135,6 @@ class DeliveryPageState extends State<DeliveryPage> {
   Map<String, dynamic>? selectedCity;
   Map<String, dynamic>? selectedPickupSite;
 
-  static const Color _pageBg = Color(0xFFF2F3F5);
   final ScrollController _scrollController = ScrollController();
   bool _showScrollHint = false;
   bool _scrollCanScroll = false;
@@ -420,7 +421,8 @@ class DeliveryPageState extends State<DeliveryPage> {
     return double.tryParse(raw?.toString() ?? '');
   }
 
-  Map<String, dynamic>? _promoDetailsFromSaveResult(Map<String, dynamic> result) {
+  Map<String, dynamic>? _promoDetailsFromSaveResult(
+      Map<String, dynamic> result) {
     final direct = result['promo_details'];
     if (direct is Map<String, dynamic>) return direct;
     if (direct is Map) return Map<String, dynamic>.from(direct);
@@ -438,8 +440,8 @@ class DeliveryPageState extends State<DeliveryPage> {
     if (promo == null) return;
 
     final shippingFree = promo['shipping_free'] == true;
-    final subtotal = _toDouble(promo['subtotal']) ??
-        _toDouble(promo['running_subtotal']);
+    final subtotal =
+        _toDouble(promo['subtotal']) ?? _toDouble(promo['running_subtotal']);
     final discount = _toDouble(promo['discount_amount']) ??
         _toDouble(promo['coupon_discount']) ??
         0.0;
@@ -905,11 +907,11 @@ class DeliveryPageState extends State<DeliveryPage> {
         final regionLabel =
             deliveryData['pickup_region']?.toString().trim() ?? '';
         final cityLabel = deliveryData['pickup_city']?.toString().trim() ?? '';
-        final siteLabel = (deliveryData['pickup_site'] ??
-                deliveryData['pickup_location'])
-            ?.toString()
-            .trim() ??
-            '';
+        final siteLabel =
+            (deliveryData['pickup_site'] ?? deliveryData['pickup_location'])
+                    ?.toString()
+                    .trim() ??
+                '';
         if (!mergeOnly ||
             regionLabel.isNotEmpty ||
             cityLabel.isNotEmpty ||
@@ -965,8 +967,8 @@ class DeliveryPageState extends State<DeliveryPage> {
           _apiDiscount = draft.apiDiscountAmount ?? draft.discountAmount;
           _apiShippingFree = draft.apiShippingFree ?? false;
           _apiDeliveryFeeAmount = draft.deliveryFee;
-          _deliveryFeeFromApi = draft.deliveryFee > 0 ||
-              (draft.apiShippingFree ?? false);
+          _deliveryFeeFromApi =
+              draft.deliveryFee > 0 || (draft.apiShippingFree ?? false);
         }
       });
     });
@@ -1222,8 +1224,9 @@ class DeliveryPageState extends State<DeliveryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
     return Scaffold(
-      backgroundColor: _pageBg,
+      backgroundColor: theme.pageBg,
       body: Stack(
         children: [
           Column(
@@ -1243,9 +1246,9 @@ class DeliveryPageState extends State<DeliveryPage> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Colors.green.shade600,
-                        Colors.green.shade700,
-                        Colors.green.shade800,
+                        AppThemeColors.headerBackground,
+                        AppColors.primaryDark,
+                        AppColors.primary,
                       ],
                       stops: const [0.0, 0.5, 1.0],
                     ),
@@ -1326,26 +1329,9 @@ class DeliveryPageState extends State<DeliveryPage> {
                         controller: _scrollController,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Animate(
-                            effects: [
-                              FadeEffect(duration: 400.ms),
-                              SlideEffect(
-                                  duration: 400.ms,
-                                  begin: Offset(0, 0.1),
-                                  end: Offset(0, 0))
-                            ],
-                            child: _buildDeliveryOptions(),
-                          ),
-                          const SizedBox(height: 8),
-                          if (deliveryOption == 'delivery') ...[
-                            _buildUrgentOption(),
-                            const SizedBox(height: 8),
-                          ],
-                          if (deliveryOption == 'pickup')
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Animate(
-                              key: pickupSectionKey,
                               effects: [
                                 FadeEffect(duration: 400.ms),
                                 SlideEffect(
@@ -1353,21 +1339,26 @@ class DeliveryPageState extends State<DeliveryPage> {
                                     begin: Offset(0, 0.1),
                                     end: Offset(0, 0))
                               ],
-                              child: _buildPickupForm(),
+                              child: _buildDeliveryOptions(),
                             ),
-                          const SizedBox(height: 12),
-                          Animate(
-                            effects: [
-                              FadeEffect(duration: 400.ms),
-                              SlideEffect(
-                                  duration: 400.ms,
-                                  begin: Offset(0, 0.1),
-                                  end: Offset(0, 0))
+                            const SizedBox(height: 8),
+                            if (deliveryOption == 'delivery') ...[
+                              _buildUrgentOption(),
+                              const SizedBox(height: 8),
                             ],
-                            child: _buildContactInfo(),
-                          ),
-                          const SizedBox(height: 12),
-                          if (deliveryOption == 'delivery') ...[
+                            if (deliveryOption == 'pickup')
+                              Animate(
+                                key: pickupSectionKey,
+                                effects: [
+                                  FadeEffect(duration: 400.ms),
+                                  SlideEffect(
+                                      duration: 400.ms,
+                                      begin: Offset(0, 0.1),
+                                      end: Offset(0, 0))
+                                ],
+                                child: _buildPickupForm(),
+                              ),
+                            const SizedBox(height: 12),
                             Animate(
                               effects: [
                                 FadeEffect(duration: 400.ms),
@@ -1376,36 +1367,48 @@ class DeliveryPageState extends State<DeliveryPage> {
                                     begin: Offset(0, 0.1),
                                     end: Offset(0, 0))
                               ],
-                              child: _buildDeliveryNotes(),
+                              child: _buildContactInfo(),
                             ),
                             const SizedBox(height: 12),
+                            if (deliveryOption == 'delivery') ...[
+                              Animate(
+                                effects: [
+                                  FadeEffect(duration: 400.ms),
+                                  SlideEffect(
+                                      duration: 400.ms,
+                                      begin: Offset(0, 0.1),
+                                      end: Offset(0, 0))
+                                ],
+                                child: _buildDeliveryNotes(),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                            const SizedBox(height: 8),
+                            Animate(
+                              effects: [
+                                FadeEffect(duration: 400.ms),
+                                SlideEffect(
+                                    duration: 400.ms,
+                                    begin: Offset(0, 0.1),
+                                    end: Offset(0, 0))
+                              ],
+                              child: _buildOrderSummary(),
+                            ),
+                            const SizedBox(height: 16),
+                            Animate(
+                              effects: [
+                                FadeEffect(duration: 400.ms),
+                                SlideEffect(
+                                    duration: 400.ms,
+                                    begin: Offset(0, 0.1),
+                                    end: Offset(0, 0))
+                              ],
+                              child: _buildContinueButton(),
+                            ),
+                            const SizedBox(height: 16),
                           ],
-                          const SizedBox(height: 8),
-                          Animate(
-                            effects: [
-                              FadeEffect(duration: 400.ms),
-                              SlideEffect(
-                                  duration: 400.ms,
-                                  begin: Offset(0, 0.1),
-                                  end: Offset(0, 0))
-                            ],
-                            child: _buildOrderSummary(),
-                          ),
-                          const SizedBox(height: 16),
-                          Animate(
-                            effects: [
-                              FadeEffect(duration: 400.ms),
-                              SlideEffect(
-                                  duration: 400.ms,
-                                  begin: Offset(0, 0.1),
-                                  end: Offset(0, 0))
-                            ],
-                            child: _buildContinueButton(),
-                          ),
-                          const SizedBox(height: 16),
-                        ],
+                        ),
                       ),
-                    ),
                     ),
                     if (_showScrollHint)
                       Positioned(
@@ -1423,15 +1426,15 @@ class DeliveryPageState extends State<DeliveryPage> {
                                     begin: Alignment.topCenter,
                                     end: Alignment.bottomCenter,
                                     colors: [
-                                      _pageBg.withValues(alpha: 0),
-                                      _pageBg,
+                                      theme.pageBg.withValues(alpha: 0),
+                                      theme.pageBg,
                                     ],
                                   ),
                                 ),
                               ),
                               Container(
                                 width: double.infinity,
-                                color: _pageBg,
+                                color: theme.pageBg,
                                 padding: const EdgeInsets.only(bottom: 2),
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1439,7 +1442,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                                     Icon(
                                       Icons.keyboard_arrow_down_rounded,
                                       size: 18,
-                                      color: Colors.green.shade700,
+                                      color: AppColors.primaryLight,
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
@@ -1447,7 +1450,9 @@ class DeliveryPageState extends State<DeliveryPage> {
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w600,
-                                        color: Colors.green.shade800,
+                                        color: theme.isDark
+                                            ? Colors.white70
+                                            : AppColors.primaryDark,
                                       ),
                                     ),
                                   ],
@@ -1473,19 +1478,58 @@ class DeliveryPageState extends State<DeliveryPage> {
   static const EdgeInsets _sectionMargin = EdgeInsets.symmetric(horizontal: 14);
   static const EdgeInsets _sectionPadding = EdgeInsets.all(12);
   static const Color _cardShadow = Color(0x0A000000);
-  static const Color _accent = Color(0xFF2E7D32);
+  static const Color _accent = AppColors.primaryDark;
 
-  BoxDecoration _sectionCardDecoration() => BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(_sectionRadius),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: const [
-          BoxShadow(
-            color: _cardShadow,
-            blurRadius: 6,
-            offset: Offset(0, 1),
-          ),
-        ],
+  AppThemeColors get _theme => context.appColors;
+
+  BoxDecoration _sectionCardDecoration() {
+    final t = _theme;
+    return BoxDecoration(
+      color: t.surface,
+      borderRadius: BorderRadius.circular(_sectionRadius),
+      border: Border.all(color: t.border),
+      boxShadow: t.isDark
+          ? [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.22),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ]
+          : const [
+              BoxShadow(
+                color: _cardShadow,
+                blurRadius: 6,
+                offset: Offset(0, 1),
+              ),
+            ],
+    );
+  }
+
+  BoxDecoration _innerPanelDecoration({Color? fill, Color? borderColor}) {
+    final t = _theme;
+    return BoxDecoration(
+      color: fill ?? t.fieldBg,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: borderColor ?? t.border),
+    );
+  }
+
+  Color _fieldFill({bool highlighted = false}) {
+    if (!highlighted) return _theme.fieldBg;
+    return _theme.isDark
+        ? Colors.red.withValues(alpha: 0.14)
+        : Colors.red.shade50;
+  }
+
+  Color _fieldBorder({bool highlighted = false}) {
+    if (highlighted) return Colors.red;
+    return _theme.searchBorder;
+  }
+
+  TextStyle _fieldTextStyle({double? fontSize}) => TextStyle(
+        fontSize: fontSize ?? 14,
+        color: _theme.inputText,
       );
 
   Widget _buildDeliveryOptions() {
@@ -1504,9 +1548,9 @@ class DeliveryPageState extends State<DeliveryPage> {
           Container(
             padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
+              color: _theme.fieldBg,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.all(color: _theme.border),
             ),
             child: Row(
               children: [
@@ -1553,7 +1597,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               fontWeight: FontWeight.w600,
               fontSize: compact ? 12 : 14,
               height: compact ? 1.2 : null,
-              color: Colors.grey.shade800,
+              color: _theme.ink,
             ),
           ),
         ),
@@ -1586,7 +1630,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               Icon(
                 icon,
                 size: 13,
-                color: isSelected ? Colors.white : Colors.grey.shade600,
+                color: isSelected ? Colors.white : _theme.muted,
               ),
               const SizedBox(width: 3),
               Flexible(
@@ -1597,7 +1641,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 11,
-                    color: isSelected ? Colors.white : Colors.grey.shade700,
+                    color: isSelected ? Colors.white : _theme.ink,
                   ),
                 ),
               ),
@@ -1628,7 +1672,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                   region['description'] ?? '',
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
-                  style: const TextStyle(fontSize: 13),
+                  style: _fieldTextStyle(fontSize: 13),
                 ),
               );
             }).toList(),
@@ -1661,7 +1705,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                     city['description'] ?? '',
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
-                    style: const TextStyle(fontSize: 13),
+                    style: _fieldTextStyle(fontSize: 13),
                   ),
                 );
               }).toList(),
@@ -1694,7 +1738,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                     store['description'] ?? '',
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
-                    style: const TextStyle(fontSize: 13),
+                    style: _fieldTextStyle(fontSize: 13),
                   ),
                 );
               }).toList(),
@@ -1712,15 +1756,15 @@ class DeliveryPageState extends State<DeliveryPage> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.red.shade50,
+                color: _fieldFill(highlighted: true),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.red.shade200),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.45)),
               ),
               child: Row(
                 children: [
                   Icon(
                     Icons.error_outline_rounded,
-                    color: Colors.red.shade600,
+                    color: Colors.red.shade400,
                     size: 16,
                   ),
                   const SizedBox(width: 8),
@@ -1728,7 +1772,9 @@ class DeliveryPageState extends State<DeliveryPage> {
                     child: Text(
                       'Please select region, city and pickup site',
                       style: TextStyle(
-                        color: Colors.red.shade700,
+                        color: _theme.isDark
+                            ? Colors.red.shade300
+                            : Colors.red.shade700,
                         fontSize: 11,
                       ),
                     ),
@@ -1741,16 +1787,24 @@ class DeliveryPageState extends State<DeliveryPage> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: _theme.isDark
+                  ? Colors.blue.withValues(alpha: 0.12)
+                  : Colors.blue.shade50,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.blue.shade100),
+              border: Border.all(
+                color: _theme.isDark
+                    ? Colors.blue.withValues(alpha: 0.35)
+                    : Colors.blue.shade100,
+              ),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
                   Icons.info_outline_rounded,
-                  color: Colors.blue.shade600,
+                  color: _theme.isDark
+                      ? Colors.blue.shade300
+                      : Colors.blue.shade600,
                   size: 16,
                 ),
                 const SizedBox(width: 8),
@@ -1758,7 +1812,9 @@ class DeliveryPageState extends State<DeliveryPage> {
                   child: Text(
                     'Pickup stations are open till 7pm, Monday to Saturday. Closed on Sundays.',
                     style: TextStyle(
-                      color: Colors.blue.shade800,
+                      color: _theme.isDark
+                          ? Colors.blue.shade200
+                          : Colors.blue.shade800,
                       fontSize: 11,
                       height: 1.35,
                     ),
@@ -1790,8 +1846,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               style: TextStyle(
                 fontWeight: FontWeight.w500,
                 fontSize: compact ? 11 : 14,
-                color:
-                    _highlightPickupField ? Colors.red : Colors.grey.shade700,
+                color: _highlightPickupField ? Colors.red : _theme.ink,
               ),
             ),
             Text(
@@ -1809,13 +1864,11 @@ class DeliveryPageState extends State<DeliveryPage> {
           width: double.infinity,
           decoration: BoxDecoration(
             border: Border.all(
-              color: _highlightPickupField ? Colors.red : Colors.grey.shade300,
+              color: _fieldBorder(highlighted: _highlightPickupField),
               width: _highlightPickupField ? 2 : 1,
             ),
             borderRadius: BorderRadius.circular(compact ? 10 : _fieldRadius),
-            color: _highlightPickupField
-                ? Colors.red.shade50
-                : Colors.grey.shade50,
+            color: _fieldFill(highlighted: _highlightPickupField),
           ),
           child: DropdownButtonFormField<Map<String, dynamic>>(
             value: value,
@@ -1830,18 +1883,14 @@ class DeliveryPageState extends State<DeliveryPage> {
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            _highlightPickupField
-                                ? Colors.red
-                                : Colors.grey.shade600,
+                            _highlightPickupField ? Colors.red : _theme.muted,
                           ),
                         ),
                       ),
                     )
                   : Icon(
                       Icons.location_on_rounded,
-                      color: _highlightPickupField
-                          ? Colors.red
-                          : Colors.grey.shade600,
+                      color: _highlightPickupField ? Colors.red : _theme.muted,
                       size: compact ? 18 : 22,
                     ),
               border: InputBorder.none,
@@ -1855,7 +1904,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                   ? 'Loading...'
                   : (items.isEmpty ? 'No options available' : label),
               style: TextStyle(
-                color: Colors.grey.shade500,
+                color: _theme.inputHint,
                 fontSize: compact ? 13 : 14,
               ),
             ),
@@ -1870,15 +1919,12 @@ class DeliveryPageState extends State<DeliveryPage> {
                       });
                     }
                   },
-            dropdownColor: Colors.white,
+            dropdownColor: _theme.surface,
             icon: Icon(
               Icons.keyboard_arrow_down_rounded,
-              color: _highlightPickupField ? Colors.red : Colors.grey.shade600,
+              color: _highlightPickupField ? Colors.red : _theme.muted,
             ),
-            style: TextStyle(
-              color: Colors.grey.shade800,
-              fontSize: 14,
-            ),
+            style: _fieldTextStyle(fontSize: 14),
             isExpanded: true,
           ),
         ),
@@ -1902,11 +1948,7 @@ class DeliveryPageState extends State<DeliveryPage> {
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
+            decoration: _innerPanelDecoration(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -1916,7 +1958,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 11,
-                    color: Colors.grey.shade600,
+                    color: _theme.muted,
                     letterSpacing: 0.2,
                   ),
                 ),
@@ -1964,7 +2006,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 11,
-                color: Colors.grey.shade600,
+                color: _theme.muted,
                 letterSpacing: 0.2,
               ),
             ),
@@ -1972,25 +2014,17 @@ class DeliveryPageState extends State<DeliveryPage> {
             Container(
               key: addressSectionKey,
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: (_highlightRegionField ||
+              decoration: _innerPanelDecoration(
+                fill: (_highlightRegionField ||
                         _highlightCityField ||
                         _highlightAddressField)
-                    ? Colors.red.shade50
-                    : Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: (_highlightRegionField ||
-                          _highlightCityField ||
-                          _highlightAddressField)
-                      ? Colors.red.shade300
-                      : Colors.grey.shade200,
-                  width: (_highlightRegionField ||
-                          _highlightCityField ||
-                          _highlightAddressField)
-                      ? 2
-                      : 1,
-                ),
+                    ? _fieldFill(highlighted: true)
+                    : null,
+                borderColor: (_highlightRegionField ||
+                        _highlightCityField ||
+                        _highlightAddressField)
+                    ? Colors.red
+                    : null,
               ),
               child: Column(
                 children: [
@@ -2049,7 +2083,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: _theme.surface,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: _accent.withValues(alpha: 0.4),
@@ -2061,7 +2095,9 @@ class DeliveryPageState extends State<DeliveryPage> {
                         children: [
                           Icon(
                             Icons.check_circle_rounded,
-                            color: _accent,
+                            color: _theme.isDark
+                                ? AppColors.primaryLight
+                                : _accent,
                             size: 16,
                           ),
                           const SizedBox(width: 8),
@@ -2073,7 +2109,9 @@ class DeliveryPageState extends State<DeliveryPage> {
                                 Text(
                                   'Location confirmed',
                                   style: TextStyle(
-                                    color: _accent,
+                                    color: _theme.isDark
+                                        ? AppColors.primaryLight
+                                        : _accent,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -2082,7 +2120,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                                 Text(
                                   _addressController.text,
                                   style: TextStyle(
-                                    color: Colors.grey.shade800,
+                                    color: _theme.ink,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
                                     height: 1.3,
@@ -2127,7 +2165,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               style: TextStyle(
                 fontWeight: FontWeight.w500,
                 fontSize: compact ? 11 : 13,
-                color: isHighlighted ? Colors.red : Colors.grey.shade700,
+                color: isHighlighted ? Colors.red : _theme.ink,
               ),
             ),
             if (isRequired)
@@ -2147,25 +2185,26 @@ class DeliveryPageState extends State<DeliveryPage> {
           controller: controller,
           keyboardType: keyboardType,
           autofillHints: autofillHints,
-          style: TextStyle(fontSize: compact ? 13 : 14),
+          style: _fieldTextStyle(fontSize: compact ? 13 : 14),
+          cursorColor: _theme.inputText,
           decoration: InputDecoration(
             isDense: compact,
             prefixIcon: Icon(
               icon,
-              color: isHighlighted ? Colors.red : Colors.grey.shade600,
+              color: isHighlighted ? Colors.red : _theme.muted,
               size: compact ? 18 : 22,
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(compact ? 10 : _fieldRadius),
               borderSide: BorderSide(
-                color: isHighlighted ? Colors.red : Colors.grey.shade300,
+                color: _fieldBorder(highlighted: isHighlighted),
                 width: isHighlighted ? 2 : 1,
               ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(compact ? 10 : _fieldRadius),
               borderSide: BorderSide(
-                color: isHighlighted ? Colors.red : Colors.grey.shade300,
+                color: _fieldBorder(highlighted: isHighlighted),
                 width: isHighlighted ? 2 : 1,
               ),
             ),
@@ -2177,7 +2216,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               ),
             ),
             filled: true,
-            fillColor: isHighlighted ? Colors.red.shade50 : Colors.grey.shade50,
+            fillColor: _fieldFill(highlighted: isHighlighted),
             contentPadding: EdgeInsets.symmetric(
               horizontal: compact ? 12 : 16,
               vertical: compact ? 10 : 14,
@@ -2207,7 +2246,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               style: TextStyle(
                 fontWeight: FontWeight.w500,
                 fontSize: 13,
-                color: isHighlighted ? Colors.red : Colors.grey.shade700,
+                color: isHighlighted ? Colors.red : _theme.ink,
               ),
             ),
             Text(
@@ -2225,17 +2264,17 @@ class DeliveryPageState extends State<DeliveryPage> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             border: Border.all(
-              color: isHighlighted ? Colors.red : Colors.grey.shade300,
+              color: _fieldBorder(highlighted: isHighlighted),
               width: isHighlighted ? 2 : 1,
             ),
             borderRadius: BorderRadius.circular(_fieldRadius),
-            color: isHighlighted ? Colors.red.shade50 : Colors.grey.shade100,
+            color: _fieldFill(highlighted: isHighlighted),
           ),
           child: Row(
             children: [
               Icon(
                 icon,
-                color: isHighlighted ? Colors.red : Colors.grey.shade600,
+                color: isHighlighted ? Colors.red : _theme.muted,
                 size: 22,
               ),
               const SizedBox(width: 12),
@@ -2244,8 +2283,8 @@ class DeliveryPageState extends State<DeliveryPage> {
                   value,
                   style: TextStyle(
                     color: value.contains('Select location')
-                        ? Colors.grey.shade500
-                        : Colors.grey.shade800,
+                        ? _theme.inputHint
+                        : _theme.inputText,
                     fontSize: 14,
                     fontStyle: value.contains('Select location')
                         ? FontStyle.italic
@@ -2370,7 +2409,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               style: TextStyle(
                 fontWeight: FontWeight.w500,
                 fontSize: compact ? 11 : 13,
-                color: _highlightPhoneField ? Colors.red : Colors.grey.shade700,
+                color: _highlightPhoneField ? Colors.red : _theme.ink,
               ),
             ),
             Text(
@@ -2388,7 +2427,8 @@ class DeliveryPageState extends State<DeliveryPage> {
           controller: _phoneController,
           keyboardType: TextInputType.number,
           maxLength: 10,
-          style: TextStyle(fontSize: compact ? 13 : 14),
+          style: _fieldTextStyle(fontSize: compact ? 13 : 14),
+          cursorColor: _theme.inputText,
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
             LengthLimitingTextInputFormatter(10),
@@ -2400,8 +2440,7 @@ class DeliveryPageState extends State<DeliveryPage> {
             return Text(
               '$currentLength/$maxLength',
               style: TextStyle(
-                color:
-                    currentLength == maxLength ? _accent : Colors.grey.shade500,
+                color: currentLength == maxLength ? _accent : _theme.inputHint,
                 fontSize: compact ? 10 : 12,
               ),
             );
@@ -2420,21 +2459,22 @@ class DeliveryPageState extends State<DeliveryPage> {
                 children: [
                   Text('🇬🇭', style: TextStyle(fontSize: compact ? 18 : 22)),
                   SizedBox(width: compact ? 3 : 4),
-                  Text('+233', style: TextStyle(fontSize: compact ? 13 : 15)),
+                  Text('+233',
+                      style: _fieldTextStyle(fontSize: compact ? 13 : 15)),
                 ],
               ),
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(compact ? 10 : _fieldRadius),
               borderSide: BorderSide(
-                color: _highlightPhoneField ? Colors.red : Colors.grey.shade300,
+                color: _fieldBorder(highlighted: _highlightPhoneField),
                 width: _highlightPhoneField ? 2 : 1,
               ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(compact ? 10 : _fieldRadius),
               borderSide: BorderSide(
-                color: _highlightPhoneField ? Colors.red : Colors.grey.shade300,
+                color: _fieldBorder(highlighted: _highlightPhoneField),
                 width: _highlightPhoneField ? 2 : 1,
               ),
             ),
@@ -2446,8 +2486,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               ),
             ),
             filled: true,
-            fillColor:
-                _highlightPhoneField ? Colors.red.shade50 : Colors.grey.shade50,
+            fillColor: _fieldFill(highlighted: _highlightPhoneField),
             contentPadding: EdgeInsets.symmetric(
               horizontal: compact ? 12 : 16,
               vertical: compact ? 10 : 14,
@@ -2476,15 +2515,16 @@ class DeliveryPageState extends State<DeliveryPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
+                  color: _theme.fieldBg,
                   borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: _theme.border),
                 ),
                 child: Text(
                   'Optional',
                   style: TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w500,
-                    color: Colors.grey.shade600,
+                    color: _theme.muted,
                   ),
                 ),
               ),
@@ -2493,28 +2533,29 @@ class DeliveryPageState extends State<DeliveryPage> {
           const SizedBox(height: 8),
           TextField(
             controller: _notesController,
-            style: const TextStyle(fontSize: 13),
+            style: _fieldTextStyle(fontSize: 13),
+            cursorColor: _theme.inputText,
             decoration: InputDecoration(
               isDense: true,
               hintText: 'e.g. gate code, landmarks, or special instructions',
               hintStyle: TextStyle(
-                color: Colors.grey.shade500,
+                color: _theme.inputHint,
                 fontSize: 12,
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: Colors.grey.shade300),
+                borderSide: BorderSide(color: _fieldBorder()),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: Colors.grey.shade300),
+                borderSide: BorderSide(color: _fieldBorder()),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide(color: _accent, width: 2),
               ),
               filled: true,
-              fillColor: Colors.grey.shade50,
+              fillColor: _fieldFill(),
               contentPadding: const EdgeInsets.all(12),
             ),
             maxLines: 3,
@@ -2567,6 +2608,7 @@ class DeliveryPageState extends State<DeliveryPage> {
     final isOn = _isOrderUrgent;
     const urgentRed = Color(0xFFD32F2F);
     const urgentOrange = Color(0xFFEA580C);
+    final isDark = _theme.isDark;
 
     return Padding(
       padding: _sectionMargin,
@@ -2579,22 +2621,33 @@ class DeliveryPageState extends State<DeliveryPage> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: isOn
-                ? [
-                    Colors.red.shade50,
-                    const Color(0xFFFFF5F5),
-                    Colors.white,
-                  ]
-                : [
-                    const Color(0xFFFFF7ED),
-                    const Color(0xFFFFFBEB),
-                    Colors.white,
-                  ],
+                ? (isDark
+                    ? [
+                        urgentRed.withValues(alpha: 0.18),
+                        _theme.surface,
+                        _theme.surface,
+                      ]
+                    : [
+                        Colors.red.shade50,
+                        const Color(0xFFFFF5F5),
+                        Colors.white,
+                      ])
+                : (isDark
+                    ? [
+                        urgentOrange.withValues(alpha: 0.14),
+                        _theme.surface,
+                      ]
+                    : [
+                        const Color(0xFFFFF7ED),
+                        const Color(0xFFFFFBEB),
+                        Colors.white,
+                      ]),
           ),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isOn
-                ? urgentRed.withValues(alpha: 0.45)
-                : urgentOrange.withValues(alpha: 0.55),
+                ? urgentRed.withValues(alpha: isDark ? 0.55 : 0.45)
+                : urgentOrange.withValues(alpha: isDark ? 0.5 : 0.55),
             width: 1.25,
           ),
           boxShadow: [
@@ -2642,7 +2695,11 @@ class DeliveryPageState extends State<DeliveryPage> {
                             fontWeight: FontWeight.w700,
                             height: 1.2,
                             letterSpacing: -0.2,
-                            color: isOn ? urgentRed : const Color(0xFF9A3412),
+                            color: isOn
+                                ? urgentRed
+                                : (isDark
+                                    ? urgentOrange.withValues(alpha: 0.95)
+                                    : const Color(0xFF9A3412)),
                           ),
                         ),
                       ),
@@ -2680,8 +2737,10 @@ class DeliveryPageState extends State<DeliveryPage> {
                       height: 1.25,
                       fontWeight: FontWeight.w500,
                       color: isOn
-                          ? Colors.red.shade800.withValues(alpha: 0.75)
-                          : Colors.grey.shade700,
+                          ? (isDark
+                              ? Colors.red.shade300
+                              : Colors.red.shade800.withValues(alpha: 0.75))
+                          : _theme.muted,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -2697,7 +2756,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               activeThumbColor: Colors.white,
               activeTrackColor: urgentRed,
               inactiveThumbColor: Colors.white,
-              inactiveTrackColor: Colors.grey.shade600,
+              inactiveTrackColor: isDark ? _theme.border : Colors.grey.shade600,
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ],
@@ -2726,11 +2785,7 @@ class DeliveryPageState extends State<DeliveryPage> {
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
+              decoration: _innerPanelDecoration(),
               child: Column(
                 children: [
                   _buildSummaryRow(
@@ -2748,7 +2803,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                       isLoading: true,
                     ),
                   ],
-                  Divider(height: 20, thickness: 1, color: Colors.grey.shade300),
+                  Divider(height: 20, thickness: 1, color: _theme.border),
                   _buildSummaryRow(
                     'Total',
                     0,
@@ -2766,11 +2821,9 @@ class DeliveryPageState extends State<DeliveryPage> {
 
     final subtotal = _apiSubtotal!;
     final discountAmount = _apiDiscount;
-    final deliveryCharge = isDelivery
-        ? (_apiShippingFree ? 0.0 : _apiDeliveryFeeAmount)
-        : 0.0;
-    final merchandiseTotal =
-        _apiRunningSubtotal ?? (subtotal - discountAmount);
+    final deliveryCharge =
+        isDelivery ? (_apiShippingFree ? 0.0 : _apiDeliveryFeeAmount) : 0.0;
+    final merchandiseTotal = _apiRunningSubtotal ?? (subtotal - discountAmount);
     final total = merchandiseTotal + deliveryCharge + emergencyOrderFee;
 
     return Container(
@@ -2784,11 +2837,7 @@ class DeliveryPageState extends State<DeliveryPage> {
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
+            decoration: _innerPanelDecoration(),
             child: Column(
               children: [
                 _buildSummaryRow('Subtotal', subtotal,
@@ -2812,13 +2861,12 @@ class DeliveryPageState extends State<DeliveryPage> {
                 ],
                 if (emergencyOrderFee > 0) ...[
                   const SizedBox(height: 8),
-                  _buildSummaryRow('Urgent order fee', emergencyOrderFee,
+                  _buildSummaryRow('Xpress order fee', emergencyOrderFee,
                       icon: Icons.flash_on),
                 ],
-                Divider(height: 20, thickness: 1, color: Colors.grey.shade300),
+                Divider(height: 20, thickness: 1, color: _theme.border),
                 _buildSummaryRow('Total', total,
-                    isHighlighted: true,
-                    icon: Icons.payment_rounded),
+                    isHighlighted: true, icon: Icons.payment_rounded),
               ],
             ),
           ),
@@ -2841,7 +2889,7 @@ class DeliveryPageState extends State<DeliveryPage> {
           Icon(
             icon,
             size: 16,
-            color: isHighlighted ? _accent : Colors.grey.shade600,
+            color: isHighlighted ? _accent : _theme.muted,
           ),
           const SizedBox(width: 8),
         ],
@@ -2851,8 +2899,7 @@ class DeliveryPageState extends State<DeliveryPage> {
             style: TextStyle(
               fontWeight: isHighlighted ? FontWeight.w600 : FontWeight.w500,
               fontSize: isHighlighted ? 13 : 12,
-              color:
-                  isHighlighted ? Colors.grey.shade800 : Colors.grey.shade700,
+              color: isHighlighted ? _theme.ink : _theme.muted,
             ),
           ),
         ),
@@ -2875,7 +2922,7 @@ class DeliveryPageState extends State<DeliveryPage> {
           fontWeight: FontWeight.w600,
           fontSize: 11,
           fontStyle: FontStyle.italic,
-          color: Colors.grey.shade500,
+          color: _theme.inputHint,
         ),
       );
     }
@@ -2886,7 +2933,7 @@ class DeliveryPageState extends State<DeliveryPage> {
         style: TextStyle(
           fontWeight: FontWeight.w700,
           fontSize: 12,
-          color: Colors.green.shade700,
+          color: _theme.isDark ? Colors.green.shade400 : Colors.green.shade700,
         ),
       );
     }
@@ -2896,7 +2943,7 @@ class DeliveryPageState extends State<DeliveryPage> {
       style: TextStyle(
         fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w600,
         fontSize: isHighlighted ? 15 : 12,
-        color: isHighlighted ? _accent : Colors.grey.shade800,
+        color: isHighlighted ? _accent : _theme.ink,
       ),
     );
   }
@@ -2924,201 +2971,206 @@ class DeliveryPageState extends State<DeliveryPage> {
           onTap: (_isProceedingToPayment || _isInitialDeliveryDataLoading)
               ? null
               : () async {
-            await _ensureInitialDeliveryDataLoaded();
-            bool isValid = true;
+                  await _ensureInitialDeliveryDataLoaded();
+                  bool isValid = true;
 
-            // Validate name
-            if (_nameController.text.trim().isEmpty) {
-              setState(() {
-                _highlightNameField = true;
-                isValid = false;
-              });
-              _scrollToError(nameSectionKey, errorType: 'name');
-            }
+                  // Validate name
+                  if (_nameController.text.trim().isEmpty) {
+                    setState(() {
+                      _highlightNameField = true;
+                      isValid = false;
+                    });
+                    _scrollToError(nameSectionKey, errorType: 'name');
+                  }
 
-            // Validate email
-            if (_emailController.text.trim().isEmpty) {
-              setState(() {
-                _highlightEmailField = true;
-                isValid = false;
-              });
-              _scrollToError(emailSectionKey, errorType: 'email');
-            } else if (!RegExp(
-                    r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
-                .hasMatch(_emailController.text.trim())) {
-              setState(() {
-                _highlightEmailField = true;
-                isValid = false;
-              });
-              _scrollToError(emailSectionKey, errorType: 'email');
-            }
-
-            // Validate delivery location (region, city, address - all from map picker)
-            if (deliveryOption == 'delivery' &&
-                (_regionController.text.trim().isEmpty ||
-                    _cityController.text.trim().isEmpty ||
-                    _addressController.text.trim().isEmpty)) {
-              setState(() {
-                _highlightRegionField = true;
-                _highlightCityField = true;
-                _highlightAddressField = true;
-                isValid = false;
-              });
-              _scrollToError(addressSectionKey, errorType: 'delivery location');
-            }
-
-            // Validate phone number
-            if (_phoneController.text.isEmpty) {
-              setState(() {
-                _highlightPhoneField = true;
-                isValid = false;
-              });
-              _scrollToError(phoneSectionKey, errorType: 'phone');
-            } else if (_phoneController.text.length != 10) {
-              setState(() {
-                _highlightPhoneField = true;
-                isValid = false;
-              });
-              _scrollToError(phoneSectionKey, errorType: 'phone');
-            }
-
-            // Validate pickup fields
-            if (deliveryOption == 'pickup') {
-              if (selectedRegion == null ||
-                  selectedCity == null ||
-                  selectedPickupSite == null) {
-                setState(() {
-                  _highlightPickupField = true;
-                  isValid = false;
-                });
-                _scrollToError(pickupSectionKey, errorType: 'pickup');
-              }
-            }
-
-            if (!isValid) {
-              // Build specific message so user knows what to fix
-              String message = 'Please fix the following: ';
-              final missing = <String>[];
-              if (_nameController.text.trim().isEmpty) missing.add('name');
-              if (_emailController.text.trim().isEmpty ||
-                  !RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+                  // Validate email
+                  if (_emailController.text.trim().isEmpty) {
+                    setState(() {
+                      _highlightEmailField = true;
+                      isValid = false;
+                    });
+                    _scrollToError(emailSectionKey, errorType: 'email');
+                  } else if (!RegExp(
+                          r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
                       .hasMatch(_emailController.text.trim())) {
-                missing.add('email');
-              }
-              if (_phoneController.text.isEmpty ||
-                  _phoneController.text.length != 10) {
-                missing.add('phone (10 digits)');
-              }
-              if (deliveryOption == 'delivery') {
-                if (_addressController.text.trim().isEmpty ||
-                    _regionController.text.trim().isEmpty ||
-                    _cityController.text.trim().isEmpty) {
-                  missing.add('delivery address (tap "Pick location on map")');
-                }
-              }
-              if (deliveryOption == 'pickup' &&
-                  (selectedRegion == null ||
-                      selectedCity == null ||
-                      selectedPickupSite == null)) {
-                missing.add('pickup location');
-              }
-              message += missing.join(', ');
+                    setState(() {
+                      _highlightEmailField = true;
+                      isValid = false;
+                    });
+                    _scrollToError(emailSectionKey, errorType: 'email');
+                  }
 
-              AppErrorUtils.showSnack(context, message, isError: true);
-              return;
-            }
+                  // Validate delivery location (region, city, address - all from map picker)
+                  if (deliveryOption == 'delivery' &&
+                      (_regionController.text.trim().isEmpty ||
+                          _cityController.text.trim().isEmpty ||
+                          _addressController.text.trim().isEmpty)) {
+                    setState(() {
+                      _highlightRegionField = true;
+                      _highlightCityField = true;
+                      _highlightAddressField = true;
+                      isValid = false;
+                    });
+                    _scrollToError(addressSectionKey,
+                        errorType: 'delivery location');
+                  }
 
-            try {
-              setState(() => _isProceedingToPayment = true);
+                  // Validate phone number
+                  if (_phoneController.text.isEmpty) {
+                    setState(() {
+                      _highlightPhoneField = true;
+                      isValid = false;
+                    });
+                    _scrollToError(phoneSectionKey, errorType: 'phone');
+                  } else if (_phoneController.text.length != 10) {
+                    setState(() {
+                      _highlightPhoneField = true;
+                      isValid = false;
+                    });
+                    _scrollToError(phoneSectionKey, errorType: 'phone');
+                  }
 
-              // Always save delivery information to API, even for guests
-              final locationIds = await _resolveBillingLocationIdsSafe(
-                skipLookup: false,
-              );
-              Map<String, dynamic> saveResult;
-              try {
-                saveResult = await DeliveryService.saveDeliveryInfo(
-                  name: _nameController.text.trim(),
-                  email: _emailController.text.trim(),
-                  phone: _phoneController.text,
-                  deliveryOption: deliveryOption,
-                  region: deliveryOption == 'delivery'
-                      ? _regionController.text.trim()
-                      : null,
-                  city: deliveryOption == 'delivery'
-                      ? _cityController.text.trim()
-                      : null,
-                  address: deliveryOption == 'delivery'
-                      ? _addressController.text.trim()
-                      : null,
-                  notes: _notesController.text.trim(),
-                  pickupRegion:
-                      (deliveryOption == 'pickup' && selectedRegion != null)
-                          ? selectedRegion!['description']?.toString()
-                          : null,
-                  pickupCity:
-                      (deliveryOption == 'pickup' && selectedCity != null)
-                          ? selectedCity!['description']?.toString()
-                          : null,
-                  pickupSite:
-                      (deliveryOption == 'pickup' && selectedPickupSite != null)
-                          ? selectedPickupSite!['description']?.toString()
-                          : null,
-                  regionId: locationIds.regionId,
-                  cityId: locationIds.cityId,
-                  storeId: locationIds.storeId,
-                  lat: _latitude,
-                  lng: _longitude,
-                );
-              } catch (e, st) {
-                debugPrint('❌ [DELIVERY] saveDeliveryInfo threw: $e\n$st');
-                if (!mounted) return;
-                _showDeliverySnack(
-                  'Could not save delivery details. Please try again.',
-                );
-                return;
-              }
+                  // Validate pickup fields
+                  if (deliveryOption == 'pickup') {
+                    if (selectedRegion == null ||
+                        selectedCity == null ||
+                        selectedPickupSite == null) {
+                      setState(() {
+                        _highlightPickupField = true;
+                        isValid = false;
+                      });
+                      _scrollToError(pickupSectionKey, errorType: 'pickup');
+                    }
+                  }
 
-              if (saveResult['success'] != true) {
-                if (!mounted) return;
-                _showDeliverySnack(
-                  saveResult['message']?.toString() ??
-                      'Could not save delivery details. Please try again.',
-                );
-                return;
-              }
+                  if (!isValid) {
+                    // Build specific message so user knows what to fix
+                    String message = 'Please fix the following: ';
+                    final missing = <String>[];
+                    if (_nameController.text.trim().isEmpty)
+                      missing.add('name');
+                    if (_emailController.text.trim().isEmpty ||
+                        !RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+                            .hasMatch(_emailController.text.trim())) {
+                      missing.add('email');
+                    }
+                    if (_phoneController.text.isEmpty ||
+                        _phoneController.text.length != 10) {
+                      missing.add('phone (10 digits)');
+                    }
+                    if (deliveryOption == 'delivery') {
+                      if (_addressController.text.trim().isEmpty ||
+                          _regionController.text.trim().isEmpty ||
+                          _cityController.text.trim().isEmpty) {
+                        missing.add(
+                            'delivery address (tap "Pick location on map")');
+                      }
+                    }
+                    if (deliveryOption == 'pickup' &&
+                        (selectedRegion == null ||
+                            selectedCity == null ||
+                            selectedPickupSite == null)) {
+                      missing.add('pickup location');
+                    }
+                    message += missing.join(', ');
 
-              await _persistGuestCheckoutDraft();
-              if (!mounted) return;
+                    AppErrorUtils.showSnack(context, message, isError: true);
+                    return;
+                  }
 
-              await _ensureDeliveryFeeForPayment(
-                saveResult: Map<String, dynamic>.from(saveResult),
-              );
-              if (!mounted) return;
+                  try {
+                    setState(() => _isProceedingToPayment = true);
 
-              if (deliveryOption == 'delivery' &&
-                  !_deliveryFeeFromApi) {
-                _showDeliverySnack(
-                  _lastDeliveryErrorMessage ??
-                      'Could not calculate delivery fee. Reselect your location on the map and try again.',
-                );
-                return;
-              }
+                    // Always save delivery information to API, even for guests
+                    final locationIds = await _resolveBillingLocationIdsSafe(
+                      skipLookup: false,
+                    );
+                    Map<String, dynamic> saveResult;
+                    try {
+                      saveResult = await DeliveryService.saveDeliveryInfo(
+                        name: _nameController.text.trim(),
+                        email: _emailController.text.trim(),
+                        phone: _phoneController.text,
+                        deliveryOption: deliveryOption,
+                        region: deliveryOption == 'delivery'
+                            ? _regionController.text.trim()
+                            : null,
+                        city: deliveryOption == 'delivery'
+                            ? _cityController.text.trim()
+                            : null,
+                        address: deliveryOption == 'delivery'
+                            ? _addressController.text.trim()
+                            : null,
+                        notes: _notesController.text.trim(),
+                        pickupRegion: (deliveryOption == 'pickup' &&
+                                selectedRegion != null)
+                            ? selectedRegion!['description']?.toString()
+                            : null,
+                        pickupCity:
+                            (deliveryOption == 'pickup' && selectedCity != null)
+                                ? selectedCity!['description']?.toString()
+                                : null,
+                        pickupSite: (deliveryOption == 'pickup' &&
+                                selectedPickupSite != null)
+                            ? selectedPickupSite!['description']?.toString()
+                            : null,
+                        regionId: locationIds.regionId,
+                        cityId: locationIds.cityId,
+                        storeId: locationIds.storeId,
+                        lat: _latitude,
+                        lng: _longitude,
+                      );
+                    } catch (e, st) {
+                      debugPrint(
+                          '❌ [DELIVERY] saveDeliveryInfo threw: $e\n$st');
+                      if (!mounted) return;
+                      _showDeliverySnack(
+                        'Could not save delivery details. Please try again.',
+                      );
+                      return;
+                    }
 
-              debugPrint('🚀 [DELIVERY] Fee passed to payment: $deliveryFee');
+                    if (saveResult['success'] != true) {
+                      if (!mounted) return;
+                      _showDeliverySnack(
+                        saveResult['message']?.toString() ??
+                            'Could not save delivery details. Please try again.',
+                      );
+                      return;
+                    }
 
-              if (!mounted) return;
-              _proceedToPayment();
-            } catch (e, st) {
-              debugPrint('❌ [DELIVERY] Continue to payment failed: $e\n$st');
-              if (mounted) {
-                _showDeliverySnack(
-                  'Something went wrong. Please try again.',
-                );
-              }
-            } finally {
-              if (mounted) setState(() => _isProceedingToPayment = false);
-            }
+                    await _persistGuestCheckoutDraft();
+                    if (!mounted) return;
+
+                    await _ensureDeliveryFeeForPayment(
+                      saveResult: Map<String, dynamic>.from(saveResult),
+                    );
+                    if (!mounted) return;
+
+                    if (deliveryOption == 'delivery' && !_deliveryFeeFromApi) {
+                      _showDeliverySnack(
+                        _lastDeliveryErrorMessage ??
+                            'Could not calculate delivery fee. Reselect your location on the map and try again.',
+                      );
+                      return;
+                    }
+
+                    debugPrint(
+                        '🚀 [DELIVERY] Fee passed to payment: $deliveryFee');
+
+                    if (!mounted) return;
+                    _proceedToPayment();
+                  } catch (e, st) {
+                    debugPrint(
+                        '❌ [DELIVERY] Continue to payment failed: $e\n$st');
+                    if (mounted) {
+                      _showDeliverySnack(
+                        'Something went wrong. Please try again.',
+                      );
+                    }
+                  } finally {
+                    if (mounted) setState(() => _isProceedingToPayment = false);
+                  }
                 },
           child: Center(
             child: (_isProceedingToPayment || _isInitialDeliveryDataLoading)
@@ -3239,7 +3291,8 @@ class DeliveryPageState extends State<DeliveryPage> {
           lng: paymentLng,
           estimatedDeliveryTime: _apiDeliveryTime,
           distanceKm: _distanceKm,
-          deliveryFee: deliveryOption == 'delivery' ? _apiDeliveryFeeAmount : 0.0,
+          deliveryFee:
+              deliveryOption == 'delivery' ? _apiDeliveryFeeAmount : 0.0,
           isOrderUrgent: _isOrderUrgent,
           emergencyOrderFee: _emergencyOrderFee,
           apiSubtotal: cartSubtotal,

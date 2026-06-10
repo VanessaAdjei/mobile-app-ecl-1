@@ -1,4 +1,5 @@
 import '../database/prescription/prescription_remote_data_source.dart';
+import '../database/prescription/prescription_submission_date_local_storage.dart';
 import '../models/category_fetch_result.dart';
 
 abstract class PrescriptionRepository {
@@ -14,13 +15,21 @@ abstract class PrescriptionRepository {
     Map<String, String> fields,
     Duration timeout,
   });
+
+  Future<Map<String, String>> readLocalSubmissionDates();
+  Future<void> saveLocalSubmissionDate(String prescriptionId, DateTime at);
 }
 
 class PrescriptionRepositoryImpl implements PrescriptionRepository {
-  PrescriptionRepositoryImpl([PrescriptionRemoteDataSource? remote])
-      : _remote = remote ?? PrescriptionRemoteDataSourceImpl();
+  PrescriptionRepositoryImpl([
+    PrescriptionRemoteDataSource? remote,
+    PrescriptionSubmissionDateLocalStorage? localDates,
+  ])  : _remote = remote ?? PrescriptionRemoteDataSourceImpl(),
+        _localDates =
+            localDates ?? PrescriptionSubmissionDateLocalStorageImpl();
 
   final PrescriptionRemoteDataSource _remote;
+  final PrescriptionSubmissionDateLocalStorage _localDates;
 
   @override
   Future<CategoryFetchResult> fetchPrescriptions({
@@ -44,4 +53,12 @@ class PrescriptionRepositoryImpl implements PrescriptionRepository {
         fields: fields,
         timeout: timeout,
       );
+
+  @override
+  Future<Map<String, String>> readLocalSubmissionDates() =>
+      _localDates.readAll();
+
+  @override
+  Future<void> saveLocalSubmissionDate(String prescriptionId, DateTime at) =>
+      _localDates.save(prescriptionId, at);
 }

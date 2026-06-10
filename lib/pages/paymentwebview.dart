@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../config/app_colors.dart';
+import '../utils/app_theme_colors.dart';
 import '../models/cart_item.dart';
 import '../services/auth_service.dart';
 import '../utils/payment_redirect_url.dart';
@@ -144,19 +145,123 @@ class PaymentWebViewState extends State<PaymentWebView> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Payment Error'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Go back to payment page
-            },
-            child: const Text('OK'),
+      builder: (dialogContext) {
+        final t = dialogContext.appColors;
+        return AlertDialog(
+          backgroundColor: t.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: t.border),
           ),
-        ],
-      ),
+          title: Text(
+            'Payment Error',
+            style: TextStyle(color: t.ink, fontWeight: FontWeight.w600),
+          ),
+          content: Text(message, style: TextStyle(color: t.muted)),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                Navigator.pop(context);
+              },
+              child: Text(
+                'OK',
+                style: TextStyle(
+                  color: t.isDark ? AppColors.primaryLight : AppColors.primary,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<bool?> _showCancelPaymentDialog(BuildContext context) {
+    final t = context.appColors;
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final dialogTheme = dialogContext.appColors;
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: dialogTheme.border),
+          ),
+          backgroundColor: dialogTheme.surface,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: dialogTheme.isDark
+                      ? Colors.orange.shade300
+                      : Colors.orange.shade700,
+                  size: 32,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Cancel Payment?',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: dialogTheme.ink,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Your payment will not be processed.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: dialogTheme.muted,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: dialogTheme.muted,
+                          side: BorderSide(color: dialogTheme.border),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        child: const Text('No'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(dialogContext, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: t.isDark
+                              ? dialogTheme.fieldBg
+                              : Colors.grey.shade800,
+                          foregroundColor: t.isDark ? dialogTheme.ink : Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          elevation: 0,
+                        ),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -326,6 +431,8 @@ class PaymentWebViewState extends State<PaymentWebView> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
@@ -354,82 +461,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
           if (!context.mounted) return;
 
           // show confirmation dialog with error handling
-          final shouldPop = await showDialog<bool>(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => Dialog(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              backgroundColor: Colors.white,
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: Colors.orange.shade700,
-                      size: 32,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Cancel Payment?',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade900,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Your payment will not be processed.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade600,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.grey.shade700,
-                              side: BorderSide(color: Colors.grey.shade300),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                            ),
-                            child: Text('No'),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.grey.shade800,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              elevation: 0,
-                            ),
-                            child: Text('Cancel'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
+          final shouldPop = await _showCancelPaymentDialog(context);
 
           if (shouldPop == true && mounted) {
             // wait a tiny bit to prevent navigation conflicts
@@ -478,7 +510,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFF4FAF7),
+        backgroundColor: theme.pageBg,
         body: Stack(
           children: [
             Column(
@@ -494,11 +526,11 @@ class PaymentWebViewState extends State<PaymentWebView> {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            Colors.green.shade600,
-                            Colors.green.shade700,
-                            Colors.green.shade800,
+                            AppThemeColors.headerBackground,
+                            AppColors.primaryDark,
+                            AppColors.primary,
                           ],
-                          stops: [0.0, 0.5, 1.0],
+                          stops: const [0.0, 0.5, 1.0],
                         ),
                         boxShadow: [
                           BoxShadow(
@@ -523,105 +555,8 @@ class PaymentWebViewState extends State<PaymentWebView> {
                                   onPressed: () async {
                                     debugPrint(
                                         '🔍 Back button pressed manually');
-                                    final shouldPop = await showDialog<bool>(
-                                      context: context,
-                                      builder: (context) => Dialog(
-                                        shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(12)),
-                                        backgroundColor: Colors.white,
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 20, vertical: 20),
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                Icons.info_outline,
-                                                color: Colors.orange.shade700,
-                                                size: 32,
-                                              ),
-                                              const SizedBox(height: 12),
-                                              Text(
-                                                'Cancel Payment?',
-                                                style: TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.grey.shade900,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 8),
-                                              Text(
-                                                'Your payment will not be processed.',
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  color: Colors.grey.shade600,
-                                                ),
-                                                textAlign: TextAlign.center,
-                                              ),
-                                              const SizedBox(height: 16),
-                                              Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: OutlinedButton(
-                                                      onPressed: () =>
-                                                          Navigator.pop(
-                                                              context, false),
-                                                      style: OutlinedButton
-                                                          .styleFrom(
-                                                        foregroundColor: Colors
-                                                            .grey.shade700,
-                                                        side: BorderSide(
-                                                            color: Colors
-                                                                .grey.shade300),
-                                                        shape:
-                                                            RoundedRectangleBorder(
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(8),
-                                                        ),
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .symmetric(
-                                                                vertical: 10),
-                                                      ),
-                                                      child: Text('No'),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 10),
-                                                  Expanded(
-                                                    child: ElevatedButton(
-                                                      onPressed: () =>
-                                                          Navigator.pop(
-                                                              context, true),
-                                                      style: ElevatedButton
-                                                          .styleFrom(
-                                                        backgroundColor: Colors
-                                                            .grey.shade800,
-                                                        foregroundColor:
-                                                            Colors.white,
-                                                        shape:
-                                                            RoundedRectangleBorder(
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(8),
-                                                        ),
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .symmetric(
-                                                                vertical: 10),
-                                                        elevation: 0,
-                                                      ),
-                                                      child: Text('Cancel'),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    );
+                                    final shouldPop =
+                                        await _showCancelPaymentDialog(context);
                                     if (shouldPop == true && mounted) {
                                       // wait a tiny bit to prevent navigation conflicts
                                       await Future.delayed(
@@ -680,7 +615,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      const ColoredBox(color: Color(0xFFF4FAF7)),
+                      ColoredBox(color: theme.pageBg),
                       if (_loadError != null)
                         Center(
                           child: Padding(
@@ -688,18 +623,25 @@ class PaymentWebViewState extends State<PaymentWebView> {
                             child: Container(
                               padding: const EdgeInsets.all(20),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: theme.surface,
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: const Color(0xFFE5E7EB),
-                                ),
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: Color(0x0A000000),
-                                    blurRadius: 6,
-                                    offset: Offset(0, 1),
-                                  ),
-                                ],
+                                border: Border.all(color: theme.border),
+                                boxShadow: theme.isDark
+                                    ? [
+                                        BoxShadow(
+                                          color: Colors.black
+                                              .withValues(alpha: 0.22),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                    : const [
+                                        BoxShadow(
+                                          color: Color(0x0A000000),
+                                          blurRadius: 6,
+                                          offset: Offset(0, 1),
+                                        ),
+                                      ],
                               ),
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
@@ -708,13 +650,17 @@ class PaymentWebViewState extends State<PaymentWebView> {
                                     width: 52,
                                     height: 52,
                                     decoration: BoxDecoration(
-                                      color: Colors.orange.shade50,
+                                      color: theme.isDark
+                                          ? Colors.orange.withValues(alpha: 0.14)
+                                          : Colors.orange.shade50,
                                       shape: BoxShape.circle,
                                     ),
                                     child: Icon(
                                       Icons.wifi_off_rounded,
                                       size: 28,
-                                      color: Colors.orange.shade800,
+                                      color: theme.isDark
+                                          ? Colors.orange.shade300
+                                          : Colors.orange.shade800,
                                     ),
                                   ),
                                   const SizedBox(height: 14),
@@ -724,7 +670,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
                                     style: GoogleFonts.poppins(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w600,
-                                      color: Colors.grey.shade900,
+                                      color: theme.ink,
                                     ),
                                   ),
                                   const SizedBox(height: 8),
@@ -733,7 +679,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: Colors.grey.shade600,
+                                      color: theme.muted,
                                       height: 1.4,
                                     ),
                                   ),
@@ -822,6 +768,7 @@ class _PaymentPortalLoadingViewState extends State<_PaymentPortalLoadingView>
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
     final title = widget.isConnecting
         ? 'Connecting to ExpressPay'
         : 'Opening secure checkout';
@@ -830,7 +777,7 @@ class _PaymentPortalLoadingViewState extends State<_PaymentPortalLoadingView>
         : 'Loading the payment page — almost there';
 
     return ColoredBox(
-      color: const Color(0xFFF4FAF7),
+      color: theme.pageBg,
       child: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -838,12 +785,14 @@ class _PaymentPortalLoadingViewState extends State<_PaymentPortalLoadingView>
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(18, 20, 18, 16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: theme.surface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
+              border: Border.all(color: theme.border),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.08),
+                  color: AppColors.primary.withValues(
+                    alpha: theme.isDark ? 0.12 : 0.08,
+                  ),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -861,7 +810,7 @@ class _PaymentPortalLoadingViewState extends State<_PaymentPortalLoadingView>
                       height: 72,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: const Color(0xFFEEF9F3),
+                        color: theme.accentTint,
                         boxShadow: [
                           BoxShadow(
                             color: AppColors.primary.withValues(alpha: glow),
@@ -897,7 +846,10 @@ class _PaymentPortalLoadingViewState extends State<_PaymentPortalLoadingView>
                           decoration: BoxDecoration(
                             color: AppColors.primary,
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
+                            border: Border.all(
+                              color: theme.surface,
+                              width: 2,
+                            ),
                           ),
                           child: const Icon(
                             Icons.lock_rounded,
@@ -916,7 +868,7 @@ class _PaymentPortalLoadingViewState extends State<_PaymentPortalLoadingView>
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF1A1F1C),
+                    color: theme.ink,
                     height: 1.25,
                     letterSpacing: -0.2,
                   ),
@@ -927,7 +879,7 @@ class _PaymentPortalLoadingViewState extends State<_PaymentPortalLoadingView>
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey.shade600,
+                    color: theme.muted,
                     height: 1.4,
                   ),
                 ),
@@ -938,7 +890,7 @@ class _PaymentPortalLoadingViewState extends State<_PaymentPortalLoadingView>
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     minHeight: 4,
-                    backgroundColor: const Color(0xFFEEF9F3),
+                    backgroundColor: theme.accentTint,
                     valueColor: AlwaysStoppedAnimation<Color>(
                       AppColors.primary.withValues(alpha: 0.85),
                     ),
@@ -951,7 +903,9 @@ class _PaymentPortalLoadingViewState extends State<_PaymentPortalLoadingView>
                     Icon(
                       Icons.verified_user_outlined,
                       size: 14,
-                      color: AppColors.primaryDark,
+                      color: theme.isDark
+                          ? AppColors.primaryLight
+                          : AppColors.primaryDark,
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -959,7 +913,9 @@ class _PaymentPortalLoadingViewState extends State<_PaymentPortalLoadingView>
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
-                        color: AppColors.primaryDark,
+                        color: theme.isDark
+                            ? AppColors.primaryLight
+                            : AppColors.primaryDark,
                       ),
                     ),
                   ],
@@ -1027,20 +983,21 @@ class _PortalStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appColors;
     final isComplete = state == _PortalStepState.complete;
     final isActive = state == _PortalStepState.active;
 
     final bg = isComplete || isActive
-        ? AppColors.primary.withValues(alpha: 0.12)
-        : Colors.grey.shade100;
+        ? AppColors.primary.withValues(alpha: t.isDark ? 0.18 : 0.12)
+        : t.fieldBg;
     final border = isActive
         ? AppColors.primary
         : isComplete
             ? AppColors.primary.withValues(alpha: 0.35)
-            : Colors.grey.shade300;
+            : t.border;
     final iconColor = isComplete || isActive
-        ? AppColors.primaryDark
-        : Colors.grey.shade500;
+        ? (t.isDark ? AppColors.primaryLight : AppColors.primaryDark)
+        : t.muted;
 
     return Column(
       children: [
@@ -1064,7 +1021,9 @@ class _PortalStep extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 9,
             fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-            color: isActive ? AppColors.primaryDark : Colors.grey.shade600,
+            color: isActive
+                ? (t.isDark ? AppColors.primaryLight : AppColors.primaryDark)
+                : t.muted,
           ),
         ),
       ],
@@ -1079,6 +1038,7 @@ class _PortalStepLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appColors;
     return Container(
       height: 2,
       margin: const EdgeInsets.only(bottom: 16, left: 4, right: 4),
@@ -1086,7 +1046,7 @@ class _PortalStepLine extends StatelessWidget {
         borderRadius: BorderRadius.circular(2),
         color: isActive
             ? AppColors.primary.withValues(alpha: 0.45)
-            : Colors.grey.shade200,
+            : t.border,
       ),
     );
   }

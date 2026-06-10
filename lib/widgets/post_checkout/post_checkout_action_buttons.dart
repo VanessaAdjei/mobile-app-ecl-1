@@ -1,4 +1,5 @@
 import 'package:eclapp/widgets/post_checkout/post_checkout_design.dart';
+import 'package:eclapp/utils/app_theme_colors.dart';
 import 'package:eclapp/widgets/post_checkout/post_checkout_entrance.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -27,14 +28,14 @@ class PostCheckoutActionButtons extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget card = Container(
       width: double.infinity,
-      decoration: PostCheckoutDesign.compactCard(),
+      decoration: PostCheckoutDesign.compactCard(context),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _HomeActionButton(accent: accent, onPressed: onHome),
           if (showSupport && onSupport != null) ...[
-            Divider(height: 1, color: PostCheckoutDesign.border),
+            Divider(height: 1, color: PostCheckoutDesign.border(context)),
             _SupportActionButton(accent: accent, onPressed: onSupport!),
           ],
         ],
@@ -141,8 +142,9 @@ class _SupportActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appColors;
     return Material(
-      color: Colors.white,
+      color: t.surface,
       child: InkWell(
         onTap: onPressed,
         child: Padding(
@@ -153,7 +155,7 @@ class _SupportActionButton extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: PostCheckoutDesign.accentLight.withValues(alpha: 0.8),
+                  color: PostCheckoutDesign.accentLight(context).withValues(alpha: 0.8),
                   shape: BoxShape.circle,
                   border: Border.all(color: accent.withValues(alpha: 0.15)),
                 ),
@@ -173,7 +175,7 @@ class _SupportActionButton extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: PostCheckoutDesign.ink,
+                        color: PostCheckoutDesign.ink(context),
                         letterSpacing: -0.15,
                         height: 1.15,
                       ),
@@ -184,7 +186,7 @@ class _SupportActionButton extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 10,
                         fontWeight: FontWeight.w500,
-                        color: PostCheckoutDesign.muted,
+                        color: PostCheckoutDesign.muted(context),
                         height: 1.2,
                       ),
                     ),
@@ -194,7 +196,7 @@ class _SupportActionButton extends StatelessWidget {
               Icon(
                 Icons.chevron_right_rounded,
                 size: 22,
-                color: PostCheckoutDesign.muted.withValues(alpha: 0.7),
+                color: PostCheckoutDesign.muted(context).withValues(alpha: 0.7),
               ),
             ],
           ),

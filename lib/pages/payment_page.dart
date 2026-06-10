@@ -18,8 +18,10 @@ import '../utils/payment_redirect_url.dart';
 import '../widgets/payment/payment_bill_summary_section.dart';
 import '../widgets/payment/payment_delivery_details_card.dart';
 import '../widgets/payment/payment_order_items_section.dart';
+import '../widgets/payment/payment_slide_design.dart';
 import '../widgets/checkout_progress_stepper.dart';
 import '../config/app_colors.dart';
+import '../utils/app_theme_colors.dart';
 
 // Post-checkout uses PostCheckoutOrderPage (see paymentwebview.dart).
 
@@ -92,7 +94,6 @@ class PaymentPageState extends State<PaymentPage> {
   double _slidePosition = 0.0;
   bool _isSliding = false;
 
-  static const Color _pageBg = Color(0xFFF4FAF7);
   final ScrollController _scrollController = ScrollController();
   bool _showScrollHint = false;
 
@@ -475,14 +476,20 @@ class PaymentPageState extends State<PaymentPage> {
 
   @override
   Widget build(BuildContext context) {
-    final topPadding = MediaQuery.of(context).padding.top;
+    final theme = context.appColors;
+    final mediaQuery = MediaQuery.of(context);
+    final topPadding = mediaQuery.padding.top;
+    // Persistent inset for home indicator / gesture bar (stable when keyboard opens).
+    final systemBottomInset = mediaQuery.viewPadding.bottom;
     const bottomLift = 10.0;
-    // Pay bar: top padding (10) + slide (56) + small bottom lift.
-    const payBarHeight = 66.0 + bottomLift;
-    final payBarInset = payBarHeight;
+    const payBarTopPadding = 10.0;
+    const slideHeight = 56.0;
+    final payBarBottomPadding = bottomLift + systemBottomInset;
+    final payBarInset =
+        payBarTopPadding + slideHeight + payBarBottomPadding;
 
     return Scaffold(
-      backgroundColor: _pageBg,
+      backgroundColor: theme.pageBg,
       body: Stack(
         children: [
           Column(
@@ -503,11 +510,11 @@ class PaymentPageState extends State<PaymentPage> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Colors.green.shade600,
-                        Colors.green.shade700,
-                        Colors.green.shade800,
+                        AppThemeColors.headerBackground,
+                        AppColors.primaryDark,
+                        AppColors.primary,
                       ],
-                      stops: [0.0, 0.5, 1.0],
+                      stops: const [0.0, 0.5, 1.0],
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -583,14 +590,19 @@ class PaymentPageState extends State<PaymentPage> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.emergency_rounded,
-                                  size: 15, color: Colors.red.shade700),
+                                  size: 15,
+                                  color: theme.isDark
+                                      ? Colors.red.shade300
+                                      : Colors.red.shade700),
                               const SizedBox(width: 6),
                               Text(
                                 'Urgent Order',
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
-                                  color: Colors.red.shade800,
+                                  color: theme.isDark
+                                      ? Colors.red.shade200
+                                      : Colors.red.shade800,
                                 ),
                               ),
                             ],
@@ -700,10 +712,15 @@ class PaymentPageState extends State<PaymentPage> {
                                 ),
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: Colors.red.shade50,
+                                  color: theme.isDark
+                                      ? Colors.red.withValues(alpha: 0.14)
+                                      : Colors.red.shade50,
                                   borderRadius: BorderRadius.circular(10),
-                                  border:
-                                      Border.all(color: Colors.red.shade200),
+                                  border: Border.all(
+                                    color: Colors.red.withValues(
+                                      alpha: theme.isDark ? 0.45 : 0.35,
+                                    ),
+                                  ),
                                 ),
                                 child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -711,7 +728,9 @@ class PaymentPageState extends State<PaymentPage> {
                                     Icon(
                                       Icons.error_outline,
                                       size: 18,
-                                      color: Colors.red.shade600,
+                                      color: theme.isDark
+                                          ? Colors.red.shade300
+                                          : Colors.red.shade600,
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
@@ -724,7 +743,9 @@ class PaymentPageState extends State<PaymentPage> {
                                             style: TextStyle(
                                               fontWeight: FontWeight.w600,
                                               fontSize: 11,
-                                              color: Colors.red.shade700,
+                                              color: theme.isDark
+                                                  ? Colors.red.shade300
+                                                  : Colors.red.shade700,
                                             ),
                                           ),
                                           const SizedBox(height: 2),
@@ -732,7 +753,9 @@ class PaymentPageState extends State<PaymentPage> {
                                             _paymentError!,
                                             style: TextStyle(
                                               fontSize: 10,
-                                              color: Colors.red.shade600,
+                                              color: theme.isDark
+                                                  ? Colors.red.shade400
+                                                  : Colors.red.shade600,
                                               height: 1.3,
                                             ),
                                             maxLines: 5,
@@ -768,15 +791,15 @@ class PaymentPageState extends State<PaymentPage> {
                                         begin: Alignment.topCenter,
                                         end: Alignment.bottomCenter,
                                         colors: [
-                                          _pageBg.withValues(alpha: 0),
-                                          _pageBg,
+                                          theme.pageBg.withValues(alpha: 0),
+                                          theme.pageBg,
                                         ],
                                       ),
                                     ),
                                   ),
                                   Container(
                                     width: double.infinity,
-                                    color: _pageBg,
+                                    color: theme.pageBg,
                                     padding: const EdgeInsets.only(bottom: 4),
                                     child: Row(
                                       mainAxisAlignment:
@@ -785,7 +808,7 @@ class PaymentPageState extends State<PaymentPage> {
                                         Icon(
                                           Icons.keyboard_arrow_down_rounded,
                                           size: 20,
-                                          color: AppColors.primary,
+                                          color: AppColors.primaryLight,
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
@@ -793,7 +816,9 @@ class PaymentPageState extends State<PaymentPage> {
                                           style: TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w600,
-                                            color: AppColors.primaryDark,
+                                            color: theme.isDark
+                                                ? Colors.white70
+                                                : AppColors.primaryDark,
                                           ),
                                         ),
                                       ],
@@ -809,20 +834,29 @@ class PaymentPageState extends State<PaymentPage> {
                           bottom: 0,
                           child: Container(
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: theme.surface,
                               borderRadius: const BorderRadius.vertical(
                                 top: Radius.circular(18),
                               ),
+                              border: Border(
+                                top: BorderSide(color: theme.border),
+                              ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppColors.primary
-                                      .withValues(alpha: 0.1),
+                                  color: Colors.black.withValues(
+                                    alpha: theme.isDark ? 0.35 : 0.08,
+                                  ),
                                   blurRadius: 20,
                                   offset: const Offset(0, -6),
                                 ),
                               ],
                             ),
-                            padding: EdgeInsets.fromLTRB(14, 10, 14, bottomLift),
+                            padding: EdgeInsets.fromLTRB(
+                              14,
+                              payBarTopPadding,
+                              14,
+                              payBarBottomPadding,
+                            ),
                             child: Consumer<CartProvider>(
                               builder: (context, cart, child) {
                                 return _buildSlideToPay(cart);
@@ -837,9 +871,11 @@ class PaymentPageState extends State<PaymentPage> {
           ),
           if (_isProcessingPayment)
             Container(
-              color: Colors.black.withValues(alpha: 0.2),
+              color: PaymentSlideDesign.processingOverlay(context),
               child: Center(
-                child: CircularProgressIndicator(color: Colors.green.shade600),
+                child: CircularProgressIndicator(
+                  color: PaymentSlideDesign.accent(context),
+                ),
               ),
             ),
         ],
@@ -853,168 +889,178 @@ class PaymentPageState extends State<PaymentPage> {
   }
 
   Widget _buildSlideToPay(CartProvider cart) {
-    final double containerWidth = MediaQuery.of(context).size.width - 28;
+    final theme = context.appColors;
+    final selectedItems = cart.getSelectedItems();
+    final canPay = selectedItems.isNotEmpty && !_isProcessingPayment;
+    final horizontalInset = 14.0 * 2;
+    final double containerWidth =
+        MediaQuery.sizeOf(context).width - horizontalInset;
     final double handleSize = 50.0;
     final double maxSlideDistance = containerWidth - handleSize;
     final double threshold = maxSlideDistance * 0.8;
     final bool isCompleted = _slidePosition >= threshold;
     final bool wasCompleted = _slidePosition >= threshold - 10;
-    return GestureDetector(
-      onHorizontalDragStart: (_) {
-        if (!_isProcessingPayment && cart.getSelectedItems().isNotEmpty) {
-          setState(() {
-            _isSliding = true;
-          });
-        }
-      },
-      onHorizontalDragUpdate: (details) {
-        if (!_isProcessingPayment && _isSliding && cart.cartItems.isNotEmpty) {
-          final newPosition =
-              (_slidePosition + details.delta.dx).clamp(0.0, maxSlideDistance);
-          setState(() {
-            _slidePosition = newPosition;
-          });
-
-          // Haptic feedback when reaching threshold
-          if (newPosition >= threshold && !wasCompleted) {
-            HapticFeedback.mediumImpact();
-          }
-        }
-      },
-      onHorizontalDragEnd: (_) {
-        if (!_isProcessingPayment && cart.getSelectedItems().isNotEmpty) {
-          if (_slidePosition >= threshold) {
-            // Trigger payment
-            HapticFeedback.heavyImpact();
-            processPayment(cart);
-          } else {
-            // Reset position with animation
+    final bool labelOnProgress = _slidePosition > containerWidth * 0.42;
+    return Opacity(
+      opacity: canPay ? 1 : PaymentSlideDesign.disabledOpacity(context),
+      child: GestureDetector(
+        onHorizontalDragStart: (_) {
+          if (canPay) {
             setState(() {
-              _slidePosition = 0.0;
-              _isSliding = false;
+              _isSliding = true;
             });
           }
-        }
-      },
-      child: Container(
-        height: 56,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF4FAF7),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(
-            color: AppColors.primary,
-            width: 1.5,
+        },
+        onHorizontalDragUpdate: (details) {
+          if (canPay && _isSliding) {
+            final newPosition =
+                (_slidePosition + details.delta.dx).clamp(0.0, maxSlideDistance);
+            setState(() {
+              _slidePosition = newPosition;
+            });
+
+            if (newPosition >= threshold && !wasCompleted) {
+              HapticFeedback.mediumImpact();
+            }
+          }
+        },
+        onHorizontalDragEnd: (_) {
+          if (canPay) {
+            if (_slidePosition >= threshold) {
+              HapticFeedback.heavyImpact();
+              processPayment(cart);
+            } else {
+              setState(() {
+                _slidePosition = 0.0;
+                _isSliding = false;
+              });
+            }
+          }
+        },
+        child: Container(
+          height: 56,
+          decoration: BoxDecoration(
+            color: PaymentSlideDesign.trackBg(context),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: PaymentSlideDesign.trackBorder(context),
+              width: PaymentSlideDesign.trackBorderWidth(context),
+            ),
           ),
-        ),
-        child: Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            // Progress track - green fill
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              child: AnimatedContainer(
-                duration: Duration(milliseconds: 100),
-                curve: Curves.easeOut,
-                width: _slidePosition,
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(28),
-                    bottomLeft: Radius.circular(28),
+          child: Stack(
+            clipBehavior: Clip.hardEdge,
+            children: [
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 100),
+                  curve: Curves.easeOut,
+                  width: _slidePosition,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: PaymentSlideDesign.progressColors(context),
+                    ),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(28),
+                      bottomLeft: Radius.circular(28),
+                    ),
                   ),
                 ),
               ),
-            ),
-            // Text on the right side
-            Positioned.fill(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (_isProcessingPayment) ...[
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          color: AppColors.primary,
-                          strokeWidth: 2,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Processing payment…',
-                        style: TextStyle(
-                          color: Colors.grey.shade800,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ] else ...[
-                      Icon(
-                        Icons.lock_outline,
-                        size: 16,
-                        color: Colors.grey.shade600,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        isCompleted ? 'Release to pay' : 'Swipe right to pay',
-                        style: TextStyle(
-                          color: Colors.grey.shade800,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            // Sliding handle on the left
-            AnimatedPositioned(
-              duration: Duration(milliseconds: 100),
-              curve: Curves.easeOut,
-              left: _slidePosition.clamp(0.0, maxSlideDistance),
-              top: 0,
-              bottom: 0,
-              child: Container(
-                width: handleSize,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(28),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.12),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: _isProcessingPayment
-                      ? SizedBox(
-                          width: 22,
-                          height: 22,
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (_isProcessingPayment) ...[
+                        SizedBox(
+                          width: 16,
+                          height: 16,
                           child: CircularProgressIndicator(
-                            color: AppColors.primary,
+                            color: PaymentSlideDesign.accent(context),
                             strokeWidth: 2,
                           ),
-                        )
-                      : Icon(
-                          isCompleted
-                              ? Icons.check_circle
-                              : Icons.arrow_forward,
-                          color: isCompleted
-                              ? AppColors.primary
-                              : Colors.grey.shade700,
-                          size: 24,
                         ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Processing payment…',
+                          style: TextStyle(
+                            color: theme.ink,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ] else ...[
+                        Icon(
+                          canPay ? Icons.lock_outline : Icons.shopping_cart_outlined,
+                          size: 16,
+                          color: PaymentSlideDesign.labelIconColor(
+                            context,
+                            onProgress: labelOnProgress,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          !canPay && selectedItems.isEmpty
+                              ? 'Select items to pay'
+                              : isCompleted
+                                  ? 'Release to pay'
+                                  : 'Swipe right to pay',
+                          style: TextStyle(
+                            color: PaymentSlideDesign.labelColor(
+                              context,
+                              onProgress: labelOnProgress,
+                            ),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 100),
+                curve: Curves.easeOut,
+                left: _slidePosition.clamp(0.0, maxSlideDistance),
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: handleSize,
+                  decoration: BoxDecoration(
+                    color: PaymentSlideDesign.handleBg(context),
+                    borderRadius: BorderRadius.circular(28),
+                    border: PaymentSlideDesign.handleBorder(context),
+                    boxShadow: PaymentSlideDesign.handleShadow(context),
+                  ),
+                  child: Center(
+                    child: _isProcessingPayment
+                        ? SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              color: PaymentSlideDesign.accent(context),
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Icon(
+                            isCompleted
+                                ? Icons.check_circle
+                                : Icons.arrow_forward,
+                            color: isCompleted
+                                ? PaymentSlideDesign.accent(context)
+                                : theme.muted,
+                            size: 24,
+                          ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1146,7 +1192,8 @@ class PaymentPageState extends State<PaymentPage> {
       context: context,
       barrierDismissible: false,
       barrierColor: Colors.black54,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
+        final dialogTheme = dialogContext.appColors;
         return Dialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
@@ -1157,8 +1204,9 @@ class PaymentPageState extends State<PaymentPage> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: dialogTheme.surface,
               borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: dialogTheme.border),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.08),
@@ -1175,7 +1223,6 @@ class PaymentPageState extends State<PaymentPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Icon with soft gradient background
                 Container(
                   width: 72,
                   height: 72,
@@ -1197,39 +1244,33 @@ class PaymentPageState extends State<PaymentPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // Title
                 Text(
                   'Payment didn’t go through',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade900,
+                    color: dialogTheme.ink,
                     letterSpacing: -0.3,
                   ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 10),
-
-                // Message
                 Text(
                   kUserFacingPaymentFailureMessage,
                   style: TextStyle(
                     fontSize: 15,
-                    color: Colors.grey.shade600,
+                    color: dialogTheme.muted,
                     height: 1.4,
                     fontWeight: FontWeight.w400,
                   ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 28),
-
-                // Primary button
                 SizedBox(
                   width: double.infinity,
                   height: 48,
                   child: FilledButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => Navigator.pop(dialogContext),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFFD32F2F),
                       foregroundColor: Colors.white,

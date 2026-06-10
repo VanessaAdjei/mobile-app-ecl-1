@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../config/app_colors.dart';
+import '../utils/app_theme_colors.dart';
 
 /// Promo UI when order subtotal is GHS 500+ (5% off — display only).
 /// Free delivery applies from GHS 150+ via [qualifiesForFreeDelivery].
@@ -37,15 +38,21 @@ class OrderThresholdPromoBanner extends StatelessWidget {
     if (!_qualifiesForDiscount) return const SizedBox.shrink();
 
     if (compact) {
+      final t = context.appColors;
       return Container(
         margin: margin ?? EdgeInsets.zero,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              AppColors.primary.withValues(alpha: 0.12),
-              const Color(0xFFE8F5E9),
-            ],
+            colors: t.isDark
+                ? [
+                    AppColors.primary.withValues(alpha: 0.18),
+                    t.fieldBg,
+                  ]
+                : [
+                    AppColors.primary.withValues(alpha: 0.12),
+                    const Color(0xFFE8F5E9),
+                  ],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
           ),
@@ -54,8 +61,11 @@ class OrderThresholdPromoBanner extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.celebration_rounded,
-                color: AppColors.primaryDark, size: 20),
+            Icon(
+              Icons.celebration_rounded,
+              color: t.isDark ? AppColors.primaryLight : AppColors.primaryDark,
+              size: 20,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -63,7 +73,7 @@ class OrderThresholdPromoBanner extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xFF1B4332),
+                  color: t.isDark ? AppColors.primaryLight : const Color(0xFF1B4332),
                   height: 1.3,
                 ),
               ),
@@ -238,15 +248,21 @@ class _CartPromoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
+    final inkColor = theme.isDark ? theme.ink : _ink;
+    final mutedColor = theme.isDark ? theme.muted : _muted;
+    final accentColor = theme.isDark ? AppColors.primaryLight : _accent;
+    final tileBg = theme.isDark ? theme.fieldBg : Colors.white;
+    final tileBorder = unlocked
+        ? accentColor.withValues(alpha: theme.isDark ? 0.45 : 0.4)
+        : (theme.isDark ? theme.border : Colors.grey.shade300);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: tileBg,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color:
-              unlocked ? _accent.withValues(alpha: 0.4) : Colors.grey.shade300,
-        ),
+        border: Border.all(color: tileBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -260,7 +276,7 @@ class _CartPromoTile extends StatelessWidget {
                 child: Icon(
                   icon,
                   size: 14,
-                  color: unlocked ? _accent : _muted,
+                  color: unlocked ? accentColor : mutedColor,
                 ),
               ),
               const SizedBox(width: 6),
@@ -273,7 +289,7 @@ class _CartPromoTile extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: _ink,
+                        color: inkColor,
                         height: 1.2,
                       ),
                       maxLines: 1,
@@ -285,7 +301,7 @@ class _CartPromoTile extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 10,
                         fontWeight: FontWeight.w500,
-                        color: unlocked ? _accent : _muted,
+                        color: unlocked ? accentColor : mutedColor,
                         height: 1.2,
                       ),
                       maxLines: 1,

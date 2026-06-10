@@ -96,7 +96,7 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
       });
     });
 
-    if (widget.product.isPrescribed == true) {
+    if (_isPrescriptionProduct()) {
       unawaited(_loadPrescriptionUploadStatus());
     }
   }
@@ -110,6 +110,10 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
       setState(() => _prescriptionUploaded = uploaded);
     }
   }
+
+  bool _isPrescriptionProduct() =>
+      widget.product.isPrescribed == true ||
+      widget.product.otcpom?.toLowerCase() == 'pom';
 
   void _initializeOptimization() {
     _optimizationService.trackPagePerformance(
@@ -717,8 +721,9 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
 
               SizedBox(height: 8),
 
-              // Description
-              if (widget.product.description.isNotEmpty)
+              // Description (hidden for prescription-only medicines)
+              if (!_isPrescriptionProduct() &&
+                  widget.product.description.isNotEmpty)
                 ProductDescription(description: widget.product.description),
             ],
           ),

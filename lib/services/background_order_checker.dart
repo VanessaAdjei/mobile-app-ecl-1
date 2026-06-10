@@ -7,6 +7,7 @@ import 'auth_service.dart';
 import 'order_notification_service.dart';
 import '../providers/order_tracking_provider.dart';
 import '../utils/order_status_notification_copy.dart';
+import 'order_tracking_service.dart';
 
 /// Polls GET /orders and fires local notifications when cached status changes.
 ///
@@ -64,6 +65,13 @@ class BackgroundOrderChecker {
     try {
       debugPrint('🔄 Checking for order updates...');
 
+      if (!(await AuthService.isLoggedIn())) {
+        debugPrint(
+          '🔄 Guest session — skipping /orders poll (local + SMS tracking)',
+        );
+        return;
+      }
+
       final prefs = await SharedPreferences.getInstance();
       final token = await AuthService.getToken();
       if (token == null || token.isEmpty) {
@@ -110,13 +118,17 @@ class BackgroundOrderChecker {
     return byKey.entries.map((e) {
       final items = e.value;
       final first = items.first;
+      final furthestStatus = OrderTrackingService().pickFurthestRawStatus(
+        items,
+        fallback: _orderStatus(first),
+      );
       return {
         ...first,
         'id': e.key,
         'delivery_id': e.key,
         'transaction_id': e.key,
         'order_number': first['order_number'] ?? first['delivery_id'] ?? e.key,
-        'status': _orderStatus(first),
+        'status': furthestStatus.isNotEmpty ? furthestStatus : _orderStatus(first),
         'items': items
             .expand((o) => (o['items'] as List<dynamic>?) ?? [])
             .toList(),
@@ -132,6 +144,7 @@ class BackgroundOrderChecker {
     List<Map<String, dynamic>> newOrders,
   ) async {
     try {
+      final isGuest = !(await AuthService.isLoggedIn());
       final cachedJson = prefs.getString('user_orders');
       final cachedOrders = <String, Map<String, dynamic>>{};
       if (cachedJson != null) {
@@ -170,21 +183,30 @@ class BackgroundOrderChecker {
           '🔄 Status change: order $orderId "$oldStatus" -> "$newStatus"',
         );
 
-        final (title, message) = orderStatusNotificationContent(
-          orderNumber,
-          newStatus,
-        );
-        await OrderNotificationService.createOrderStatusNotification(
-          orderId: orderId,
-          orderNumber: orderNumber,
+        if (!isGuest) {
+          final (title, message) = orderStatusNotificationContent(
+            orderNumber,
+            newStatus,
+          );
+          await OrderNotificationService.createOrderStatusNotification(
+            orderId: orderId,
+            orderNumber: orderNumber,
+            status: newStatus,
+            title: title,
+            message: message,
+            totalAmount:
+                order['total_amount']?.toString() ?? order['total']?.toString(),
+            items: order['items'] as List<dynamic>?,
+          );
+        } else {
+          debugPrint(
+            '🔄 Guest session — refreshing tracking only (SMS handles alerts)',
+          );
+        }
+        OrderTrackingProvider.notifyOrderStatusChanged(
           status: newStatus,
-          title: title,
-          message: message,
-          totalAmount:
-              order['total_amount']?.toString() ?? order['total']?.toString(),
-          items: order['items'] as List<dynamic>?,
+          orderId: orderId,
         );
-        OrderTrackingProvider.notifyOrderStatusChanged();
       }
     } catch (e, st) {
       debugPrint('🔄 Error tracking order status changes: $e\n$st');

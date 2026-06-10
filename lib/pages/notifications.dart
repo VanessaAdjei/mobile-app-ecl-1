@@ -7,7 +7,10 @@ import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
+import '../config/app_colors.dart';
 import '../utils/app_error_utils.dart';
+import '../utils/app_theme_colors.dart';
+import '../utils/order_notification_policy.dart';
 import '../utils/product_image_url.dart';
 import '../services/auth_service.dart';
 import '../services/order_history_transformer.dart';
@@ -21,18 +24,31 @@ const Color _kNotifPageBg = Color(0xFFF6F8FA);
 const Color _kNotifPageBgMint = Color(0xFFEFFCF4);
 const Color _kNotifAccent = Color(0xFF0D7A4C);
 
-Widget _notifPageBackdrop({required Widget child}) {
+Color _notifAccent(BuildContext context) =>
+    context.appColors.isDark ? AppColors.primaryLight : _kNotifAccent;
+
+Widget _notifPageBackdrop({
+  required BuildContext context,
+  required Widget child,
+}) {
+  final theme = context.appColors;
   return DecoratedBox(
-    decoration: const BoxDecoration(
+    decoration: BoxDecoration(
       gradient: LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [
-          _kNotifPageBgMint,
-          _kNotifPageBg,
-          _kNotifPageBg,
-        ],
-        stops: [0.0, 0.28, 1.0],
+        colors: theme.isDark
+            ? [
+                const Color(0xFF14231C),
+                theme.pageBg,
+                theme.pageBg,
+              ]
+            : [
+                _kNotifPageBgMint,
+                _kNotifPageBg,
+                _kNotifPageBg,
+              ],
+        stops: const [0.0, 0.28, 1.0],
       ),
     ),
     child: child,
@@ -56,6 +72,8 @@ class NotificationsScreenState extends State<NotificationsScreen> {
   final Map<String, DateTime> _lastRefreshTimes = {};
 
   bool _isDisposed = false;
+
+  final Set<String> _expandedOrderGroups = {};
 
   final PerformanceService _performanceService = PerformanceService();
 
@@ -282,13 +300,17 @@ class NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
+    final pageBg = theme.pageBg;
+    final accent = _notifAccent(context);
     const scrollPhysics = AlwaysScrollableScrollPhysics(
       parent: BouncingScrollPhysics(),
     );
 
     return Scaffold(
-      backgroundColor: _kNotifPageBg,
+      backgroundColor: pageBg,
       body: _notifPageBackdrop(
+        context: context,
         child: isLoading
             ? CustomScrollView(
                 controller: _scrollController,
@@ -309,7 +331,9 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                 height: 56,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: _kNotifAccent.withValues(alpha: 0.08),
+                                  color: accent.withValues(
+                                    alpha: theme.isDark ? 0.14 : 0.08,
+                                  ),
                                 ),
                               ),
                               SizedBox(
@@ -318,7 +342,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2.5,
                                   strokeCap: StrokeCap.round,
-                                  color: Colors.green.shade600,
+                                  color: accent,
                                 ),
                               ),
                             ],
@@ -328,7 +352,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                             'Loading notifications…',
                             style: GoogleFonts.poppins(
                               fontSize: 13,
-                              color: const Color(0xFF64748B),
+                              color: theme.muted,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -352,7 +376,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                   )
                 : RefreshIndicator(
                     onRefresh: () => _loadNotifications(forceRefresh: true),
-                    color: _kNotifAccent,
+                    color: accent,
                     child: CustomScrollView(
                       controller: _scrollController,
                       physics: scrollPhysics,
@@ -367,6 +391,9 @@ class NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Widget _buildEmptyState() {
+    final theme = context.appColors;
+    final accent = _notifAccent(context);
+
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
@@ -379,23 +406,32 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    const Color(0xFFECFDF5),
-                    const Color(0xFFD1FAE5).withValues(alpha: 0.55),
-                  ],
+                  colors: theme.isDark
+                      ? [
+                          AppColors.primary.withValues(alpha: 0.2),
+                          AppColors.primary.withValues(alpha: 0.1),
+                        ]
+                      : [
+                          const Color(0xFFECFDF5),
+                          const Color(0xFFD1FAE5).withValues(alpha: 0.55),
+                        ],
                 ),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: const Color(0xFFBBF7D0).withValues(alpha: 0.6),
+                  color: theme.isDark
+                      ? AppColors.primary.withValues(alpha: 0.28)
+                      : const Color(0xFFBBF7D0).withValues(alpha: 0.6),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: _kNotifAccent.withValues(alpha: 0.12),
+                    color: accent.withValues(alpha: theme.isDark ? 0.16 : 0.12),
                     blurRadius: 22,
                     offset: const Offset(0, 8),
                   ),
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
+                    color: Colors.black.withValues(
+                      alpha: theme.isDark ? 0.24 : 0.04,
+                    ),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -404,7 +440,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
               child: Icon(
                 Icons.mark_chat_unread_rounded,
                 size: 34,
-                color: Colors.green.shade800,
+                color: accent,
               ),
             ),
             const SizedBox(height: 20),
@@ -414,7 +450,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFF0F172A),
+                color: theme.ink,
                 letterSpacing: -0.2,
               ),
             ),
@@ -425,7 +461,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 height: 1.45,
-                color: const Color(0xFF64748B),
+                color: theme.muted,
               ),
             ),
           ],
@@ -457,6 +493,9 @@ class NotificationsScreenState extends State<NotificationsScreen> {
 
   Widget _buildNotificationGroup(String dateKey,
       List<Map<String, dynamic>> notifications, int groupIndex) {
+    final theme = context.appColors;
+    final accent = _notifAccent(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -465,12 +504,14 @@ class NotificationsScreenState extends State<NotificationsScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: theme.sheetBg,
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.all(color: theme.border),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
+                  color: Colors.black.withValues(
+                    alpha: theme.isDark ? 0.22 : 0.04,
+                  ),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -482,7 +523,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                 Icon(
                   Icons.calendar_today_rounded,
                   size: 13,
-                  color: Colors.green.shade700,
+                  color: accent,
                 ),
                 const SizedBox(width: 6),
                 Text(
@@ -490,7 +531,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF475569),
+                    color: theme.muted,
                   ),
                 ),
               ],
@@ -498,13 +539,148 @@ class NotificationsScreenState extends State<NotificationsScreen> {
           ),
         ),
 
-        // Notifications for this date
-        ...notifications.asMap().entries.map((entry) {
-          final index = entry.key;
-          final notification = entry.value;
-          return _buildNotificationCard(notification, index);
-        }),
+        ..._groupNotificationsByOrder(notifications).map(
+          (orderUpdates) => _buildOrderNotificationGroupCard(
+            orderUpdates,
+            dateKey,
+          ),
+        ),
       ],
+    );
+  }
+
+  List<List<Map<String, dynamic>>> _groupNotificationsByOrder(
+    List<Map<String, dynamic>> notifications,
+  ) {
+    final buckets = <String, List<Map<String, dynamic>>>{};
+    final order = <String>[];
+
+    for (final notification in notifications) {
+      final key = OrderNotificationPolicy.orderKey(notification);
+      if (!buckets.containsKey(key)) {
+        order.add(key);
+        buckets[key] = [];
+      }
+      buckets[key]!.add(notification);
+    }
+
+    return order.map((key) => buckets[key]!).toList();
+  }
+
+  Widget _buildOrderNotificationGroupCard(
+    List<Map<String, dynamic>> updates,
+    String dateKey,
+  ) {
+    final theme = context.appColors;
+    final accent = _notifAccent(context);
+    final latest = updates.first;
+    final orderKey = OrderNotificationPolicy.orderKey(latest);
+    final expandId = '$dateKey|$orderKey';
+    final expanded = _expandedOrderGroups.contains(expandId);
+    final orderNumber = latest['order_number']?.toString().trim() ?? '';
+    final hasMultiple = updates.length > 1;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (orderNumber.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 2, bottom: 6, top: 2),
+              child: Row(
+                children: [
+                  Icon(Icons.receipt_long_rounded, size: 14, color: accent),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Order #$orderNumber',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: theme.muted,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  if (hasMultiple) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(
+                          alpha: theme.isDark ? 0.16 : 0.1,
+                        ),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: accent.withValues(
+                            alpha: theme.isDark ? 0.28 : 0.2,
+                          ),
+                        ),
+                      ),
+                      child: Text(
+                        '${updates.length} updates',
+                        style: GoogleFonts.poppins(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: accent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          _buildNotificationCard(
+            latest,
+            0,
+            relatedUpdates: updates,
+            onDismissed: () => _deleteOrderGroup(dateKey, updates),
+          ),
+          if (hasMultiple)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () {
+                  setState(() {
+                    if (expanded) {
+                      _expandedOrderGroups.remove(expandId);
+                    } else {
+                      _expandedOrderGroups.add(expandId);
+                    }
+                  });
+                },
+                style: TextButton.styleFrom(
+                  foregroundColor: accent,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  expanded
+                      ? 'Hide earlier updates'
+                      : 'Show ${updates.length - 1} earlier update${updates.length - 1 == 1 ? '' : 's'}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          if (expanded && hasMultiple)
+            ...updates.skip(1).map(
+                  (n) => _buildNotificationCard(
+                    n,
+                    0,
+                    compact: true,
+                    enableDismiss: false,
+                    relatedUpdates: updates,
+                  ),
+                ),
+        ],
+      ),
     );
   }
 
@@ -529,10 +705,29 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  Widget _buildNotificationCard(Map<String, dynamic> notification, int index) {
+  Widget _buildNotificationCard(
+    Map<String, dynamic> notification,
+    int index, {
+    bool compact = false,
+    bool enableDismiss = true,
+    VoidCallback? onDismissed,
+    List<Map<String, dynamic>>? relatedUpdates,
+  }) {
+    final theme = context.appColors;
+    final accent = _notifAccent(context);
     final isRead = _convertToBoolean(notification['is_read']);
     final iconData = _getNotificationIcon(notification);
     final iconColor = _getNotificationColor(notification);
+    final cardBg = isRead
+        ? theme.sheetBg
+        : (theme.isDark
+            ? AppColors.primary.withValues(alpha: 0.08)
+            : const Color(0xFFF8FDFB));
+    final cardBorder = isRead
+        ? theme.border
+        : (theme.isDark
+            ? AppColors.primary.withValues(alpha: 0.28)
+            : const Color(0xFFBBF7D0));
 
     // format the timestamp
     String timeText = '';
@@ -543,48 +738,29 @@ class NotificationsScreenState extends State<NotificationsScreen> {
       timeText = 'Just now';
     }
 
-    return Dismissible(
-      key: Key('notification_${notification['id']}_$index'),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        decoration: BoxDecoration(
-          color: const Color(0xFFDC2626),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        child: const Icon(
-          Icons.delete_outline_rounded,
-          color: Colors.white,
-          size: 22,
-        ),
-      ),
-      onDismissed: (direction) {
-        _deleteNotification(_getDateKey(notification), index);
-      },
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 10),
+    final card = Padding(
+        padding: EdgeInsets.only(bottom: compact ? 6 : 10, left: compact ? 8 : 0),
         child: Material(
-          color: Colors.white,
+          color: cardBg,
           borderRadius: BorderRadius.circular(14),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            onTap: () => _showNotificationDetails(notification),
-            splashColor: _kNotifAccent.withValues(alpha: 0.08),
-            highlightColor: _kNotifAccent.withValues(alpha: 0.04),
+            onTap: () => _showNotificationDetails(
+              notification,
+              relatedUpdates: relatedUpdates,
+            ),
+            splashColor: accent.withValues(alpha: 0.08),
+            highlightColor: accent.withValues(alpha: 0.04),
             child: Ink(
               decoration: BoxDecoration(
-                color: isRead ? Colors.white : const Color(0xFFF8FDFB),
+                color: cardBg,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: isRead
-                      ? const Color(0xFFE8EEF2)
-                      : const Color(0xFFBBF7D0),
-                ),
+                border: Border.all(color: cardBorder),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: Colors.black.withValues(
+                      alpha: theme.isDark ? 0.22 : 0.05,
+                    ),
                     blurRadius: 12,
                     offset: const Offset(0, 3),
                   ),
@@ -594,7 +770,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (!isRead)
+                    if (!isRead && !compact)
                       Container(
                         width: 4,
                         decoration: BoxDecoration(
@@ -602,24 +778,41 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              Colors.green.shade400,
-                              _kNotifAccent,
+                              theme.isDark
+                                  ? AppColors.primaryLight
+                                  : Colors.green.shade400,
+                              accent,
                             ],
                           ),
                         ),
                       ),
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+                        padding: EdgeInsets.fromLTRB(
+                          compact ? 10 : 12,
+                          compact ? 8 : 10,
+                          6,
+                          compact ? 8 : 10,
+                        ),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildNotificationLeading(
-                              notification: notification,
-                              iconData: iconData,
-                              iconColor: iconColor,
-                            ),
-                            const SizedBox(width: 12),
+                            if (!compact)
+                              _buildNotificationLeading(
+                                notification: notification,
+                                iconData: iconData,
+                                iconColor: iconColor,
+                              )
+                            else
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Icon(
+                                  iconData,
+                                  size: 16,
+                                  color: iconColor,
+                                ),
+                              ),
+                            SizedBox(width: compact ? 8 : 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -636,11 +829,11 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                             fontWeight: isRead
                                                 ? FontWeight.w500
                                                 : FontWeight.w600,
-                                            fontSize: 14,
-                                            color: const Color(0xFF0F172A),
+                                            fontSize: compact ? 12 : 14,
+                                            color: theme.ink,
                                             height: 1.25,
                                           ),
-                                          maxLines: 2,
+                                          maxLines: compact ? 1 : 2,
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
@@ -649,7 +842,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                         timeText,
                                         style: GoogleFonts.poppins(
                                           fontSize: 11,
-                                          color: const Color(0xFF94A3B8),
+                                          color: theme.muted,
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
@@ -662,18 +855,18 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                     Text(
                                       notification['message'] ?? '',
                                       style: GoogleFonts.poppins(
-                                        fontSize: 12,
-                                        color: const Color(0xFF64748B),
+                                        fontSize: compact ? 11 : 12,
+                                        color: theme.muted,
                                         height: 1.35,
                                       ),
-                                      maxLines: 2,
+                                      maxLines: compact ? 1 : 2,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ],
                                 ],
                               ),
                             ),
-                            if (!isRead) ...[
+                            if (!isRead && !compact) ...[
                               const SizedBox(width: 4),
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
@@ -681,7 +874,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                   width: 7,
                                   height: 7,
                                   decoration: BoxDecoration(
-                                    color: _kNotifAccent,
+                                    color: accent,
                                     shape: BoxShape.circle,
                                   ),
                                 ),
@@ -691,21 +884,50 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                         ),
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6, top: 18),
-                      child: Icon(
-                        Icons.chevron_right_rounded,
-                        color: const Color(0xFFCBD5E1),
-                        size: 22,
+                    if (!compact)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 6, top: 18),
+                        child: Icon(
+                          Icons.chevron_right_rounded,
+                          color: theme.muted.withValues(alpha: 0.65),
+                          size: 22,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
             ),
           ),
         ),
+    );
+
+    if (!enableDismiss) return card;
+
+    return Dismissible(
+      key: Key('notification_${notification['id']}_$index'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: EdgeInsets.only(bottom: compact ? 6 : 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFDC2626),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        child: const Icon(
+          Icons.delete_outline_rounded,
+          color: Colors.white,
+          size: 22,
+        ),
       ),
+      onDismissed: (direction) {
+        if (onDismissed != null) {
+          onDismissed();
+        } else {
+          _deleteNotificationById(notification);
+        }
+      },
+      child: card,
     );
   }
 
@@ -718,16 +940,38 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  void _deleteNotification(String group, int index) {
+  void _deleteNotificationById(Map<String, dynamic> notification) {
+    final id = notification['id']?.toString();
+    if (id == null || id.isEmpty) return;
+
     setState(() {
-      groupedNotifications[group]?.removeAt(index);
-      if (groupedNotifications[group]?.isEmpty ?? false) {
-        groupedNotifications.remove(group);
+      for (final entry in groupedNotifications.entries) {
+        entry.value.removeWhere((n) => n['id']?.toString() == id);
       }
+      groupedNotifications.removeWhere((_, list) => list.isEmpty);
     });
     _saveNotifications();
 
     AppErrorUtils.showSnack(context, 'Notification removed', isError: false);
+  }
+
+  void _deleteOrderGroup(
+    String dateKey,
+    List<Map<String, dynamic>> updates,
+  ) {
+    final ids = updates.map((n) => n['id']?.toString()).whereType<String>().toSet();
+
+    setState(() {
+      groupedNotifications[dateKey]?.removeWhere(
+        (n) => ids.contains(n['id']?.toString()),
+      );
+      if (groupedNotifications[dateKey]?.isEmpty ?? false) {
+        groupedNotifications.remove(dateKey);
+      }
+    });
+    _saveNotifications();
+
+    AppErrorUtils.showSnack(context, 'Notifications removed', isError: false);
   }
 
   Future<void> _handleNotificationAction(
@@ -1008,10 +1252,16 @@ class NotificationsScreenState extends State<NotificationsScreen> {
       if (imageUrl.isEmpty) {
         return _buildNotificationIconAvatar(iconData, iconColor);
       }
-      return _buildNotificationImageTile(imageUrl, size: 44, radius: 12);
+      return _buildNotificationImageTile(
+        context,
+        imageUrl,
+        size: 44,
+        radius: 12,
+      );
     }
 
     final visible = items.take(3).toList();
+    final accent = _notifAccent(context);
     return SizedBox(
       width: 44,
       height: 44,
@@ -1023,6 +1273,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
               left: i * 11.0,
               top: 4,
               child: _buildNotificationImageTile(
+                context,
                 _resolveItemImageUrl(visible[i]),
                 size: 30,
                 radius: 8,
@@ -1036,7 +1287,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                 decoration: BoxDecoration(
-                  color: _kNotifAccent,
+                  color: accent,
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(color: Colors.white, width: 1.5),
                 ),
@@ -1075,23 +1326,28 @@ class NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Widget _buildNotificationImageTile(
+    BuildContext context,
     String imageUrl, {
     required double size,
     required double radius,
     double borderWidth = 1,
   }) {
+    final theme = context.appColors;
+
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(
-          color: Colors.white,
+          color: theme.isDark ? theme.border : Colors.white,
           width: borderWidth,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: Colors.black.withValues(
+              alpha: theme.isDark ? 0.28 : 0.08,
+            ),
             blurRadius: 4,
             offset: const Offset(0, 1),
           ),
@@ -1108,27 +1364,27 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                 memCacheWidth: (size * 2).round(),
                 memCacheHeight: (size * 2).round(),
                 placeholder: (context, url) => ColoredBox(
-                  color: const Color(0xFFF1F5F9),
+                  color: theme.fieldBg,
                   child: Icon(
                     Icons.image_outlined,
-                    color: Colors.grey.shade400,
+                    color: theme.muted,
                     size: size * 0.45,
                   ),
                 ),
                 errorWidget: (context, url, error) => ColoredBox(
-                  color: const Color(0xFFF1F5F9),
+                  color: theme.fieldBg,
                   child: Icon(
                     Icons.inventory_2_outlined,
-                    color: Colors.grey.shade400,
+                    color: theme.muted,
                     size: size * 0.45,
                   ),
                 ),
               )
             : ColoredBox(
-                color: const Color(0xFFF1F5F9),
+                color: theme.fieldBg,
                 child: Icon(
                   Icons.inventory_2_outlined,
-                  color: Colors.grey.shade400,
+                  color: theme.muted,
                   size: size * 0.45,
                 ),
               ),
@@ -1175,8 +1431,9 @@ class NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _showNotificationDetails(
-    Map<String, dynamic> notification,
-  ) async {
+    Map<String, dynamic> notification, {
+    List<Map<String, dynamic>>? relatedUpdates,
+  }) async {
     var items = _extractNotificationItems(notification);
     final orderId = notification['order_id']?.toString() ?? '';
     final orderNumber = notification['order_number']?.toString() ?? '';
@@ -1217,11 +1474,16 @@ class NotificationsScreenState extends State<NotificationsScreen> {
       enableDrag: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
+        final theme = sheetContext.appColors;
+        final accent = _notifAccent(sheetContext);
         final maxH = MediaQuery.of(sheetContext).size.height * 0.72;
         return PopScope(
           onPopInvokedWithResult: (didPop, result) async {
             if (didPop) {
-              await _markNotificationAsRead(notification);
+              final toMark = relatedUpdates ?? [notification];
+              for (final item in toMark) {
+                await _markNotificationAsRead(item);
+              }
             }
           },
           child: Padding(
@@ -1233,17 +1495,21 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                 margin: const EdgeInsets.symmetric(horizontal: 12),
                 constraints: BoxConstraints(maxHeight: maxH),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.sheetBg,
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: theme.border),
                   boxShadow: [
                     BoxShadow(
-                      color: _kNotifAccent.withValues(alpha: 0.08),
+                      color: accent.withValues(
+                        alpha: theme.isDark ? 0.14 : 0.08,
+                      ),
                       blurRadius: 28,
                       offset: const Offset(0, 12),
                     ),
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
+                      color: Colors.black.withValues(
+                        alpha: theme.isDark ? 0.36 : 0.1,
+                      ),
                       blurRadius: 24,
                       offset: const Offset(0, 8),
                     ),
@@ -1275,7 +1541,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                               width: 40,
                               height: 4,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFCBD5E1),
+                                color: theme.handleBar,
                                 borderRadius: BorderRadius.circular(999),
                               ),
                             ),
@@ -1286,7 +1552,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                 Icon(
                                   Icons.keyboard_arrow_down_rounded,
                                   size: 18,
-                                  color: Colors.grey.shade500,
+                                  color: theme.muted,
                                 ),
                                 const SizedBox(width: 2),
                                 Text(
@@ -1294,7 +1560,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                   style: GoogleFonts.poppins(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w500,
-                                    color: const Color(0xFF94A3B8),
+                                    color: theme.muted,
                                     letterSpacing: 0.1,
                                   ),
                                 ),
@@ -1333,7 +1599,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                     style: GoogleFonts.poppins(
                                       fontWeight: FontWeight.w700,
                                       fontSize: 15,
-                                      color: const Color(0xFF0F172A),
+                                      color: theme.ink,
                                       height: 1.25,
                                     ),
                                     maxLines: 2,
@@ -1344,7 +1610,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                     timeText,
                                     style: GoogleFonts.poppins(
                                       fontSize: 12,
-                                      color: const Color(0xFF64748B),
+                                      color: theme.muted,
                                     ),
                                   ),
                                 ],
@@ -1353,7 +1619,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                           ],
                         ),
                       ),
-                      const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                      Divider(height: 1, color: theme.border),
                       Flexible(
                         child: SingleChildScrollView(
                           padding: EdgeInsets.fromLTRB(
@@ -1372,7 +1638,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                 Text(
                                   notification['message'] ?? '',
                                   style: GoogleFonts.poppins(
-                                    color: const Color(0xFF334155),
+                                    color: theme.ink.withValues(alpha: 0.88),
                                     fontSize: 13,
                                     height: 1.45,
                                   ),
@@ -1385,7 +1651,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                   style: GoogleFonts.poppins(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF94A3B8),
+                                    color: theme.muted,
                                     letterSpacing: 0.4,
                                   ),
                                 ),
@@ -1396,6 +1662,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                   children: items
                                       .map<Widget>(
                                         (item) => _buildImageItemRow(
+                                          sheetContext,
                                           Map<String, dynamic>.from(item),
                                         ),
                                       )
@@ -1411,15 +1678,19 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                     gradient: LinearGradient(
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
-                                      colors: [
-                                        _kNotifPageBgMint,
-                                        _kNotifPageBg,
-                                      ],
+                                      colors: theme.isDark
+                                          ? [
+                                              AppColors.primary
+                                                  .withValues(alpha: 0.12),
+                                              theme.fieldBg,
+                                            ]
+                                          : [
+                                              _kNotifPageBgMint,
+                                              _kNotifPageBg,
+                                            ],
                                     ),
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: const Color(0xFFE2E8F0),
-                                    ),
+                                    border: Border.all(color: theme.border),
                                   ),
                                   child: Row(
                                     children: [
@@ -1433,9 +1704,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                                 'Order',
                                                 style: GoogleFonts.poppins(
                                                   fontSize: 11,
-                                                  color: const Color(
-                                                    0xFF64748B,
-                                                  ),
+                                                  color: theme.muted,
                                                 ),
                                               ),
                                               const SizedBox(height: 2),
@@ -1444,9 +1713,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                                 style: GoogleFonts.poppins(
                                                   fontWeight: FontWeight.w600,
                                                   fontSize: 14,
-                                                  color: const Color(
-                                                    0xFF0F172A,
-                                                  ),
+                                                  color: theme.ink,
                                                 ),
                                               ),
                                             ],
@@ -1462,9 +1729,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                               'Total',
                                               style: GoogleFonts.poppins(
                                                 fontSize: 11,
-                                                color: const Color(
-                                                  0xFF64748B,
-                                                ),
+                                                color: theme.muted,
                                               ),
                                             ),
                                             const SizedBox(height: 2),
@@ -1473,7 +1738,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                               style: GoogleFonts.poppins(
                                                 fontWeight: FontWeight.w700,
                                                 fontSize: 15,
-                                                color: _kNotifAccent,
+                                                color: accent,
                                               ),
                                             ),
                                           ],
@@ -1492,10 +1757,15 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                     vertical: 5,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFECFDF5),
+                                    color: theme.isDark
+                                        ? AppColors.primary.withValues(alpha: 0.16)
+                                        : const Color(0xFFECFDF5),
                                     borderRadius: BorderRadius.circular(999),
                                     border: Border.all(
-                                      color: const Color(0xFFBBF7D0),
+                                      color: theme.isDark
+                                          ? AppColors.primary
+                                              .withValues(alpha: 0.28)
+                                          : const Color(0xFFBBF7D0),
                                     ),
                                   ),
                                   child: Text(
@@ -1503,7 +1773,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                     style: GoogleFonts.poppins(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600,
-                                      color: _kNotifAccent,
+                                      color: accent,
                                       letterSpacing: 0.5,
                                     ),
                                   ),
@@ -1522,7 +1792,9 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                       );
                                     },
                                     style: FilledButton.styleFrom(
-                                      backgroundColor: _kNotifAccent,
+                                      backgroundColor: theme.isDark
+                                          ? AppColors.primary
+                                          : _kNotifAccent,
                                       foregroundColor: Colors.white,
                                       padding: const EdgeInsets.symmetric(
                                         vertical: 12,
@@ -1558,16 +1830,19 @@ class NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   /// Build image item row - just images
-  Widget _buildImageItemRow(Map<String, dynamic> item) {
+  Widget _buildImageItemRow(BuildContext context, Map<String, dynamic> item) {
+    final theme = context.appColors;
     final imageUrl = _resolveItemImageUrl(item);
 
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: theme.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withValues(
+              alpha: theme.isDark ? 0.22 : 0.04,
+            ),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -1586,20 +1861,20 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                 placeholder: (context, url) => Container(
                   height: 76,
                   width: 76,
-                  color: const Color(0xFFF1F5F9),
+                  color: theme.fieldBg,
                   child: Icon(
                     Icons.image_outlined,
-                    color: Colors.grey.shade400,
+                    color: theme.muted,
                     size: 24,
                   ),
                 ),
                 errorWidget: (context, url, error) => Container(
                   height: 76,
                   width: 76,
-                  color: const Color(0xFFF1F5F9),
+                  color: theme.fieldBg,
                   child: Icon(
                     Icons.image_not_supported_outlined,
-                    color: Colors.grey.shade400,
+                    color: theme.muted,
                     size: 24,
                   ),
                 ),
@@ -1607,10 +1882,10 @@ class NotificationsScreenState extends State<NotificationsScreen> {
             : Container(
                 height: 76,
                 width: 76,
-                color: const Color(0xFFF1F5F9),
+                color: theme.fieldBg,
                 child: Icon(
                   Icons.inventory_2_outlined,
-                  color: Colors.grey.shade400,
+                  color: theme.muted,
                   size: 24,
                 ),
               ),

@@ -16,6 +16,7 @@ import '../config/app_routes.dart';
 import '../models/cart_item.dart';
 import '../providers/cart_provider.dart';
 import '../services/auth_service.dart';
+import '../services/guest_recent_order_service.dart';
 import '../services/order_notification_service.dart';
 import '../utils/payment_redirect_url.dart';
 import 'app_back_button.dart';
@@ -157,17 +158,17 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
   /// Create notification for successful payment verification
   Future<void> _createPaymentSuccessNotification() async {
     try {
-      // Check if user is logged in (not a guest)
       final isLoggedIn = await AuthService.isLoggedIn();
-      if (!isLoggedIn) {
-        debugPrint('📱 Skipping notification for guest user payment');
-        return;
-      }
-
       final orderId = widget.initialTransactionId ?? '';
       final totalAmount = widget.paymentParams['amount']?.toString() ?? '0';
+      final contactNumber = widget.paymentParams['phone']?.toString() ??
+          widget.paymentParams['contact_number']?.toString() ??
+          '';
+      final email = widget.paymentParams['email']?.toString() ??
+          widget.paymentParams['user_email']?.toString() ??
+          widget.paymentParams['guest_email']?.toString() ??
+          '';
 
-      // Create order data for notification
       final orderData = {
         'id': orderId,
         'transaction_id': orderId,
@@ -175,6 +176,8 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
         'total_amount': totalAmount,
         'status': 'Payment Verified',
         'payment_method': widget.paymentMethod,
+        'contact_number': contactNumber,
+        if (email.isNotEmpty) 'email': email,
         'items': widget.purchasedItems
             .map((item) => {
                   'name': item.name,
@@ -187,7 +190,23 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
         'created_at': DateTime.now().toIso8601String(),
       };
 
-      // Create notification only after payment is verified as successful
+      if (!isLoggedIn) {
+        await OrderNotificationService.createGuestOrderPlacedNotification(
+          orderData,
+        );
+        await GuestRecentOrderService.instance.saveFromCheckoutSnapshot(
+          paymentParams: widget.paymentParams,
+          purchasedItems: widget.purchasedItems,
+          initialTransactionId: orderId,
+          paymentMethod: widget.paymentMethod,
+          contactNumber: contactNumber,
+          estimatedDeliveryTime: widget.estimatedDeliveryTime ?? '',
+          initialStatus: widget.initialStatus ?? 'pending',
+        );
+        debugPrint('📱 Guest order saved and notification shown for #$orderId');
+        return;
+      }
+
       await OrderNotificationService.createOrderPlacedNotification(orderData);
 
       debugPrint(

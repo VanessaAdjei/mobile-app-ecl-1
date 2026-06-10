@@ -9,6 +9,7 @@ import '../../utils/app_error_utils.dart';
 import '../../utils/order_steps_api_logger.dart';
 import '../../services/order_history_transformer.dart';
 import '../../models/order_tracking_model.dart';
+import '../../services/order_tracking_service.dart';
 
 abstract class OrderTrackingRemoteDataSource {
   Future<PaymentStatusResult> checkPaymentStatus();
@@ -180,6 +181,32 @@ class OrderTrackingRemoteDataSourceImpl
             mergeKey,
           )
         : OrderHistoryTransformer.processMultiOrder(matchedRows, mergeKey);
+
+    final rowMaps = matchedRows
+        .whereType<Map>()
+        .map((row) => Map<String, dynamic>.from(row))
+        .toList(growable: false);
+    final furthestStatus = OrderTrackingService().pickFurthestRawStatus(
+      rowMaps,
+      fallback: merged['status']?.toString(),
+    );
+    if (furthestStatus.isNotEmpty) {
+      merged['status'] = furthestStatus;
+    }
+
+    final mergedHistory = <Map<String, dynamic>>[];
+    for (final row in rowMaps) {
+      final history = row['status_history'] ?? row['order_status_history'];
+      if (history is! List) continue;
+      for (final item in history) {
+        if (item is Map) {
+          mergedHistory.add(Map<String, dynamic>.from(item));
+        }
+      }
+    }
+    if (mergedHistory.isNotEmpty) {
+      merged['status_history'] = mergedHistory;
+    }
 
     OrderStepsApiLogger.logSnapshotStageFields(
       'fetchLatestOrderSnapshot',

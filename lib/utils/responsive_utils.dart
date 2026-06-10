@@ -9,6 +9,9 @@ class ResponsiveUtils {
   static const double tabletBreakpoint = 900;
   static const double desktopBreakpoint = 1200;
 
+  /// Design baseline width (iPhone 14 / common Flutter reference).
+  static const double designWidth = 390;
+
   /// When true, the app root centers content with [appContentMaxWidth] (tablets, desktop, web).
   /// Uses [shortestSide] so phone landscape is not treated as a tablet.
   static bool useAppContentFrame(BuildContext context) {
@@ -35,15 +38,33 @@ class ResponsiveUtils {
     return 20;
   }
 
-  /// Scales a dimension (e.g. font, icon) using width vs a design baseline (e.g. 375).
+  /// Scales a dimension (e.g. font, icon) using width vs a design baseline.
   static double widthScale(
     BuildContext context, {
-    double baselineWidth = 375,
-    double minScale = 0.9,
-    double maxScale = 1.1,
+    double baselineWidth = designWidth,
+    double minScale = 0.88,
+    double maxScale = 1.12,
   }) {
     final w = MediaQuery.sizeOf(context).width;
     return (w / baselineWidth).clamp(minScale, maxScale);
+  }
+
+  /// Converts a design-pixel value (baseline [designWidth]) to this screen.
+  static double scaled(BuildContext context, double designPixels) =>
+      designPixels * widthScale(context);
+
+  /// Product grids — column count from available width.
+  static SliverGridDelegate productGridDelegate(
+    BuildContext context, {
+    double childAspectRatio = 0.72,
+  }) {
+    final gap = scaled(context, 8);
+    return SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: getGridColumns(context),
+      crossAxisSpacing: gap,
+      mainAxisSpacing: gap,
+      childAspectRatio: childAspectRatio,
+    );
   }
 
   /// Wraps a route/page so it respects [appContentMaxWidth] when the app frame is not used
@@ -65,18 +86,72 @@ class ResponsiveUtils {
     );
   }
 
-  /// Root [MaterialApp.builder] — centers content on tablets/web; passes through on phones.
+  /// Scales [ThemeData] text and common control sizes for the current screen.
+  static ThemeData responsiveTheme(ThemeData base, BuildContext context) {
+    final factor = widthScale(context);
+    if ((factor - 1.0).abs() < 0.01) return base;
+
+    return base.copyWith(
+      textTheme: base.textTheme.apply(fontSizeFactor: factor),
+      primaryTextTheme: base.primaryTextTheme.apply(fontSizeFactor: factor),
+      appBarTheme: base.appBarTheme.copyWith(
+        titleTextStyle: base.appBarTheme.titleTextStyle?.copyWith(
+          fontSize: (base.appBarTheme.titleTextStyle?.fontSize ?? 20) * factor,
+        ),
+      ),
+      inputDecorationTheme: base.inputDecorationTheme.copyWith(
+        hintStyle: base.inputDecorationTheme.hintStyle?.copyWith(
+          fontSize: (base.inputDecorationTheme.hintStyle?.fontSize ?? 15) *
+              factor,
+        ),
+        contentPadding: EdgeInsets.symmetric(
+          vertical: scaled(context, 14),
+          horizontal: scaled(context, 12),
+        ),
+      ),
+    );
+  }
+
+  /// Wraps [child] with a screen-scaled [Theme].
+  static Widget applyResponsiveTheme(BuildContext context, Widget child) {
+    final theme = Theme.of(context);
+    final scaledTheme = responsiveTheme(theme, context);
+    if (identical(theme, scaledTheme)) return child;
+    return Theme(data: scaledTheme, child: child);
+  }
+
+  /// Root [MaterialApp.builder] — screen-relative MediaQuery + tablet column.
   static Widget appFrame(BuildContext context, Widget? child) {
     final c = child ?? const SizedBox.shrink();
-    if (!useAppContentFrame(context)) return c;
-    final maxW = appContentMaxWidth(MediaQuery.sizeOf(context).width);
+    final mq = MediaQuery.of(context);
+    final fullSize = mq.size;
+    final widthFactor = widthScale(context);
+    final useFrame = useAppContentFrame(context);
+    final contentWidth =
+        useFrame ? appContentMaxWidth(fullSize.width) : fullSize.width;
+
+    final userTextScale = mq.textScaler.scale(1);
+    final scaledMq = mq.copyWith(
+      size: Size(contentWidth, fullSize.height),
+      textScaler: TextScaler.linear(widthFactor * userTextScale),
+    );
+
+    Widget content = MediaQuery(data: scaledMq, child: c);
+
+    if (!useFrame) return content;
+
     return ColoredBox(
       color: Theme.of(context).scaffoldBackgroundColor,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: maxW),
-          child: c,
-        ),
+      child: Row(
+        children: [
+          const Spacer(),
+          SizedBox(
+            width: contentWidth,
+            height: fullSize.height,
+            child: content,
+          ),
+          const Spacer(),
+        ],
       ),
     );
   }

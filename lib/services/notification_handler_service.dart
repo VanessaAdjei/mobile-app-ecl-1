@@ -30,9 +30,6 @@ class NotificationHandlerService {
         case 'delivery':
           _handleDeliveryNotification(context, data);
           break;
-        case 'test':
-          _handleTestNotification(context, data);
-          break;
         default:
           debugPrint('📱 Handler: Unknown notification type: $type');
 
@@ -56,8 +53,12 @@ class NotificationHandlerService {
   static void _handleOrderStatusNotification(
       BuildContext context, Map<String, dynamic> data) {
     debugPrint('📱 Handler: Handling order status notification');
-    // Refresh tracking screen immediately so status updates without user action
-    OrderTrackingProvider.notifyOrderStatusChanged();
+    OrderTrackingProvider.notifyOrderStatusChanged(
+      status: data['status']?.toString(),
+      orderId: data['order_id']?.toString() ??
+          data['order_number']?.toString() ??
+          data['delivery_id']?.toString(),
+    );
     _navigateToNotificationsImmediately(context);
   }
 
@@ -78,30 +79,11 @@ class NotificationHandlerService {
       totalAmount: data['total_amount']?.toString(),
       items: (data['items'] as List<dynamic>?) ?? const [],
     );
-    OrderTrackingProvider.notifyOrderStatusChanged();
+    OrderTrackingProvider.notifyOrderStatusChanged(
+      status: data['status']?.toString() ?? 'delivered',
+      orderId: orderId,
+    );
     _navigateToNotificationsImmediately(context);
-  }
-
-  static void _handleTestNotification(
-      BuildContext context, Map<String, dynamic> data) {
-    debugPrint('📱 Handler: Handling test notification');
-    _navigateToNotifications(context);
-  }
-
-  static void _navigateToNotifications(BuildContext context) {
-    debugPrint('📱 Handler: Navigating to notifications page');
-
-    final navigatorKey = NativeNotificationService.globalNavigatorKey;
-    if (navigatorKey.currentState != null) {
-      navigatorKey.currentState!.push(
-        MaterialPageRoute(
-          builder: (context) => const NotificationsScreen(),
-        ),
-      );
-    } else {
-      debugPrint(
-          '📱 Handler: Navigator not available for notifications navigation');
-    }
   }
 
   static void _navigateToNotificationsImmediately(BuildContext context) {

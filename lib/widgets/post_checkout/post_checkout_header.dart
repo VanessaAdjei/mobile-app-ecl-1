@@ -25,8 +25,8 @@ class PostCheckoutHeader extends StatelessWidget {
     return Container(
       padding: EdgeInsets.only(top: top),
       decoration: BoxDecoration(
-        color: PostCheckoutDesign.surface,
-        border: const Border(bottom: BorderSide(color: PostCheckoutDesign.border)),
+        color: PostCheckoutDesign.surface(context),
+        border: Border(bottom: BorderSide(color: PostCheckoutDesign.border(context))),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -44,10 +44,10 @@ class PostCheckoutHeader extends StatelessWidget {
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   onPressed: onBack,
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.arrow_back_ios_new_rounded,
                     size: 18,
-                    color: PostCheckoutDesign.ink,
+                    color: PostCheckoutDesign.ink(context),
                   ),
                 ),
                 Expanded(
@@ -59,7 +59,7 @@ class PostCheckoutHeader extends StatelessWidget {
                         style: GoogleFonts.poppins(
                           fontSize: 17,
                           fontWeight: FontWeight.w700,
-                          color: PostCheckoutDesign.ink,
+                          color: PostCheckoutDesign.ink(context),
                           height: 1.2,
                         ),
                       ),
@@ -69,7 +69,7 @@ class PostCheckoutHeader extends StatelessWidget {
                           style: GoogleFonts.poppins(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
-                            color: PostCheckoutDesign.muted,
+                            color: PostCheckoutDesign.muted(context),
                           ),
                         ),
                     ],
@@ -80,7 +80,7 @@ class PostCheckoutHeader extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: PostCheckoutDesign.accentLight,
+                      color: PostCheckoutDesign.accentLight(context),
                       borderRadius: BorderRadius.circular(999),
                       border: Border.all(
                         color: PostCheckoutDesign.accent.withValues(alpha: 0.2),

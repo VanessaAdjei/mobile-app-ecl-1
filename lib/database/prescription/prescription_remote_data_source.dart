@@ -1,10 +1,10 @@
-import 'dart:convert';
-
 import 'package:http/http.dart' as http;
 
 import '../../config/api_config.dart';
 import '../../models/category_fetch_result.dart';
 import '../../services/http_client_service.dart';
+
+export '../../utils/prescription_parser.dart' show prescriptionsFromResponse;
 
 abstract class PrescriptionRemoteDataSource {
   Future<CategoryFetchResult> fetchPrescriptions({
@@ -35,6 +35,7 @@ class PrescriptionRemoteDataSourceImpl implements PrescriptionRemoteDataSource {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
+        body: '{}',
       ).timeout(timeout);
       return CategoryFetchResult.fromResponse(
         response.statusCode,
@@ -78,18 +79,6 @@ class PrescriptionRemoteDataSourceImpl implements PrescriptionRemoteDataSource {
       return CategoryFetchResult(statusCode: 0, error: e);
     }
   }
-}
-
-/// Parses prescription list from view-prescription API body.
-List<Map<String, dynamic>> prescriptionsFromResponse(
-  Map<String, dynamic> body,
-) {
-  final data = body['data'];
-  if (data is! List) return const [];
-  return data
-      .whereType<Map>()
-      .map((e) => Map<String, dynamic>.from(e))
-      .toList();
 }
 
 bool prescriptionUploadSucceeded(

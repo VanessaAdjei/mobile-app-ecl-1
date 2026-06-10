@@ -1,4 +1,6 @@
 // main.dart
+import 'dart:io' show Platform;
+
 import 'package:eclapp/services/auth_service.dart';
 import 'package:eclapp/providers/auth_provider.dart';
 import 'package:eclapp/pages/profile.dart';
@@ -36,9 +38,13 @@ import 'providers/clearance_sale_provider.dart';
 import 'services/notification_service.dart';
 import 'services/http_client_service.dart';
 import 'config/api_config.dart';
+import 'config/app_colors.dart';
 import 'config/app_routes.dart';
 import 'utils/responsive_utils.dart';
 import 'utils/non_ui_error_reporter.dart';
+import 'utils/flutter_test_env.dart';
+import 'package:image_picker_android/image_picker_android.dart';
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 
 bool _isKeychainError(dynamic e) {
   final s = e.toString().toLowerCase();
@@ -47,6 +53,19 @@ bool _isKeychainError(dynamic e) {
       s.contains('required entitlement') ||
       s.contains('unexpected security result code') ||
       s.contains('security result code');
+}
+
+/// flutter_typeahead v4 metrics race when leaving a screen with search focused.
+bool _isTypeaheadDeactivatedMetricsError(Object error, StackTrace? stack) {
+  final message = error.toString();
+  if (!message.contains('deactivated widget') &&
+      !message.contains('ancestor is unsafe')) {
+    return false;
+  }
+  final trace = stack?.toString() ?? '';
+  return trace.contains('flutter_typeahead') &&
+      (trace.contains('SuggestionsBox._waitChangeMetrics') ||
+          trace.contains('didChangeMetrics'));
 }
 
 /// Shown in debug/profile when a widget fails to build. Same details as the red
@@ -96,9 +115,18 @@ Widget _buildPhaseErrorPanel(FlutterErrorDetails details) {
   );
 }
 
+void _configureAndroidImagePicker() {
+  if (kIsWeb || !Platform.isAndroid) return;
+  final impl = ImagePickerPlatform.instance;
+  if (impl is ImagePickerAndroid) {
+    impl.useAndroidPhotoPicker = true;
+  }
+}
+
 void main() async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+    _configureAndroidImagePicker();
 
     ErrorWidget.builder = (FlutterErrorDetails d) {
       if (d.exception is PlatformException && _isKeychainError(d.exception)) {
@@ -143,7 +171,11 @@ void main() async {
                   ?.toString()
                   .toLowerCase()
                   .contains('flutter_secure_storage') ==
-              true) {
+              true ||
+          _isTypeaheadDeactivatedMetricsError(
+            d.exception,
+            d.stack,
+          )) {
         return;
       }
       NonUiErrorReporter.report(
@@ -174,13 +206,15 @@ void main() async {
     unawaited(ProductCache.loadFromStorage());
 
     // HTTP/maps are not needed to choose the first screen — init after first frame.
-    unawaited(HttpClientService.initialize());
-    unawaited(ApiConfig.initializeMapsApiKey());
+    if (!isFlutterTest) {
+      unawaited(HttpClientService.initialize());
+      unawaited(ApiConfig.initializeMapsApiKey());
 
-    // Full catalog download as soon as HTTP is ready (not on Get Started).
-    unawaited(ProductCache.prefetchPriorityFromNetwork());
-    unawaited(ProductCache.prefetchFromNetwork());
-    debugPrint('🚀 Main: priority + get-all-products started at app open');
+      // Full catalog download as soon as HTTP is ready (not on Get Started).
+      unawaited(ProductCache.prefetchPriorityFromNetwork());
+      unawaited(ProductCache.prefetchFromNetwork());
+      debugPrint('🚀 Main: priority + get-all-products started at app open');
+    }
 
     // make images cache better so they load faster
     PaintingBinding.instance.imageCache.maximumSize = 1000;
@@ -192,12 +226,15 @@ void main() async {
     runApp(EclAppRoot(flagsFuture: launchFlagsFuture));
   }, (error, stack) {
     if (_isKeychainError(error)) return;
+    if (_isTypeaheadDeactivatedMetricsError(error, stack)) return;
     debugPrint('Unhandled error: $error');
     debugPrint('Stack: $stack');
   });
 }
 
 Future<void> _initializeApp() async {
+  if (isFlutterTest) return;
+
   debugPrint('🚀 Main: Cold start - deferred (non-blocking for first frame)');
 
   unawaited(AuthService.clearAllGuestIds());
@@ -566,10 +603,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               debugShowCheckedModeBanner: false,
               // hide keychain errors here too; tablet/desktop: centered max-width column
               builder: (context, widget) {
-                return ResponsiveUtils.appFrame(
+                final framed = ResponsiveUtils.appFrame(
                   context,
                   widget ?? const SizedBox.shrink(),
                 );
+                return ResponsiveUtils.applyResponsiveTheme(context, framed);
               },
               themeMode:
                   themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
@@ -642,21 +680,32 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   primarySwatch: Colors.green,
                   brightness: Brightness.light,
                 ).copyWith(surface: Color(0xFFF8F9FA)),
+                switchTheme: SwitchThemeData(
+                  thumbColor: WidgetStateProperty.resolveWith((states) {
+                    return Colors.white;
+                  }),
+                  trackColor: WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.selected)) {
+                      return AppColors.primary;
+                    }
+                    return Colors.grey.shade600;
+                  }),
+                ),
               ),
               darkTheme: ThemeData(
                 fontFamily: 'Poppins',
                 brightness: Brightness.dark,
-                primaryColor: Colors.green.shade400,
-                secondaryHeaderColor: Colors.green.shade200,
-                scaffoldBackgroundColor: Colors.grey.shade900,
-                cardColor: Colors.grey.shade800,
+                primaryColor: Colors.green.shade700,
+                secondaryHeaderColor: Colors.green.shade400,
+                scaffoldBackgroundColor: const Color(0xFF0F172A),
+                cardColor: const Color(0xFF1E293B),
                 snackBarTheme: const SnackBarThemeData(
                   behavior: SnackBarBehavior.floating,
                   dismissDirection: DismissDirection.down,
                   showCloseIcon: true,
                 ),
                 appBarTheme: AppBarTheme(
-                  backgroundColor: Colors.green.shade400,
+                  backgroundColor: Colors.green.shade700,
                   elevation: 2,
                   centerTitle: true,
                   iconTheme: IconThemeData(color: Colors.white),
@@ -669,20 +718,21 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 ),
                 inputDecorationTheme: InputDecorationTheme(
                   filled: true,
-                  fillColor: Colors.grey.shade800,
+                  fillColor: const Color(0xFF1E293B),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.green.shade400),
+                    borderSide: BorderSide(color: Colors.green.shade600),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide:
-                        BorderSide(color: Colors.green.shade400, width: 2),
+                        BorderSide(color: Colors.green.shade500, width: 2),
                   ),
                   labelStyle: TextStyle(
-                      color: Colors.green.shade200,
+                      color: Colors.green.shade300,
                       fontWeight: FontWeight.w500),
-                  hintStyle: TextStyle(color: Colors.grey, fontSize: 15),
+                  hintStyle:
+                      TextStyle(color: Colors.white54, fontSize: 15),
                   contentPadding:
                       EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                 ),
@@ -713,7 +763,29 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 colorScheme: ColorScheme.fromSwatch(
                   primarySwatch: Colors.green,
                   brightness: Brightness.dark,
-                ).copyWith(surface: Colors.grey.shade900),
+                ).copyWith(
+                  surface: const Color(0xFF0F172A),
+                  onSurface: Colors.white,
+                  onBackground: Colors.white,
+                ),
+                textTheme: const TextTheme(
+                  bodyLarge: TextStyle(color: Colors.white),
+                  bodyMedium: TextStyle(color: Colors.white70),
+                  titleMedium: TextStyle(color: Colors.white),
+                  titleSmall: TextStyle(color: Colors.white),
+                  labelLarge: TextStyle(color: Colors.white),
+                ),
+                switchTheme: SwitchThemeData(
+                  thumbColor: WidgetStateProperty.resolveWith((states) {
+                    return Colors.white;
+                  }),
+                  trackColor: WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.selected)) {
+                      return AppColors.primary;
+                    }
+                    return const Color(0xFF475569);
+                  }),
+                ),
               ),
               navigatorKey: NativeNotificationService.globalNavigatorKey,
               scaffoldMessengerKey: NotificationService.messengerKey,

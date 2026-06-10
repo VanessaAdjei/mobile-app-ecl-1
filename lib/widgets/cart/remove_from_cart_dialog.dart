@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:eclapp/config/app_colors.dart';
+import 'package:eclapp/utils/app_theme_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -58,18 +59,38 @@ class RemoveFromCartDialog extends StatelessWidget {
   final double price;
   final int quantity;
 
-  static const Color _border = Color(0xFFE5E7EB);
   static const Color _greenTint = Color(0xFFEEF9F3);
   static const Color _greenBorder = Color(0xFFBBEAD3);
-  static const Color _ink = Color(0xFF1F2937);
-  static const Color _muted = Color(0xFF6B7280);
   static const Color _removeRed = Color(0xFFDC2626);
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
     final lineTotal = price * quantity;
     final displayName =
         itemName.length > 48 ? '${itemName.substring(0, 48)}…' : itemName;
+    final headerGradient = theme.isDark
+        ? LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF3F1D24),
+              theme.surface,
+            ],
+          )
+        : const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFFFF1F2),
+              Color(0xFFFFFBFB),
+            ],
+          );
+    final headerBorder = theme.isDark
+        ? theme.border
+        : const Color(0xFFFECDD3);
+    final itemPanelBg = theme.isDark ? theme.fieldBg : _greenTint;
+    final itemPanelBorder = theme.isDark ? theme.accentBorder : _greenBorder;
 
     return Material(
       color: Colors.transparent,
@@ -77,12 +98,14 @@ class RemoveFromCartDialog extends StatelessWidget {
         width: 280,
         margin: const EdgeInsets.symmetric(horizontal: 28),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _border),
+          border: Border.all(color: theme.border),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
+              color: Colors.black.withValues(
+                alpha: theme.isDark ? 0.45 : 0.1,
+              ),
               blurRadius: 18,
               offset: const Offset(0, 6),
             ),
@@ -96,17 +119,8 @@ class RemoveFromCartDialog extends StatelessWidget {
             Container(
               padding: const EdgeInsets.fromLTRB(10, 10, 6, 9),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFFFF1F2),
-                    Color(0xFFFFFBFB),
-                  ],
-                ),
-                border: Border(
-                  bottom: BorderSide(color: const Color(0xFFFECDD3)),
-                ),
+                gradient: headerGradient,
+                border: Border(bottom: BorderSide(color: headerBorder)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -115,10 +129,12 @@ class RemoveFromCartDialog extends StatelessWidget {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: theme.surface,
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: const Color(0xFFFECACA),
+                        color: theme.isDark
+                            ? _removeRed.withValues(alpha: 0.45)
+                            : const Color(0xFFFECACA),
                       ),
                     ),
                     child: Icon(
@@ -137,7 +153,7 @@ class RemoveFromCartDialog extends StatelessWidget {
                           style: GoogleFonts.poppins(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: _ink,
+                            color: theme.ink,
                             height: 1.2,
                             letterSpacing: -0.2,
                           ),
@@ -146,7 +162,7 @@ class RemoveFromCartDialog extends StatelessWidget {
                           'Add it back anytime.',
                           style: GoogleFonts.poppins(
                             fontSize: 9,
-                            color: _muted,
+                            color: theme.muted,
                             height: 1.3,
                           ),
                         ),
@@ -164,7 +180,7 @@ class RemoveFromCartDialog extends StatelessWidget {
                     icon: Icon(
                       Icons.close_rounded,
                       size: 16,
-                      color: Colors.grey.shade500,
+                      color: theme.muted,
                     ),
                   ),
                 ],
@@ -175,9 +191,9 @@ class RemoveFromCartDialog extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: _greenTint,
+                  color: itemPanelBg,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _greenBorder),
+                  border: Border.all(color: itemPanelBorder),
                 ),
                 child: Row(
                   children: [
@@ -186,7 +202,7 @@ class RemoveFromCartDialog extends StatelessWidget {
                       child: Container(
                         width: 36,
                         height: 36,
-                        color: Colors.white,
+                        color: theme.fieldBg,
                         child: imageUrl.isEmpty
                             ? Icon(
                                 Icons.medical_services_outlined,
@@ -221,7 +237,7 @@ class RemoveFromCartDialog extends StatelessWidget {
                             style: GoogleFonts.poppins(
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
-                              color: _ink,
+                              color: theme.ink,
                               height: 1.25,
                             ),
                           ),
@@ -232,7 +248,7 @@ class RemoveFromCartDialog extends StatelessWidget {
                                 'GHS ${price.toStringAsFixed(2)} × $quantity',
                                 style: GoogleFonts.poppins(
                                   fontSize: 9,
-                                  color: _muted,
+                                  color: theme.muted,
                                 ),
                               ),
                               const Spacer(),
@@ -241,7 +257,7 @@ class RemoveFromCartDialog extends StatelessWidget {
                                 style: GoogleFonts.poppins(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w700,
-                                  color: _ink,
+                                  color: theme.ink,
                                 ),
                               ),
                             ],
@@ -264,8 +280,14 @@ class RemoveFromCartDialog extends StatelessWidget {
                         onPressed: () => Navigator.of(context).pop(true),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: _removeRed,
-                          side: const BorderSide(color: Color(0xFFFECACA)),
-                          backgroundColor: const Color(0xFFFFF6F5),
+                          side: BorderSide(
+                            color: theme.isDark
+                                ? _removeRed.withValues(alpha: 0.45)
+                                : const Color(0xFFFECACA),
+                          ),
+                          backgroundColor: theme.isDark
+                              ? _removeRed.withValues(alpha: 0.12)
+                              : const Color(0xFFFFF6F5),
                           padding: EdgeInsets.zero,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),

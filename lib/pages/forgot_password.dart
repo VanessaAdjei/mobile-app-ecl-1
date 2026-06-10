@@ -172,6 +172,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                     keyboardType: TextInputType.emailAddress,
                     autofillHints: const [AutofillHints.email],
                     textInputAction: TextInputAction.done,
+                    style: const TextStyle(color: Color(0xFF1F2937), fontSize: 14),
+                    cursorColor: Colors.green.shade700,
                     onFieldSubmitted: (_) {
                       if (!_isLoading) _submit();
                     },

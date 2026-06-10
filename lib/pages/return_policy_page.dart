@@ -3,19 +3,19 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../config/app_colors.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
+import '../widgets/policy/legal_policy_theme.dart';
 
 /// Return & refund policy — layout aligned with [TermsAndConditionsPage].
 class ReturnPolicyPage extends StatelessWidget {
   const ReturnPolicyPage({super.key});
 
-  static const Color _bodyText = Color(0xFF374151);
-
   @override
   Widget build(BuildContext context) {
     final year = DateTime.now().year;
+    final policy = LegalPolicyTheme.of(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFE5EDE8),
+      backgroundColor: policy.pageBg,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
@@ -32,16 +32,19 @@ class ReturnPolicyPage extends StatelessWidget {
                 const _ReturnIntroCard(),
                 const SizedBox(height: 20),
                 _buildSection(
+                  context,
                   '1',
                   'Refund Policy',
                   'We are pleased to assist. However, note that we do not offer payment refunds for any purchases. We may be able to facilitate an exchange for an alternative product if your item meets our return policy.',
                 ),
                 _buildSection(
+                  context,
                   '2',
                   'Return Policy Overview',
                   'At ECL, your health and safety are our top priorities. Due to the sensitive nature of pharmaceutical products and strict health regulations, our return policy is designed to ensure the integrity of the medications and products we provide.',
                 ),
                 _buildSubSection(
+                  context,
                   '2.1',
                   'Prescription medications',
                   '',
@@ -50,6 +53,7 @@ class ReturnPolicyPage extends StatelessWidget {
                   ],
                 ),
                 _buildSubSection(
+                  context,
                   '2.2',
                   'Errors & defects',
                   '',
@@ -59,11 +63,13 @@ class ReturnPolicyPage extends StatelessWidget {
                   ],
                 ),
                 _buildSection(
+                  context,
                   '3',
                   'OTC & general merchandise',
                   'Over-the-Counter (OTC) products and general merchandise (e.g., vitamins, bandages, beauty products, shavers, clippers, personal care items), you may return them within 24 hours of purchase under the following conditions:',
                 ),
                 _buildSubSection(
+                  context,
                   '3.1',
                   'Conditions',
                   '',
@@ -75,6 +81,7 @@ class ReturnPolicyPage extends StatelessWidget {
                   ],
                 ),
                 _buildSubSection(
+                  context,
                   '3.2',
                   'How to initiate a return',
                   '',
@@ -84,6 +91,7 @@ class ReturnPolicyPage extends StatelessWidget {
                   ],
                 ),
                 _buildSection(
+                  context,
                   '4',
                   'Contact us',
                   'If you have any questions regarding our return policy, please reach out:',
@@ -106,14 +114,18 @@ class ReturnPolicyPage extends StatelessWidget {
   }
 
   Widget _buildSection(
+    BuildContext context,
     String number,
     String title,
     String content, {
     List<String>? bulletPoints,
   }) {
+    final policy = LegalPolicyTheme.of(context);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: _PolicySectionCard(
+        policy: policy,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -128,7 +140,7 @@ class ReturnPolicyPage extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFF111827),
+                      color: policy.titleInk,
                       height: 1.35,
                     ),
                   ),
@@ -141,7 +153,7 @@ class ReturnPolicyPage extends StatelessWidget {
                 content,
                 style: GoogleFonts.poppins(
                   fontSize: 14,
-                  color: _bodyText,
+                  color: policy.bodyText,
                   height: 1.65,
                 ),
               ),
@@ -149,8 +161,9 @@ class ReturnPolicyPage extends StatelessWidget {
             if (bulletPoints != null && bulletPoints.isNotEmpty) ...[
               const SizedBox(height: 12),
               _BulletPanel(
+                policy: policy,
                 children:
-                    bulletPoints.map((p) => _bulletRow(p)).toList(),
+                    bulletPoints.map((p) => _bulletRow(context, p)).toList(),
               ),
             ],
           ],
@@ -160,25 +173,28 @@ class ReturnPolicyPage extends StatelessWidget {
   }
 
   Widget _buildSubSection(
+    BuildContext context,
     String number,
     String title,
     String content, {
     List<String>? bulletPoints,
   }) {
+    final policy = LegalPolicyTheme.of(context);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Material(
-        color: Colors.white,
+        color: policy.cardBg,
         elevation: 0,
         shadowColor: Colors.transparent,
         borderRadius: BorderRadius.circular(18),
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            border: Border.all(color: policy.border),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
+                color: policy.cardShadow,
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -215,8 +231,7 @@ class ReturnPolicyPage extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color:
-                                    AppColors.primary.withValues(alpha: 0.12),
+                                color: policy.badgeTintBg,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
@@ -224,7 +239,7 @@ class ReturnPolicyPage extends StatelessWidget {
                                 style: GoogleFonts.poppins(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
-                                  color: AppColors.accent,
+                                  color: policy.badgeTintInk,
                                 ),
                               ),
                             ),
@@ -235,7 +250,7 @@ class ReturnPolicyPage extends StatelessWidget {
                                 style: GoogleFonts.poppins(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF1F2937),
+                                  color: policy.titleInk,
                                   height: 1.3,
                                 ),
                               ),
@@ -248,7 +263,7 @@ class ReturnPolicyPage extends StatelessWidget {
                             content,
                             style: GoogleFonts.poppins(
                               fontSize: 13,
-                              color: _bodyText,
+                              color: policy.bodyText,
                               height: 1.6,
                             ),
                           ),
@@ -257,8 +272,9 @@ class ReturnPolicyPage extends StatelessWidget {
                             bulletPoints.isNotEmpty) ...[
                           const SizedBox(height: 10),
                           _BulletPanel(
+                            policy: policy,
                             children: bulletPoints
-                                .map((p) => _bulletRow(p, compact: true))
+                                .map((p) => _bulletRow(context, p, compact: true))
                                 .toList(),
                           ),
                         ],
@@ -274,7 +290,13 @@ class ReturnPolicyPage extends StatelessWidget {
     );
   }
 
-  Widget _bulletRow(String point, {bool compact = false}) {
+  Widget _bulletRow(
+    BuildContext context,
+    String point, {
+    bool compact = false,
+  }) {
+    final policy = LegalPolicyTheme.of(context);
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -283,7 +305,7 @@ class ReturnPolicyPage extends StatelessWidget {
           child: Icon(
             Icons.fiber_manual_record,
             size: compact ? 7 : 8,
-            color: AppColors.primary,
+            color: policy.isDark ? AppColors.primaryLight : AppColors.primary,
           ),
         ),
         const SizedBox(width: 10),
@@ -292,7 +314,7 @@ class ReturnPolicyPage extends StatelessWidget {
             point,
             style: GoogleFonts.poppins(
               fontSize: compact ? 13 : 14,
-              color: _bodyText,
+              color: policy.bodyText,
               height: 1.55,
             ),
           ),
@@ -307,15 +329,17 @@ class _ReturnIntroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final policy = LegalPolicyTheme.of(context);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: policy.cardBg,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: policy.border),
         boxShadow: [
           BoxShadow(
-            color: AppColors.accent.withValues(alpha: 0.07),
+            color: policy.introShadow,
             blurRadius: 28,
             offset: const Offset(0, 12),
           ),
@@ -349,7 +373,7 @@ class _ReturnIntroCard extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF0F172A),
+                    color: policy.titleInk,
                     height: 1.25,
                   ),
                 ),
@@ -358,7 +382,7 @@ class _ReturnIntroCard extends StatelessWidget {
                   'Prescription rules, OTC conditions, and ways to get help — summarized below for quick reference.',
                   style: GoogleFonts.poppins(
                     fontSize: 14,
-                    color: const Color(0xFF64748B),
+                    color: policy.subtitleInk,
                     height: 1.55,
                   ),
                 ),
@@ -372,8 +396,9 @@ class _ReturnIntroCard extends StatelessWidget {
 }
 
 class _BulletPanel extends StatelessWidget {
-  const _BulletPanel({required this.children});
+  const _BulletPanel({required this.policy, required this.children});
 
+  final LegalPolicyTheme policy;
   final List<Widget> children;
 
   @override
@@ -382,9 +407,9 @@ class _BulletPanel extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF4FAF7),
+        color: policy.bulletPanelBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFDCEEE4)),
+        border: Border.all(color: policy.bulletPanelBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -400,8 +425,9 @@ class _BulletPanel extends StatelessWidget {
 }
 
 class _PolicySectionCard extends StatelessWidget {
-  const _PolicySectionCard({required this.child});
+  const _PolicySectionCard({required this.policy, required this.child});
 
+  final LegalPolicyTheme policy;
   final Widget child;
 
   @override
@@ -410,12 +436,12 @@ class _PolicySectionCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: policy.cardBg,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE5EBE7)),
+          border: Border.all(color: policy.border),
           boxShadow: [
             BoxShadow(
-              color: AppColors.accent.withValues(alpha: 0.06),
+              color: policy.cardShadow,
               blurRadius: 22,
               offset: const Offset(0, 10),
             ),
@@ -489,6 +515,8 @@ class _FooterStamp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final policy = LegalPolicyTheme.of(context);
+
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Center(
@@ -514,7 +542,7 @@ class _FooterStamp extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: const Color(0xFF94A3B8),
+                color: policy.footerMuted,
                 letterSpacing: 0.2,
               ),
             ),

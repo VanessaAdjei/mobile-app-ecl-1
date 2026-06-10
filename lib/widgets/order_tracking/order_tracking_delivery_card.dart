@@ -22,7 +22,7 @@ class OrderTrackingDeliveryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      decoration: PostCheckoutDesign.compactCard(),
+      decoration: PostCheckoutDesign.compactCard(context),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(11),
         child: Stack(
@@ -66,7 +66,7 @@ class OrderTrackingDeliveryCard extends StatelessWidget {
                               style: GoogleFonts.poppins(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: PostCheckoutDesign.ink,
+                                color: PostCheckoutDesign.ink(context),
                                 letterSpacing: -0.25,
                               ),
                             ),
@@ -77,7 +77,7 @@ class OrderTrackingDeliveryCard extends StatelessWidget {
                               style: GoogleFonts.poppins(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
-                                color: PostCheckoutDesign.muted,
+                                color: PostCheckoutDesign.muted(context),
                               ),
                             ),
                           ],
@@ -148,7 +148,7 @@ class _DetailRow extends StatelessWidget {
                   fontSize: 9,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.5,
-                  color: PostCheckoutDesign.muted,
+                  color: PostCheckoutDesign.muted(context),
                 ),
               ),
               const SizedBox(height: 2),
@@ -157,7 +157,7 @@ class _DetailRow extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
-                  color: PostCheckoutDesign.ink,
+                  color: PostCheckoutDesign.ink(context),
                   height: 1.4,
                 ),
               ),

@@ -1,14 +1,18 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:eclapp/config/api_config.dart';
 import 'package:eclapp/cache/product_cache.dart';
 import 'package:eclapp/cache/product_catalog_memory.dart';
 import 'package:eclapp/config/app_colors.dart';
 import 'package:eclapp/models/product_model.dart';
-import 'package:eclapp/pages/homepage.dart';
 import 'package:eclapp/pages/search_results_page.dart';
+import 'package:eclapp/widgets/safe_typeahead_host.dart';
+import 'package:eclapp/widgets/typeahead_box_style.dart';
 import 'package:eclapp/services/product_catalog_service.dart';
+import 'package:eclapp/utils/app_theme_colors.dart';
 import 'package:eclapp/utils/product_detail_navigation.dart';
+import 'package:eclapp/widgets/item_detail/item_detail_design.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -38,16 +42,18 @@ class ItemDetailSearchBar extends StatefulWidget {
 }
 
 class _ItemDetailSearchBarState extends State<ItemDetailSearchBar> {
-  static const Color _ink = Color(0xFF1F2937);
-  static const Color _muted = Color(0xFF6B7280);
-  static const Color _greenTint = Color(0xFFEEF9F3);
-  static const Color _greenBorder = Color(0xFFBBEAD3);
-
   final TextEditingController _controller = TextEditingController();
   final ProductCatalogService _catalogService = ProductCatalogService();
 
   @override
+  void deactivate() {
+    widget.focusNode?.unfocus();
+    super.deactivate();
+  }
+
+  @override
   void dispose() {
+    widget.focusNode?.unfocus();
     _controller.dispose();
     super.dispose();
   }
@@ -145,19 +151,23 @@ class _ItemDetailSearchBarState extends State<ItemDetailSearchBar> {
   }
 
   Widget _buildSuggestionTile(Product suggestion) {
+    final ink = context.appColors.ink;
+    final accent = ItemDetailDesign.priceAccent(context);
+    final imageWell = ItemDetailDesign.imageWell(context);
+
     if (suggestion.name == '__VIEW_MORE__') {
       return ListTile(
         dense: true,
         leading: Icon(
           Icons.list,
-          color: Colors.green.shade700,
+          color: accent,
           size: 22,
         ),
         title: Text(
           'View All Results',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
-            color: Colors.green.shade700,
+            color: accent,
             fontSize: 14,
           ),
         ),
@@ -165,7 +175,7 @@ class _ItemDetailSearchBarState extends State<ItemDetailSearchBar> {
     }
 
     final matching = _matchingCatalogProduct(suggestion);
-    final imageUrl = getProductImageUrl(
+    final imageUrl = ApiConfig.getProductImageUrl(
       matching.thumbnail.isNotEmpty ? matching.thumbnail : suggestion.thumbnail,
     );
 
@@ -194,11 +204,11 @@ class _ItemDetailSearchBarState extends State<ItemDetailSearchBar> {
                     size: 22,
                   ),
                 )
-              : const ColoredBox(
-                  color: _greenTint,
+              : ColoredBox(
+                  color: imageWell,
                   child: Icon(
                     Icons.medical_services_outlined,
-                    color: AppColors.primary,
+                    color: accent,
                     size: 22,
                   ),
                 ),
@@ -211,7 +221,7 @@ class _ItemDetailSearchBarState extends State<ItemDetailSearchBar> {
         style: GoogleFonts.poppins(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: _ink,
+          color: ink,
         ),
       ),
     );
@@ -219,106 +229,119 @@ class _ItemDetailSearchBarState extends State<ItemDetailSearchBar> {
 
   Widget _buildTypeAhead() {
     final inHeader = widget.inHeader;
-    return TypeAheadField<Product>(
-      textFieldConfiguration: TextFieldConfiguration(
+    final ink = context.appColors.ink;
+    final muted = context.appColors.muted;
+    final fieldBg = context.appColors.fieldBg;
+    const boxStyle = TypeAheadBoxStyle(
+      borderRadius: BorderRadius.all(Radius.circular(14)),
+      elevation: 8,
+      verticalOffset: 6,
+      constraints: BoxConstraints(maxHeight: 280),
+    );
+
+    return SafeTypeAheadHost<Product>(
+      focusNode: widget.focusNode,
+      builder: (context, suggestionsController) => TypeAheadField<Product>(
         controller: _controller,
         focusNode: widget.focusNode,
-        autofocus: widget.autofocus,
-        style: GoogleFonts.poppins(
-          fontSize: inHeader ? 14 : 15,
-          color: inHeader ? Colors.white : _ink,
-          fontWeight: FontWeight.w500,
-        ),
-        decoration: InputDecoration(
-          isDense: true,
-          hintText: 'Search medicines, products...',
-          hintStyle: GoogleFonts.poppins(
-            fontSize: inHeader ? 13 : 14,
-            color: inHeader
-                ? Colors.white.withValues(alpha: 0.65)
-                : _muted,
-            fontWeight: FontWeight.w400,
+        suggestionsController: suggestionsController,
+        offset: boxStyle.offset,
+        constraints: boxStyle.constraints,
+        decorationBuilder: boxStyle.decorationBuilder,
+        builder: (context, controller, focusNode) {
+          return TextField(
+            controller: controller,
+            focusNode: focusNode,
+            autofocus: widget.autofocus,
+            style: GoogleFonts.poppins(
+              fontSize: inHeader ? 14 : 15,
+              color: inHeader ? Colors.white : ink,
+              fontWeight: FontWeight.w500,
+            ),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'Search medicines, products...',
+              hintStyle: GoogleFonts.poppins(
+                fontSize: inHeader ? 13 : 14,
+                color: inHeader
+                    ? Colors.white.withValues(alpha: 0.65)
+                    : muted,
+                fontWeight: FontWeight.w400,
+              ),
+              filled: true,
+              fillColor: inHeader
+                  ? Colors.white.withValues(alpha: 0.14)
+                  : fieldBg,
+              border: inHeader
+                  ? OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    )
+                  : InputBorder.none,
+              enabledBorder: inHeader
+                  ? OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    )
+                  : InputBorder.none,
+              focusedBorder: inHeader
+                  ? OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.45),
+                      ),
+                    )
+                  : InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(
+                vertical: inHeader ? 8 : 10,
+                horizontal: inHeader ? 12 : 4,
+              ),
+              prefixIcon: inHeader
+                  ? Icon(
+                      Icons.search_rounded,
+                      size: 20,
+                      color: Colors.white.withValues(alpha: 0.85),
+                    )
+                  : null,
+              suffixIcon: inHeader || _controller.text.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(
+                        Icons.close_rounded,
+                        size: 20,
+                        color: inHeader
+                            ? Colors.white.withValues(alpha: 0.9)
+                            : muted.withValues(alpha: 0.9),
+                      ),
+                      onPressed: () {
+                        _controller.clear();
+                        setState(() {});
+                        widget.onClose?.call();
+                      },
+                    )
+                  : null,
+            ),
+            onChanged: (_) => setState(() {}),
+            onSubmitted: _openSearchResults,
+          );
+        },
+        debounceDuration: const Duration(milliseconds: 250),
+        hideOnEmpty: true,
+        hideOnLoading: false,
+        suggestionsCallback: _fetchSuggestions,
+        itemBuilder: (context, suggestion) => _buildSuggestionTile(suggestion),
+        onSelected: (suggestion) {
+          if (suggestion.name == '__VIEW_MORE__') {
+            _openSearchResults(_controller.text);
+          } else {
+            _openProduct(suggestion);
+          }
+        },
+        emptyBuilder: (context) => Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text(
+            'No products found',
+            style: GoogleFonts.poppins(fontSize: 13, color: muted),
           ),
-          filled: inHeader,
-          fillColor: inHeader
-              ? Colors.white.withValues(alpha: 0.14)
-              : null,
-          border: inHeader
-              ? OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                )
-              : InputBorder.none,
-          enabledBorder: inHeader
-              ? OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                )
-              : InputBorder.none,
-          focusedBorder: inHeader
-              ? OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.45),
-                  ),
-                )
-              : InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(
-            vertical: inHeader ? 8 : 10,
-            horizontal: inHeader ? 12 : 4,
-          ),
-          prefixIcon: inHeader
-              ? Icon(
-                  Icons.search_rounded,
-                  size: 20,
-                  color: Colors.white.withValues(alpha: 0.85),
-                )
-              : null,
-          suffixIcon: inHeader || _controller.text.isNotEmpty
-              ? IconButton(
-                  icon: Icon(
-                    Icons.close_rounded,
-                    size: 20,
-                    color: inHeader
-                        ? Colors.white.withValues(alpha: 0.9)
-                        : _muted.withValues(alpha: 0.9),
-                  ),
-                  onPressed: () {
-                    _controller.clear();
-                    setState(() {});
-                    widget.onClose?.call();
-                  },
-                )
-              : null,
-        ),
-        onChanged: (_) => setState(() {}),
-        onSubmitted: _openSearchResults,
-      ),
-      debounceDuration: const Duration(milliseconds: 250),
-      hideOnEmpty: true,
-      hideOnLoading: false,
-      suggestionsBoxVerticalOffset: 6,
-      suggestionsBoxDecoration: SuggestionsBoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        elevation: 8,
-        color: Colors.white,
-        shadowColor: Colors.black.withValues(alpha: 0.12),
-        constraints: const BoxConstraints(maxHeight: 280),
-      ),
-      suggestionsCallback: _fetchSuggestions,
-      itemBuilder: (context, suggestion) => _buildSuggestionTile(suggestion),
-      onSuggestionSelected: (suggestion) {
-        if (suggestion.name == '__VIEW_MORE__') {
-          _openSearchResults(_controller.text);
-        } else {
-          _openProduct(suggestion);
-        }
-      },
-      noItemsFoundBuilder: (context) => Padding(
-        padding: const EdgeInsets.all(12),
-        child: Text(
-          'No products found',
-          style: GoogleFonts.poppins(fontSize: 13, color: _muted),
         ),
       ),
     );
@@ -330,30 +353,12 @@ class _ItemDetailSearchBarState extends State<ItemDetailSearchBar> {
       return _buildTypeAhead();
     }
 
+    final accent = ItemDetailDesign.priceAccent(context);
+
     return Padding(
       padding: widget.padding ?? const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white,
-              _greenTint.withValues(alpha: 0.65),
-            ],
-          ),
-          border: Border.all(color: _greenBorder),
-          boxShadow: widget.elevated
-              ? [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.08),
-                    blurRadius: 14,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
+        decoration: ItemDetailDesign.searchShellDecoration(context),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
           child: Row(
@@ -363,12 +368,15 @@ class _ItemDetailSearchBarState extends State<ItemDetailSearchBar> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
+                  color: ItemDetailDesign.accentTint(context),
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: ItemDetailDesign.accentBorder(context),
+                  ),
                 ),
                 child: Icon(
                   Icons.search_rounded,
-                  color: AppColors.primaryDark,
+                  color: accent,
                   size: 22,
                 ),
               ),

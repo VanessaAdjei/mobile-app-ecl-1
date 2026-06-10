@@ -1,8 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import '../database/prescription/prescription_remote_data_source.dart';
 import '../models/category_fetch_result.dart';
 import '../repositories/prescription_repository.dart';
+import '../utils/prescription_parser.dart';
 
 class PrescriptionService {
   PrescriptionService({PrescriptionRepository? repository})
@@ -31,7 +34,18 @@ class PrescriptionService {
       );
     }
 
-    final prescriptions = prescriptionsFromResponse(result.body!);
+    final localDates = await _repository.readLocalSubmissionDates();
+    final prescriptions = prescriptionsFromResponse(
+      result.body!,
+      localSubmissionDates: localDates,
+    );
+    if (kDebugMode && prescriptions.isNotEmpty) {
+      final sample = prescriptions.first;
+      debugPrint(
+        '[Prescription] sample id=${sample['id']} keys=${sample.keys.toList()} '
+        'created_at=${sample['created_at']}',
+      );
+    }
     if (prescriptions.isEmpty && result.body!['data'] == null) {
       throw Exception('No prescription data found');
     }
@@ -56,6 +70,21 @@ class PrescriptionService {
 
   bool uploadSucceeded(CategoryFetchResult result) =>
       prescriptionUploadSucceeded(result.body, result.statusCode);
+
+  /// Stores a client-side upload timestamp when the API omits one.
+  Future<void> recordSuccessfulUpload(CategoryFetchResult result) async {
+    final id = extractPrescriptionId(result.body);
+    if (id == null) {
+      if (kDebugMode) {
+        debugPrint(
+          '[Prescription] upload succeeded but no id in response — '
+          'local date not saved',
+        );
+      }
+      return;
+    }
+    await _repository.saveLocalSubmissionDate(id, DateTime.now());
+  }
 
   void _rethrowTransportError(CategoryFetchResult result) {
     final error = result.error;

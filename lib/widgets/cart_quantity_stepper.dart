@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../utils/app_theme_colors.dart';
+
 /// Compact +/- stepper for cart line items.
 class CartQuantityStepper extends StatelessWidget {
   const CartQuantityStepper({
@@ -8,62 +10,80 @@ class CartQuantityStepper extends StatelessWidget {
     required this.quantity,
     required this.onIncrement,
     required this.onDecrement,
+    this.enabled = true,
   });
 
   final int quantity;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
+  final bool enabled;
 
   static const Color _green = Color(0xFF16A34A);
   static const Color _greenDark = Color(0xFF15803D);
-  static const Color _border = Color(0xFFE2E8F0);
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
     final canDecrement = quantity > 1;
+    final interactive = enabled;
+    final shellColor = theme.isDark ? theme.fieldBg : Colors.white;
+    final borderColor = theme.isDark ? theme.border : const Color(0xFFE2E8F0);
+    final decrementBg =
+        theme.isDark ? theme.surface : const Color(0xFFF8FAFC);
+    final qtyBg = theme.isDark ? theme.surface : const Color(0xFFF8FAFC);
+    final qtyTextColor = theme.isDark ? theme.ink : const Color(0xFF0F172A);
+    final decrementIconColor =
+        theme.isDark ? theme.muted : const Color(0xFF64748B);
 
-    return Container(
-      height: 28,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (canDecrement) ...[
-            _StepperTap(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                onDecrement();
-              },
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 150),
+      opacity: interactive ? 1 : 0.55,
+      child: Container(
+        height: 28,
+        decoration: BoxDecoration(
+          color: shellColor,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: borderColor),
+          boxShadow: theme.isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (canDecrement) ...[
+              _StepperTap(
+                onTap: interactive
+                    ? () {
+                        HapticFeedback.lightImpact();
+                        onDecrement();
+                      }
+                    : null,
               borderRadius: const BorderRadius.horizontal(
                 left: Radius.circular(13),
               ),
-              backgroundColor: const Color(0xFFF8FAFC),
-              child: const Icon(
+              backgroundColor: decrementBg,
+              child: Icon(
                 Icons.remove_rounded,
                 size: 16,
-                color: Color(0xFF64748B),
+                color: decrementIconColor,
               ),
             ),
             Container(
               width: 1,
               height: 18,
-              color: _border,
+              color: borderColor,
             ),
           ],
           DecoratedBox(
             decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
+              color: qtyBg,
               borderRadius: BorderRadius.horizontal(
                 left: Radius.circular(canDecrement ? 0 : 13),
                 right: const Radius.circular(0),
@@ -75,10 +95,10 @@ class CartQuantityStepper extends StatelessWidget {
               child: Center(
                 child: Text(
                   '$quantity',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF0F172A),
+                    color: qtyTextColor,
                     height: 1,
                   ),
                 ),
@@ -88,25 +108,28 @@ class CartQuantityStepper extends StatelessWidget {
           Container(
             width: 1,
             height: 18,
-            color: _border,
+            color: borderColor,
           ),
-          _StepperTap(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              onIncrement();
-            },
-            borderRadius: const BorderRadius.horizontal(
-              right: Radius.circular(13),
+            _StepperTap(
+              onTap: interactive
+                  ? () {
+                      HapticFeedback.lightImpact();
+                      onIncrement();
+                    }
+                  : null,
+              borderRadius: const BorderRadius.horizontal(
+                right: Radius.circular(13),
+              ),
+              backgroundColor: _green,
+              pressedColor: _greenDark,
+              child: const Icon(
+                Icons.add_rounded,
+                size: 16,
+                color: Colors.white,
+              ),
             ),
-            backgroundColor: _green,
-            pressedColor: _greenDark,
-            child: const Icon(
-              Icons.add_rounded,
-              size: 16,
-              color: Colors.white,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

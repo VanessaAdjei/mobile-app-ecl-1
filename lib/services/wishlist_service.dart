@@ -34,16 +34,41 @@ class WishlistService {
     return v == null || v <= 0;
   }
 
+  bool _needsCatalogEnrichment(WishlistItem item) =>
+      _needsPriceRepair(item) ||
+      item.product.batchNo.trim().isEmpty ||
+      item.product.id <= 0;
+
   static String _normUrl(String? u) => (u ?? '').trim().toLowerCase();
 
-  /// When `/get-wishlist` omits sell price, match to the get-all-products cache.
+  String? _positivePriceString(dynamic value) {
+    if (value == null) return null;
+    final s = value.toString().trim();
+    if (s.isEmpty) return null;
+    final n = double.tryParse(s);
+    if (n == null || n <= 0) return null;
+    return s;
+  }
+
+  int? _positiveIntId(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value > 0 ? value : null;
+    if (value is num) {
+      final n = value.toInt();
+      return n > 0 ? n : null;
+    }
+    final n = int.tryParse(value.toString());
+    return n != null && n > 0 ? n : null;
+  }
+
+  /// When `/get-wishlist` omits cart fields, match to the get-all-products cache.
   /// Prefer **url_name**: the catalog often has several rows per product `id`
-  /// (batches); id-only lookup can attach the wrong row's price. Fallback: id.
+  /// (batches); id-only lookup can attach the wrong row. Fallback: id.
   Future<List<WishlistItem>> _enrichWishlistPricesFromCatalog(
     List<WishlistItem> items,
   ) async {
     if (items.isEmpty) return items;
-    if (!items.any(_needsPriceRepair)) return items;
+    if (!items.any(_needsCatalogEnrichment)) return items;
 
     try {
       final category = CategoryOptimizationService();
@@ -55,47 +80,84 @@ class WishlistService {
 
       final priceByProductId = <int, String>{};
       final priceByUrl = <String, String>{};
+      final batchByProductId = <int, String>{};
+      final batchByUrl = <String, String>{};
+      final idByUrl = <String, int>{};
 
       for (final raw in catalog) {
         final map = _asProductCatalogEntry(raw);
         if (map == null) continue;
 
-        final p = map['price']?.toString().trim() ?? '';
-        if (p.isEmpty) continue;
-        if ((double.tryParse(p) ?? 0) <= 0) continue;
+        final nested = _asProductCatalogEntry(map['product']);
+        final productData = nested ?? map;
 
-        final urlKey = _normUrl(map['url_name']?.toString());
+        final price = _positivePriceString(
+          map['price'] ?? productData['price'],
+        );
+        final batch =
+            (map['batch_no'] ?? productData['batch_no'])?.toString().trim();
+        final urlKey = _normUrl(
+          productData['url_name']?.toString() ?? map['url_name']?.toString(),
+        );
+        final pid = _positiveIntId(productData['id'] ?? map['id']);
+
         if (urlKey.isNotEmpty) {
-          priceByUrl[urlKey] = p;
+          if (price != null) priceByUrl[urlKey] = price;
+          if (batch != null && batch.isNotEmpty) batchByUrl[urlKey] = batch;
+          if (pid != null) idByUrl[urlKey] = pid;
         }
-
-        final idVal = map['id'];
-        final pid = idVal is int
-            ? idVal
-            : (idVal is num ? idVal.toInt() : int.tryParse('$idVal'));
-        if (pid != null && pid > 0) {
-          priceByProductId[pid] = p;
+        if (pid != null) {
+          if (price != null) priceByProductId[pid] = price;
+          if (batch != null && batch.isNotEmpty) {
+            batchByProductId[pid] = batch;
+          }
         }
       }
 
-      if (priceByProductId.isEmpty && priceByUrl.isEmpty) return items;
+      if (priceByProductId.isEmpty &&
+          priceByUrl.isEmpty &&
+          batchByProductId.isEmpty &&
+          batchByUrl.isEmpty &&
+          idByUrl.isEmpty) {
+        return items;
+      }
 
       return items.map((item) {
-        if (!_needsPriceRepair(item)) return item;
+        if (!_needsCatalogEnrichment(item)) return item;
 
         final urlKey = _normUrl(item.product.urlName);
-        final byUrl = urlKey.isNotEmpty ? priceByUrl[urlKey] : null;
-        final byId = priceByProductId[item.product.id];
-        final hit = byUrl ?? byId;
+        var product = item.product;
 
-        if (hit == null) return item;
-        debugPrint(
-          '🛒 Wishlist price enrich: id=${item.product.id} url=$urlKey -> GHS $hit',
-        );
-        return item.copyWith(product: item.product.copyWith(price: hit));
+        if (_needsPriceRepair(item)) {
+          final hit = (urlKey.isNotEmpty ? priceByUrl[urlKey] : null) ??
+              priceByProductId[product.id];
+          if (hit != null) {
+            debugPrint(
+              '🛒 Wishlist price enrich: id=${product.id} url=$urlKey -> GHS $hit',
+            );
+            product = product.copyWith(price: hit);
+          }
+        }
+
+        if (product.batchNo.trim().isEmpty) {
+          final batch = (urlKey.isNotEmpty ? batchByUrl[urlKey] : null) ??
+              batchByProductId[product.id];
+          if (batch != null && batch.isNotEmpty) {
+            product = product.copyWith(batchNo: batch);
+          }
+        }
+
+        if (product.id <= 0 && urlKey.isNotEmpty) {
+          final id = idByUrl[urlKey];
+          if (id != null) {
+            product = product.copyWith(id: id);
+          }
+        }
+
+        return product == item.product ? item : item.copyWith(product: product);
       }).toList();
     } catch (e) {
-      debugPrint('⚠️ Wishlist catalog price enrich skipped: $e');
+      debugPrint('⚠️ Wishlist catalog enrich skipped: $e');
       return items;
     }
   }
@@ -710,33 +772,56 @@ class WishlistService {
   /// instantiate a new CartProvider.
   Future<bool> moveToCart(int productId, CartProvider cartProvider) async {
     try {
-      final wishlistItems = await getWishlistItems();
+      var wishlistItems = await getWishlistItems(useCache: false);
+      wishlistItems = await _enrichWishlistPricesFromCatalog(wishlistItems);
+
       final itemToMove = wishlistItems.firstWhere(
         (item) => item.product.id == productId,
         orElse: () => throw Exception('Item not found in wishlist'),
       );
 
-      // turn the wishlist item into a cart item
-      // Ensure a valid image is always set
+      if (itemToMove.product.id <= 0) {
+        debugPrint(
+          'moveToCart: missing product id for ${itemToMove.product.name}',
+        );
+        return false;
+      }
+
+      // Match item-detail cart row shape so server sync accepts the add.
       final String defaultImage = 'assets/images/default_product.png';
-      final String image = (itemToMove.product.thumbnail.isNotEmpty)
+      final String image = itemToMove.product.thumbnail.isNotEmpty
           ? itemToMove.product.thumbnail
           : defaultImage;
+      final unitPrice = double.tryParse(itemToMove.product.price) ?? 0.0;
+      final productIdStr = itemToMove.product.id.toString();
       final cartItem = CartItem(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        productId: itemToMove.product.id.toString(),
+        id: '',
+        productId: productIdStr,
+        originalProductId: productIdStr,
         name: itemToMove.product.name,
-        price: double.tryParse(itemToMove.product.price) ?? 0.0,
-        quantity: 1, // Default quantity when moving from wishlist
+        price: unitPrice,
+        quantity: 1,
         image: image,
         batchNo: itemToMove.product.batchNo,
         urlName: itemToMove.product.urlName,
-        totalPrice: double.tryParse(itemToMove.product.price) ?? 0.0,
+        totalPrice: unitPrice,
       );
 
       await cartProvider.addToCart(cartItem);
 
-      // remove it from wishlist after we add it to cart
+      final added = CartProvider.selectIsProductInCart(
+        cartProvider,
+        productName: cartItem.name,
+        batchNo: cartItem.batchNo,
+        catalogProductId: productIdStr,
+      );
+      if (!added) {
+        debugPrint(
+          'moveToCart: server/local cart rejected ${itemToMove.product.name}',
+        );
+        return false;
+      }
+
       await removeFromWishlist(productId);
 
       debugPrint('Successfully moved ${itemToMove.product.name} to cart');

@@ -10,6 +10,9 @@ class AppColors {
   /// Darker green - secondary accents
   static const Color primaryDark = Color(0xFF1A8F55);
 
+  /// Bottom nav + homepage header (Material green 700).
+  static const Color navBar = Color(0xFF388E3C);
+
   /// Lighter green - highlights
   static const Color primaryLight = Color(0xFF4BCF8F);
 

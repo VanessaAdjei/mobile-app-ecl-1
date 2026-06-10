@@ -5,7 +5,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_colors.dart';
+import '../config/app_routes.dart';
 import '../services/auth_service.dart';
+import '../services/delivery_service.dart';
+import '../utils/app_theme_colors.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import 'bottomnav.dart';
@@ -23,14 +26,87 @@ class ProfileScreenState extends State<ProfileScreen> {
   String _userName = "User";
   String _userEmail = "No email available";
   String _phoneNumber = "";
+  String? _deliveryAddressPreview;
+  bool _loadingDeliveryAddress = true;
 
-  static const Color _pageBgLight = Color(0xFFE5EDE8);
   static const Color _bodyTextLight = Color(0xFF374151);
 
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    _loadProfileData();
+  }
+
+  Future<void> _loadProfileData() async {
+    await Future.wait([
+      _loadUserData(),
+      _loadDeliveryAddressPreview(),
+    ]);
+  }
+
+  Future<void> _loadDeliveryAddressPreview() async {
+    if (!mounted) return;
+    setState(() => _loadingDeliveryAddress = true);
+    try {
+      final result = await DeliveryService.getLastDeliveryInfo();
+      if (!mounted) return;
+
+      String? preview;
+      if (result['success'] == true && result['data'] != null) {
+        final data = Map<String, dynamic>.from(result['data'] as Map);
+        preview = _formatDeliveryPreview(data);
+      }
+
+      setState(() {
+        _deliveryAddressPreview = preview;
+        _loadingDeliveryAddress = false;
+      });
+    } catch (e) {
+      debugPrint('ProfileScreen: delivery address load failed: $e');
+      if (!mounted) return;
+      setState(() {
+        _deliveryAddressPreview = null;
+        _loadingDeliveryAddress = false;
+      });
+    }
+  }
+
+  static String? _formatDeliveryPreview(Map<String, dynamic> data) {
+    final option =
+        (data['delivery_option'] ?? data['shipping_type'] ?? 'delivery')
+            .toString()
+            .toLowerCase();
+
+    if (option == 'pickup') {
+      final pickup = [
+        data['pickup_site'],
+        data['pickup_location'],
+        data['pickup_city'],
+        data['pickup_region'],
+      ]
+          .map((v) => v?.toString().trim() ?? '')
+          .where((v) => v.isNotEmpty)
+          .toList();
+      if (pickup.isNotEmpty) return 'Pickup · ${pickup.join(', ')}';
+      return 'Pickup location saved';
+    }
+
+    final parts = [
+      data['address'],
+      data['city'],
+      data['region'],
+    ]
+        .map((v) => v?.toString().trim() ?? '')
+        .where((v) => v.isNotEmpty)
+        .toList();
+    if (parts.isNotEmpty) return parts.join(', ');
+    return null;
+  }
+
+  void _openDeliveryAddresses() {
+    Navigator.pushNamed(context, AppRoutes.delivery).then((_) {
+      if (mounted) _loadDeliveryAddressPreview();
+    });
   }
 
   Future<void> _loadUserData() async {
@@ -163,23 +239,22 @@ class ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
+    final theme = context.appColors;
     final isDark = themeProvider.isDarkMode;
 
-    final pageBg = isDark ? const Color(0xFF121212) : _pageBgLight;
-    final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
-    final titleColor = isDark ? Colors.white : const Color(0xFF111827);
+    final pageBg = theme.pageBg;
+    final cardColor = theme.surface;
+    final titleColor = theme.ink;
     final subtitleColor = isDark ? Colors.white60 : _bodyTextLight;
-    final mutedColor = isDark ? Colors.white38 : const Color(0xFF9CA3AF);
-    final fieldBg =
-        isDark ? Colors.white.withValues(alpha: 0.06) : const Color(0xFFF3F4F6);
-    final fieldBorder =
-        isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE5E7EB);
+    final mutedColor = theme.muted;
+    final fieldBg = theme.fieldBg;
+    final fieldBorder = theme.border;
 
     return Scaffold(
       backgroundColor: pageBg,
       body: RefreshIndicator(
         color: AppColors.primary,
-        onRefresh: _loadUserData,
+        onRefresh: _loadProfileData,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(
             parent: BouncingScrollPhysics(),
@@ -225,6 +300,18 @@ class ProfileScreenState extends State<ProfileScreen> {
                     userEmail: _userEmail,
                     phoneDisplay:
                         _phoneNumber.isEmpty ? "Not provided" : _phoneNumber,
+                  ),
+                  const SizedBox(height: 10),
+                  _DeliveryAddressCard(
+                    cardColor: cardColor,
+                    titleColor: titleColor,
+                    subtitleColor: subtitleColor,
+                    mutedColor: mutedColor,
+                    fieldBg: fieldBg,
+                    fieldBorder: fieldBorder,
+                    loading: _loadingDeliveryAddress,
+                    addressPreview: _deliveryAddressPreview,
+                    onManage: _openDeliveryAddresses,
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -509,6 +596,178 @@ class _InfoSectionCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DeliveryAddressCard extends StatelessWidget {
+  const _DeliveryAddressCard({
+    required this.cardColor,
+    required this.titleColor,
+    required this.subtitleColor,
+    required this.mutedColor,
+    required this.fieldBg,
+    required this.fieldBorder,
+    required this.loading,
+    required this.addressPreview,
+    required this.onManage,
+  });
+
+  final Color cardColor;
+  final Color titleColor;
+  final Color subtitleColor;
+  final Color mutedColor;
+  final Color fieldBg;
+  final Color fieldBorder;
+  final bool loading;
+  final String? addressPreview;
+  final VoidCallback onManage;
+
+  @override
+  Widget build(BuildContext context) {
+    final previewText = loading
+        ? 'Loading saved address…'
+        : (addressPreview ?? 'No delivery address saved yet');
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onManage,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  height: 3,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.primaryLight,
+                        AppColors.primary,
+                        AppColors.primaryDark,
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade700.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.location_on_outlined,
+                              color: Colors.blue.shade700,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Delivery addresses',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: titleColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 1),
+                                Text(
+                                  'Saved delivery locations',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    color: mutedColor,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color: mutedColor,
+                            size: 22,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: fieldBg,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: fieldBorder),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.home_outlined,
+                              size: 17,
+                              color: Colors.blue.shade700,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                previewText,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: addressPreview == null && !loading
+                                      ? mutedColor
+                                      : subtitleColor,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Tap to add or update your delivery address',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: mutedColor,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

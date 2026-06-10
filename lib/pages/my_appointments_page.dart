@@ -10,11 +10,44 @@ import '../services/auth_service.dart';
 import '../services/booking_service.dart';
 import '../widgets/booking_appointment_card.dart';
 import '../utils/app_error_utils.dart';
+import '../utils/app_theme_colors.dart';
 import '../widgets/error_display.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import 'pharmacists/pharmacists_booking_helpers.dart';
 
 const Color _kPageBg = Color(0xFFF6F8FA);
+const Color _kPageBgMint = Color(0xFFEFFCF4);
+
+Color _appointmentsAccent(BuildContext context) =>
+    context.appColors.isDark ? AppColors.primaryLight : AppColors.primary;
+
+Widget _appointmentsPageBackdrop({
+  required BuildContext context,
+  required Widget child,
+}) {
+  final theme = context.appColors;
+  return DecoratedBox(
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: theme.isDark
+            ? [
+                const Color(0xFF14231C),
+                theme.pageBg,
+                theme.pageBg,
+              ]
+            : [
+                _kPageBgMint,
+                _kPageBg,
+                _kPageBg,
+              ],
+        stops: const [0.0, 0.28, 1.0],
+      ),
+    ),
+    child: child,
+  );
+}
 
 class MyAppointmentsPage extends StatefulWidget {
   const MyAppointmentsPage({super.key});
@@ -163,9 +196,15 @@ class _MyAppointmentsPageState extends State<MyAppointmentsPage>
       ...filterBookingsBySection(_bookings, BookingListSection.cancelled),
     ]..sort(compareBookingsNewestFirst);
 
+    final theme = context.appColors;
+    final pageBg = theme.pageBg;
+    final accent = _appointmentsAccent(context);
+
     return Scaffold(
-      backgroundColor: _kPageBg,
-      body: NestedScrollView(
+      backgroundColor: pageBg,
+      body: _appointmentsPageBackdrop(
+        context: context,
+        child: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) => [
           EclExpandableSliverAppBar(
             toolbarTitle: 'My Appointments',
@@ -201,7 +240,9 @@ class _MyAppointmentsPageState extends State<MyAppointmentsPage>
           ),
         ],
         body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? Center(
+                child: CircularProgressIndicator(color: accent),
+              )
             : _error != null
                 ? ErrorDisplay(
                     title: 'Could not load appointments',
@@ -240,6 +281,7 @@ class _MyAppointmentsPageState extends State<MyAppointmentsPage>
                       ),
                     ],
                   ),
+        ),
       ),
     );
   }
@@ -348,17 +390,42 @@ class _AppointmentListTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
+    final accent = _appointmentsAccent(context);
+
     if (items.isEmpty) {
       return RefreshIndicator(
-        color: AppColors.primary,
+        color: accent,
         onRefresh: onRefresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(24),
           children: [
             const SizedBox(height: 48),
-            Icon(Icons.event_busy_outlined,
-                size: 56, color: Colors.grey.shade400),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: theme.isDark
+                      ? [
+                          AppColors.primary.withValues(alpha: 0.2),
+                          AppColors.primary.withValues(alpha: 0.1),
+                        ]
+                      : [
+                          const Color(0xFFECFDF5),
+                          const Color(0xFFD1FAE5).withValues(alpha: 0.6),
+                        ],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.event_busy_outlined,
+                size: 40,
+                color: accent,
+              ),
+            ),
             const SizedBox(height: 16),
             Text(
               emptyTitle,
@@ -366,7 +433,7 @@ class _AppointmentListTab extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade800,
+                color: theme.ink,
               ),
             ),
             const SizedBox(height: 8),
@@ -375,7 +442,7 @@ class _AppointmentListTab extends StatelessWidget {
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
                 fontSize: 13,
-                color: Colors.grey.shade600,
+                color: theme.muted,
                 height: 1.4,
               ),
             ),
@@ -404,7 +471,7 @@ class _AppointmentListTab extends StatelessWidget {
     }
 
     return RefreshIndicator(
-      color: AppColors.primary,
+      color: accent,
       onRefresh: onRefresh,
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),

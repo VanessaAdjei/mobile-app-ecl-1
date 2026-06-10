@@ -8,6 +8,7 @@ import '../config/api_config.dart';
 import 'auth_service.dart';
 import 'native_notification_service.dart';
 import 'order_notification_service.dart';
+import '../providers/order_tracking_provider.dart';
 import '../utils/app_error_utils.dart';
 
 class BackgroundOrderTrackingService {
@@ -50,6 +51,10 @@ class BackgroundOrderTrackingService {
   // Track orders in background
   static Future<void> _trackOrdersInBackground() async {
     try {
+      if (!(await AuthService.isLoggedIn())) {
+        return;
+      }
+
       // Get user's orders
       final orders = await _getUserOrders();
       if (orders.isEmpty) {
@@ -111,8 +116,16 @@ class BackgroundOrderTrackingService {
         // Save updated orders
         await _saveUserOrders([order]);
 
-        // Send notification for status change
-        await _sendStatusChangeNotification(order, lastStatus ?? 'unknown', currentStatus);
+        // Send notification for status change (guests: SMS only; still refresh UI).
+        await _sendStatusChangeNotification(
+          order,
+          lastStatus ?? 'unknown',
+          currentStatus,
+        );
+        OrderTrackingProvider.notifyOrderStatusChanged(
+          status: currentStatus,
+          orderId: orderId,
+        );
       }
     } catch (e) {
 
@@ -175,6 +188,13 @@ class BackgroundOrderTrackingService {
     String newStatus,
   ) async {
     try {
+      if (!(await AuthService.isLoggedIn())) {
+        debugPrint(
+          '📦 Guest session — skipping status notification (SMS is primary)',
+        );
+        return;
+      }
+
       final orderId = order['id']?.toString() ?? '';
       final orderNumber = order['order_number']?.toString() ?? orderId;
       final totalAmount = order['total_amount']?.toString() ?? order['total']?.toString();
@@ -267,6 +287,8 @@ class BackgroundOrderTrackingService {
   // Check delivery status for shipped orders
   static Future<void> _checkDeliveryStatus(Map<String, dynamic> order) async {
     try {
+      if (!(await AuthService.isLoggedIn())) return;
+
       final orderId = order['id'];
       final deliveryStatus = await _getDeliveryStatusFromServer(orderId);
 

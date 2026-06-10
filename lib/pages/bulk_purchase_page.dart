@@ -374,6 +374,7 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
                                           ?.toString()
                                           .toLowerCase() ==
                                           'pom',
+                                      fromProductCard: true,
                                     );
                                   },
                                   child: Container(

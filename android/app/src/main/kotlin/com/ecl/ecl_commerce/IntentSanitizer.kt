@@ -58,6 +58,18 @@ object IntentSanitizer {
         return safe
     }
 
+    private val EXPRESS_PAY_EXTRA_KEYS = setOf(
+        "com.expresspaygh.api.ExpressPayBrowserSwitchActivity.ORDER_ID",
+        "com.expresspaygh.api.ExpressPayBrowserSwitchActivity.TOKEN",
+        "com.expresspaygh.api.ExpressPayBrowserSwitchActivity.ERROR_MESSAGE",
+    )
+
+    /** Only ExpressPay callbacks are stripped; gallery/camera picker results pass through. */
+    fun shouldSanitizeActivityResult(incoming: Intent?): Boolean {
+        if (incoming == null) return false
+        return EXPRESS_PAY_EXTRA_KEYS.any { incoming.hasExtra(it) }
+    }
+
     /**
      * Strips redirect / selector fields that must not be propagated to other components.
      */
@@ -65,21 +77,9 @@ object IntentSanitizer {
         if (incoming == null) return null
 
         val clean = Intent()
-        copyAllowedStringExtra(
-            incoming,
-            clean,
-            "com.expresspaygh.api.ExpressPayBrowserSwitchActivity.ORDER_ID",
-        )
-        copyAllowedStringExtra(
-            incoming,
-            clean,
-            "com.expresspaygh.api.ExpressPayBrowserSwitchActivity.TOKEN",
-        )
-        copyAllowedStringExtra(
-            incoming,
-            clean,
-            "com.expresspaygh.api.ExpressPayBrowserSwitchActivity.ERROR_MESSAGE",
-        )
+        for (key in EXPRESS_PAY_EXTRA_KEYS) {
+            copyAllowedStringExtra(incoming, clean, key)
+        }
         return clean
     }
 
