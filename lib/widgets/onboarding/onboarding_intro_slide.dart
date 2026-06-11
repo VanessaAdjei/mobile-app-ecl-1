@@ -92,7 +92,7 @@ class _OnboardingIntroSlideState extends State<OnboardingIntroSlide> {
                     const OnboardingStepLabel(current: 1, total: 4),
                     const SizedBox(height: 12),
                     Text(
-                      'Welcome to\nErnest Chemist',
+                      'Welcome to\nErnest Chemists Ltd',
                       textAlign: TextAlign.center,
                       style: OnboardingUi.displayTitle,
                     ),

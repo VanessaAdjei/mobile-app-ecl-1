@@ -31,7 +31,7 @@
 
     <application
         android:enableOnBackInvokedCallback="true"
-        android:label="Ernest Chemist"
+        android:label="Ernest Chemists Ltd"
         android:icon="@mipmap/ic_launcher"
         android:networkSecurityConfig="@xml/network_security_config"
         android:debuggable="false"

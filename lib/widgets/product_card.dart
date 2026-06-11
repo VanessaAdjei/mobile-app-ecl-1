@@ -82,6 +82,19 @@ class HomeProductCard extends StatelessWidget {
     return '${name.substring(0, maxLength)}...';
   }
 
+  void _openProduct(BuildContext context) {
+    if (onTap != null) {
+      onTap!();
+      return;
+    }
+    ProductDetailNavigation.pushNamed(
+      context,
+      urlName: product.urlName,
+      product: product,
+      fromProductCard: true,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = context.appColors;
@@ -102,46 +115,38 @@ class HomeProductCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       child: AspectRatio(
         aspectRatio: cardAspectRatio,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Flexible(
-              child: Container(
-                margin: EdgeInsets.zero,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(imageRadius),
-                  // No boxShadow
-                ),
-                child: Stack(
-                  children: [
-                    InkWell(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _openProduct(context),
+            borderRadius: BorderRadius.circular(imageRadius),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Container(
+                    margin: EdgeInsets.zero,
+                    decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(imageRadius),
-                      onTap: onTap ??
-                          () {
-                            ProductDetailNavigation.pushNamed(
-                              context,
-                              urlName: product.urlName,
-                              product: product,
-                              fromProductCard: true,
-                            );
-                          },
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(imageRadius),
-                        child: showHero
-                            ? Hero(
-                                tag:
-                                    'product-image-${product.id}-${product.urlName}',
-                                child: Container(
+                    ),
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(imageRadius),
+                          child: showHero
+                              ? Hero(
+                                  tag:
+                                      'product-image-${product.id}-${product.urlName}',
+                                  child: Container(
+                                    color: theme.fieldBg,
+                                    child: _homeCachedImage(context, imageUrl),
+                                  ),
+                                )
+                              : Container(
                                   color: theme.fieldBg,
                                   child: _homeCachedImage(context, imageUrl),
                                 ),
-                              )
-                            : Container(
-                                color: theme.fieldBg,
-                                child: _homeCachedImage(context, imageUrl),
-                              ),
-                      ),
-                    ),
+                        ),
                     if (showPrescriptionBadge &&
                         product.otcpom?.toLowerCase() == 'pom')
                       Positioned(
@@ -195,45 +200,48 @@ class HomeProductCard extends StatelessWidget {
                           activeColor: Colors.green,
                         ),
                       ),
-                  ],
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+                Padding(
+                  padding: EdgeInsets.only(top: compact ? 2 : 0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (showName)
+                        Text(
+                          _truncateProductName(product.name,
+                              maxLength: maxNameLength),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: nameFontSize,
+                            fontWeight: FontWeight.w600,
+                            color: theme.ink,
+                          ),
+                        ),
+                      if (showPrice) ...[
+                        Text(
+                          'GHS ${product.price}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: nameFontSize,
+                            fontWeight: FontWeight.w700,
+                            color: theme.isDark
+                                ? AppColors.primaryLight
+                                : Colors.green[700],
+                          ),
+                        ),
+                        SizedBox(height: priceBottomGap),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ),
-            Padding(
-              padding: EdgeInsets.only(top: compact ? 2 : 0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (showName)
-                    Text(
-                      _truncateProductName(product.name, maxLength: maxNameLength),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: nameFontSize,
-                        fontWeight: FontWeight.w600,
-                        color: theme.ink,
-                      ),
-                    ),
-                  if (showPrice) ...[
-                    Text(
-                      'GHS ${product.price}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: nameFontSize,
-                        fontWeight: FontWeight.w700,
-                        color: theme.isDark
-                            ? AppColors.primaryLight
-                            : Colors.green[700],
-                      ),
-                    ),
-                    SizedBox(height: priceBottomGap),
-                  ],
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

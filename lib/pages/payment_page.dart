@@ -14,6 +14,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/cart_item.dart';
 import '../config/api_config.dart';
+import '../utils/checkout_order_totals.dart';
 import '../utils/payment_redirect_url.dart';
 import '../widgets/payment/payment_bill_summary_section.dart';
 import '../widgets/payment/payment_delivery_details_card.dart';
@@ -30,6 +31,9 @@ const String kUserFacingPaymentFailureMessage =
     'Payment did not go through. No charge was made—please try again.';
 
 class PaymentPage extends StatefulWidget {
+  /// Locked bill from delivery (single source of truth). Promo edits on this
+  /// screen override [CheckoutOrderTotals.discount] only.
+  final CheckoutOrderTotals? orderTotals;
   final String? deliveryAddress;
   final String? contactNumber;
   final String deliveryOption;
@@ -38,15 +42,11 @@ class PaymentPage extends StatefulWidget {
   final double? lng;
   final String? estimatedDeliveryTime;
   final double? distanceKm;
-  final double deliveryFee;
   final bool isOrderUrgent;
-  final double? emergencyOrderFee;
-  final double? apiSubtotal;
-  final double? apiDiscountAmount;
-  final bool? apiShippingFree;
 
   const PaymentPage({
     Key? key,
+    this.orderTotals,
     this.deliveryAddress,
     this.contactNumber,
     this.deliveryOption = 'Delivery',
@@ -55,17 +55,10 @@ class PaymentPage extends StatefulWidget {
     this.lng,
     this.estimatedDeliveryTime,
     this.distanceKm,
-    this.deliveryFee = 0,
     this.isOrderUrgent = false,
-    this.emergencyOrderFee,
-    this.apiSubtotal,
-    this.apiDiscountAmount,
-    this.apiShippingFree,
   }) : super(key: key);
 
   bool get _isDelivery => deliveryOption.toLowerCase().trim() == 'delivery';
-
-  double get _effectiveDeliveryFee => _isDelivery ? deliveryFee : 0.0;
 
   @override
   PaymentPageState createState() => PaymentPageState();
@@ -98,16 +91,40 @@ class PaymentPageState extends State<PaymentPage> {
   bool _showScrollHint = false;
 
   double get _effectiveSubtotalFromApiOrCart {
-    final apiSubtotal = widget.apiSubtotal;
-    if (apiSubtotal != null && apiSubtotal >= 0) return apiSubtotal;
+    final fromTotals = widget.orderTotals?.merchandiseSubtotal;
+    if (fromTotals != null && fromTotals >= 0) return fromTotals;
     final cart = Provider.of<CartProvider>(context, listen: false);
     return cart.calculateSubtotal();
   }
 
   double get _effectiveDiscountFromApiOrPromo {
-    final apiDiscount = widget.apiDiscountAmount;
-    if (apiDiscount != null && apiDiscount >= 0) return apiDiscount;
-    return _discountAmount;
+    if (_discountAmount > 0) return _discountAmount;
+    return widget.orderTotals?.discount ?? 0.0;
+  }
+
+  CheckoutOrderTotals get _checkoutTotals {
+    final base = widget.orderTotals;
+    if (base != null) {
+      return CheckoutOrderTotals(
+        merchandiseSubtotal: base.merchandiseSubtotal > 0
+            ? base.merchandiseSubtotal
+            : _effectiveSubtotalFromApiOrCart,
+        discount: _effectiveDiscountFromApiOrPromo,
+        deliveryFee: base.deliveryFee,
+        emergencyOrderFee: base.emergencyOrderFee,
+        runningSubtotal: base.runningSubtotal,
+        shippingFree: base.shippingFree,
+        isDelivery: widget._isDelivery,
+      );
+    }
+    final cart = Provider.of<CartProvider>(context, listen: false);
+    return CheckoutOrderTotals(
+      merchandiseSubtotal: cart.calculateSubtotal(),
+      discount: _discountAmount,
+      deliveryFee: 0,
+      emergencyOrderFee: 0,
+      isDelivery: widget._isDelivery,
+    );
   }
 
   @override
@@ -129,7 +146,18 @@ class PaymentPageState extends State<PaymentPage> {
     super.dispose();
   }
 
-  void _onPaymentScroll() => _updateScrollHint();
+  bool _scrollHintUpdateScheduled = false;
+
+  void _scheduleScrollHintUpdate() {
+    if (_scrollHintUpdateScheduled || !mounted) return;
+    _scrollHintUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollHintUpdateScheduled = false;
+      if (mounted) _updateScrollHint();
+    });
+  }
+
+  void _onPaymentScroll() => _scheduleScrollHintUpdate();
 
   void _updateScrollHint() {
     if (!mounted || !_scrollController.hasClients) return;
@@ -215,11 +243,9 @@ class PaymentPageState extends State<PaymentPage> {
     final existing = await GuestCheckoutDraftService.load();
     final draft = GuestCheckoutDraft(
       guestId: guestId,
-      name: existing?.name.isNotEmpty == true
-          ? existing!.name
-          : _userName.trim(),
-      email: _userEmail.trim().isNotEmpty &&
-              _userEmail != 'No email available'
+      name:
+          existing?.name.isNotEmpty == true ? existing!.name : _userName.trim(),
+      email: _userEmail.trim().isNotEmpty && _userEmail != 'No email available'
           ? _userEmail.trim()
           : (existing?.email ?? widget.guestEmail ?? ''),
       phone: _phoneNumber.trim().isNotEmpty
@@ -235,16 +261,18 @@ class PaymentPageState extends State<PaymentPage> {
       pickupSiteLabel: existing?.pickupSiteLabel ?? '',
       lat: widget.lat ?? existing?.lat,
       lng: widget.lng ?? existing?.lng,
-      deliveryFee: widget.deliveryFee,
+      deliveryFee: widget.orderTotals?.chargedDeliveryFee ?? 0,
       isOrderUrgent: widget.isOrderUrgent,
-      emergencyOrderFee: widget.emergencyOrderFee,
+      emergencyOrderFee: widget.orderTotals?.emergencyOrderFee,
       estimatedDeliveryTime:
           widget.estimatedDeliveryTime ?? existing?.estimatedDeliveryTime,
       distanceKm: widget.distanceKm ?? existing?.distanceKm,
-      apiSubtotal: _effectiveSubtotalFromApiOrCart,
-      apiDiscountAmount:
-          widget.apiDiscountAmount ?? existing?.apiDiscountAmount,
-      apiShippingFree: widget.apiShippingFree ?? existing?.apiShippingFree,
+      apiSubtotal: widget.orderTotals?.merchandiseSubtotal ??
+          _effectiveSubtotalFromApiOrCart,
+      apiDiscountAmount: _effectiveDiscountFromApiOrPromo > 0
+          ? _effectiveDiscountFromApiOrPromo
+          : null,
+      apiShippingFree: widget.orderTotals?.shippingFree,
       promoCode: _appliedPromoCode,
       discountAmount: _effectiveDiscountFromApiOrPromo,
     );
@@ -319,13 +347,24 @@ class PaymentPageState extends State<PaymentPage> {
         throw Exception('Please provide a valid contact number for delivery.');
       }
 
-      final emergencyOrderFee = widget.emergencyOrderFee ?? 0.00;
-      final deliveryFeeCharged = widget._isDelivery
-          ? (widget.apiShippingFree == true ? 0.0 : widget._effectiveDeliveryFee)
-          : 0.0;
-      final effectiveDiscount = _effectiveDiscountFromApiOrPromo;
-      final total =
-          subtotal + deliveryFeeCharged + emergencyOrderFee - effectiveDiscount;
+      final totals = _checkoutTotals;
+      final payableAmount = totals.payableAmount;
+
+      if (widget._isDelivery &&
+          !totals.shippingFree &&
+          totals.deliveryFee > 0 &&
+          totals.chargedDeliveryFee <= 0) {
+        debugPrint(
+          '[PAYMENT] ⚠️ Delivery fee lost in totals — raw=${totals.deliveryFee}, '
+          'isDelivery=${totals.isDelivery}, shippingFree=${totals.shippingFree}',
+        );
+      }
+
+      debugPrint(
+        '[PAYMENT] Bill breakdown — merchandise=${totals.merchandiseSubtotal}, '
+        'discount=${totals.discount}, delivery=${totals.chargedDeliveryFee}, '
+        'xpress=${totals.emergencyOrderFee}; ExpressPay amount=$payableAmount',
+      );
 
       String orderDesc = selectedItems
           .map((item) => '${item.quantity}x ${item.name}')
@@ -343,55 +382,59 @@ class PaymentPageState extends State<PaymentPage> {
       final lastName =
           nameParts.length > 1 ? nameParts.sublist(1).join(' ') : 'Customer';
 
-      final params = {
+      final orderId = 'ORDER_${DateTime.now().millisecondsSinceEpoch}';
+      final accountNumber = widget.contactNumber ?? _phoneNumber;
+
+      debugPrint(
+        '[PAYMENT] ExpressPay submit only (no save-billing) — '
+        'amount=$payableAmount',
+      );
+
+      // ExpressPay API — only these fields are sent to /api/expresspayment.
+      final expressPayParams = <String, dynamic>{
         'request': 'submit',
-        'order_id': 'ORDER_${DateTime.now().millisecondsSinceEpoch}',
+        'order_id': orderId,
         'currency': 'GHS',
-        'amount': double.parse(total.toStringAsFixed(2)),
+        'amount': payableAmount,
         'order_desc': orderDesc,
-        'user_name': _userEmail,
         'first_name': firstName,
         'last_name': lastName,
         'email': _userEmail,
-        'phone_number': widget.contactNumber ?? _phoneNumber,
-        'account_number': widget.contactNumber ?? _phoneNumber,
-        'address': widget.deliveryAddress ?? '',
-        'region': '',
-        'city': '',
         'redirect_url': ApiConfig.paymentRedirectUrl,
+        'account_number': accountNumber,
+      };
+
+      // Local order metadata (WebView / post-checkout — not sent to ExpressPay).
+      final paymentParams = <String, dynamic>{
+        ...expressPayParams,
+        'delivery_fee': totals.chargedDeliveryFee,
+        'deliveryFee': totals.chargedDeliveryFee,
+        'discount_amount': totals.discount,
+        'phone_number': accountNumber,
+        'address': widget.deliveryAddress ?? '',
         'shipping_type': widget.deliveryOption,
         'order_urgent': widget.isOrderUrgent,
         if (widget.lat != null) 'lat': widget.lat,
         if (widget.lng != null) 'lng': widget.lng,
-        if (widget.lat != null) 'latitude': widget.lat,
-        if (widget.lng != null) 'longitude': widget.lng,
-        'delivery_fee': deliveryFeeCharged,
-        'deliveryFee': deliveryFeeCharged,
-        if (widget.apiSubtotal != null) 'subtotal': widget.apiSubtotal,
-        if (widget.apiDiscountAmount != null)
-          'discount_amount': widget.apiDiscountAmount,
       };
 
       final purchasedItems = List<CartItem>.from(selectedItems);
-      final transactionId = params['order_id'];
+      final transactionId = orderId;
 
       if (!mounted) return;
 
       // Open the payment screen immediately; portal URL resolves in the background.
       setState(() => _isProcessingPayment = false);
 
-      await _persistGuestCheckoutDraft();
+      unawaited(_persistGuestCheckoutDraft());
 
       await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => PaymentWebView(
             resolveRedirectUrl: () async {
-              debugPrint('[DEBUG] About to call expresspay API');
               final responseBody = await _checkoutPaymentService
-                  .submitExpressPayment(params: params);
-              debugPrint(
-                  '[DEBUG] Online Payment API Response Body: $responseBody');
+                  .submitExpressPayment(params: expressPayParams);
               final redirectUrl = parsePaymentRedirectUrl(responseBody);
               if (redirectUrl == null || redirectUrl.isEmpty) {
                 throw Exception(
@@ -401,7 +444,9 @@ class PaymentPageState extends State<PaymentPage> {
               }
               return redirectUrl;
             },
-            paymentParams: params,
+            expectedPayableAmount: totals.total,
+            merchandiseSubtotal: totals.merchandiseSubtotal,
+            paymentParams: paymentParams,
             purchasedItems: purchasedItems,
             paymentMethod: selectedPaymentMethod,
             deliveryAddress: widget.deliveryAddress ?? '',
@@ -409,8 +454,8 @@ class PaymentPageState extends State<PaymentPage> {
             deliveryOption: widget.deliveryOption,
             estimatedDeliveryTime:
                 widget.estimatedDeliveryTime ?? 'Calculating ETA',
-            deliveryFee: deliveryFeeCharged,
-            discount: effectiveDiscount,
+            deliveryFee: totals.chargedDeliveryFee,
+            discount: totals.discount,
             onPaymentComplete: (success, token) async {
               if (success && token != null) {
                 try {
@@ -485,8 +530,7 @@ class PaymentPageState extends State<PaymentPage> {
     const payBarTopPadding = 10.0;
     const slideHeight = 56.0;
     final payBarBottomPadding = bottomLift + systemBottomInset;
-    final payBarInset =
-        payBarTopPadding + slideHeight + payBarBottomPadding;
+    final payBarInset = payBarTopPadding + slideHeight + payBarBottomPadding;
 
     return Scaffold(
       backgroundColor: theme.pageBg,
@@ -617,253 +661,245 @@ class PaymentPageState extends State<PaymentPage> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                        Consumer<CartProvider>(
-                          builder: (context, cart, child) {
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (mounted) _updateScrollHint();
-                            });
-
-                            return NotificationListener<ScrollNotification>(
-                              onNotification: (_) {
-                                _updateScrollHint();
-                                return false;
-                              },
-                              child: SingleChildScrollView(
-                              controller: _scrollController,
-                              physics: const BouncingScrollPhysics(),
-                              padding: EdgeInsets.fromLTRB(
-                                0,
-                                12,
-                                0,
-                                payBarInset + 12,
-                              ),
-                              child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Animate(
-                            effects: [
-                              FadeEffect(duration: 400.ms),
-                              SlideEffect(
-                                  duration: 400.ms,
-                                  begin: Offset(0, 0.1),
-                                  end: Offset(0, 0))
-                            ],
-                            child: PaymentOrderItemsSection(
-                              selectedItems: cart.getSelectedItems(),
-                            ),
+                    Consumer<CartProvider>(
+                      builder: (context, cart, child) {
+                        _scheduleScrollHintUpdate();
+                        final totals = _checkoutTotals;
+                        return SingleChildScrollView(
+                          controller: _scrollController,
+                          physics: const BouncingScrollPhysics(),
+                          padding: EdgeInsets.fromLTRB(
+                            0,
+                            12,
+                            0,
+                            payBarInset + 12,
                           ),
-                          const SizedBox(height: 8),
-                          if (widget._isDelivery) ...[
-                            Animate(
-                              effects: [
-                                FadeEffect(duration: 400.ms),
-                                SlideEffect(
-                                    duration: 400.ms,
-                                    begin: Offset(0, 0.1),
-                                    end: Offset(0, 0))
-                              ],
-                              child: PaymentDeliveryDetailsCard(
-                                deliveryAddress: widget.deliveryAddress,
-                                contactNumber: widget.contactNumber,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Animate(
+                                effects: [
+                                  FadeEffect(duration: 400.ms),
+                                  SlideEffect(
+                                      duration: 400.ms,
+                                      begin: Offset(0, 0.1),
+                                      end: Offset(0, 0))
+                                ],
+                                child: PaymentOrderItemsSection(
+                                  selectedItems: cart.getSelectedItems(),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                          ],
-                          Animate(
-                            effects: [
-                              FadeEffect(duration: 400.ms),
-                              SlideEffect(
-                                  duration: 400.ms,
-                                  begin: Offset(0, 0.1),
-                                  end: Offset(0, 0))
-                            ],
-                            child: PaymentBillSummarySection(
-                              subtotal: _effectiveSubtotalFromApiOrCart,
-                              deliveryFee: widget._effectiveDeliveryFee,
-                              showDeliveryFee: widget._isDelivery,
-                              emergencyOrderFee:
-                                  widget.emergencyOrderFee ?? 0.0,
-                              discountAmount: _effectiveDiscountFromApiOrPromo,
-                              useRawDeliveryFee: true,
-                              forceFreeDelivery: widget.apiShippingFree == true,
-                              lockPromoEditing: false,
-                              appliedPromoCode: _appliedPromoCode,
-                              promoError: _promoError,
-                              isApplyingPromo: _isApplyingPromo,
-                              promoCodeController: _promoCodeController,
-                              onApplyPromo: _applyPromoCode,
-                              onRemovePromo: _removePromoCode,
-                            ),
-                          ),
-                          if (_paymentError != null) ...[
-                            const SizedBox(height: 8),
-                            Animate(
-                              effects: [
-                                FadeEffect(duration: 400.ms),
-                                SlideEffect(
-                                    duration: 400.ms,
-                                    begin: Offset(0, 0.1),
-                                    end: Offset(0, 0))
-                              ],
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                ),
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: theme.isDark
-                                      ? Colors.red.withValues(alpha: 0.14)
-                                      : Colors.red.shade50,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: Colors.red.withValues(
-                                      alpha: theme.isDark ? 0.45 : 0.35,
-                                    ),
-                                  ),
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(
-                                      Icons.error_outline,
-                                      size: 18,
-                                      color: theme.isDark
-                                          ? Colors.red.shade300
-                                          : Colors.red.shade600,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Payment error',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 11,
-                                              color: theme.isDark
-                                                  ? Colors.red.shade300
-                                                  : Colors.red.shade700,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            _paymentError!,
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              color: theme.isDark
-                                                  ? Colors.red.shade400
-                                                  : Colors.red.shade600,
-                                              height: 1.3,
-                                            ),
-                                            maxLines: 5,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                              const SizedBox(height: 8),
+                              if (widget._isDelivery) ...[
+                                Animate(
+                                  effects: [
+                                    FadeEffect(duration: 400.ms),
+                                    SlideEffect(
+                                        duration: 400.ms,
+                                        begin: Offset(0, 0.1),
+                                        end: Offset(0, 0))
                                   ],
+                                  child: PaymentDeliveryDetailsCard(
+                                    deliveryAddress: widget.deliveryAddress,
+                                    contactNumber: widget.contactNumber,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+                              Animate(
+                                effects: [
+                                  FadeEffect(duration: 400.ms),
+                                  SlideEffect(
+                                      duration: 400.ms,
+                                      begin: Offset(0, 0.1),
+                                      end: Offset(0, 0))
+                                ],
+                                child: PaymentBillSummarySection(
+                                  subtotal: totals.merchandiseSubtotal,
+                                  deliveryFee: totals.deliveryFee,
+                                  showDeliveryFee: totals.isDelivery,
+                                  emergencyOrderFee: totals.emergencyOrderFee,
+                                  discountAmount: totals.discount,
+                                  runningSubtotal: totals.runningSubtotal,
+                                  useRawDeliveryFee: true,
+                                  forceFreeDelivery: totals.shippingFree,
+                                  lockPromoEditing: false,
+                                  appliedPromoCode: _appliedPromoCode,
+                                  promoError: _promoError,
+                                  isApplyingPromo: _isApplyingPromo,
+                                  promoCodeController: _promoCodeController,
+                                  onApplyPromo: _applyPromoCode,
+                                  onRemovePromo: _removePromoCode,
                                 ),
                               ),
-                            ),
-                          ],
-                        ],
-                      ),
-                            ),
-                    );
-                          },
-                        ),
-                        if (_showScrollHint)
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: payBarInset,
-                            child: IgnorePointer(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    height: 40,
+                              if (_paymentError != null) ...[
+                                const SizedBox(height: 8),
+                                Animate(
+                                  effects: [
+                                    FadeEffect(duration: 400.ms),
+                                    SlideEffect(
+                                        duration: 400.ms,
+                                        begin: Offset(0, 0.1),
+                                        end: Offset(0, 0))
+                                  ],
+                                  child: Container(
+                                    margin: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                    ),
+                                    padding: const EdgeInsets.all(8),
                                     decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        colors: [
-                                          theme.pageBg.withValues(alpha: 0),
-                                          theme.pageBg,
-                                        ],
+                                      color: theme.isDark
+                                          ? Colors.red.withValues(alpha: 0.14)
+                                          : Colors.red.shade50,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: Colors.red.withValues(
+                                          alpha: theme.isDark ? 0.45 : 0.35,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  Container(
-                                    width: double.infinity,
-                                    color: theme.pageBg,
-                                    padding: const EdgeInsets.only(bottom: 4),
                                     child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Icon(
-                                          Icons.keyboard_arrow_down_rounded,
-                                          size: 20,
-                                          color: AppColors.primaryLight,
+                                          Icons.error_outline,
+                                          size: 18,
+                                          color: theme.isDark
+                                              ? Colors.red.shade300
+                                              : Colors.red.shade600,
                                         ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          'Scroll for more',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: theme.isDark
-                                                ? Colors.white70
-                                                : AppColors.primaryDark,
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Payment error',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 11,
+                                                  color: theme.isDark
+                                                      ? Colors.red.shade300
+                                                      : Colors.red.shade700,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                _paymentError!,
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  color: theme.isDark
+                                                      ? Colors.red.shade400
+                                                      : Colors.red.shade600,
+                                                  height: 1.3,
+                                                ),
+                                                maxLines: 5,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: theme.surface,
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(18),
-                              ),
-                              border: Border(
-                                top: BorderSide(color: theme.border),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(
-                                    alpha: theme.isDark ? 0.35 : 0.08,
-                                  ),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, -6),
                                 ),
                               ],
-                            ),
-                            padding: EdgeInsets.fromLTRB(
-                              14,
-                              payBarTopPadding,
-                              14,
-                              payBarBottomPadding,
-                            ),
-                            child: Consumer<CartProvider>(
-                              builder: (context, cart, child) {
-                                return _buildSlideToPay(cart);
-                              },
-                            ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    if (_showScrollHint)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: payBarInset,
+                        child: IgnorePointer(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      theme.pageBg.withValues(alpha: 0),
+                                      theme.pageBg,
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                width: double.infinity,
+                                color: theme.pageBg,
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.keyboard_arrow_down_rounded,
+                                      size: 20,
+                                      color: AppColors.primaryLight,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Scroll for more',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: theme.isDark
+                                            ? Colors.white70
+                                            : AppColors.primaryDark,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
+                      ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: theme.surface,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(18),
+                          ),
+                          border: Border(
+                            top: BorderSide(color: theme.border),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(
+                                alpha: theme.isDark ? 0.35 : 0.08,
+                              ),
+                              blurRadius: 20,
+                              offset: const Offset(0, -6),
+                            ),
+                          ],
+                        ),
+                        padding: EdgeInsets.fromLTRB(
+                          14,
+                          payBarTopPadding,
+                          14,
+                          payBarBottomPadding,
+                        ),
+                        child: Consumer<CartProvider>(
+                          builder: (context, cart, child) {
+                            return _buildSlideToPay(cart);
+                          },
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -913,8 +949,8 @@ class PaymentPageState extends State<PaymentPage> {
         },
         onHorizontalDragUpdate: (details) {
           if (canPay && _isSliding) {
-            final newPosition =
-                (_slidePosition + details.delta.dx).clamp(0.0, maxSlideDistance);
+            final newPosition = (_slidePosition + details.delta.dx)
+                .clamp(0.0, maxSlideDistance);
             setState(() {
               _slidePosition = newPosition;
             });
@@ -995,7 +1031,9 @@ class PaymentPageState extends State<PaymentPage> {
                         ),
                       ] else ...[
                         Icon(
-                          canPay ? Icons.lock_outline : Icons.shopping_cart_outlined,
+                          canPay
+                              ? Icons.lock_outline
+                              : Icons.shopping_cart_outlined,
                           size: 16,
                           color: PaymentSlideDesign.labelIconColor(
                             context,

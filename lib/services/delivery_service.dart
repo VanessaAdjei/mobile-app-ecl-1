@@ -96,10 +96,7 @@ class DeliveryService {
   }
 
   static String _normalizeLocationLabel(String value) {
-    return value
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
-        .trim();
+    return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
   }
 
   static bool _locationLabelsMatch(String a, String b) {
@@ -118,11 +115,9 @@ class DeliveryService {
     final trimmed = label.trim();
     if (trimmed.isEmpty) return null;
     for (final region in regions) {
-      final name = (region['description'] ??
-              region['name'] ??
-              region['title'] ??
-              '')
-          .toString();
+      final name =
+          (region['description'] ?? region['name'] ?? region['title'] ?? '')
+              .toString();
       if (_locationLabelsMatch(name, trimmed)) {
         return region;
       }
@@ -147,10 +142,7 @@ class DeliveryService {
     for (final raw in cities) {
       if (raw is! Map) continue;
       final city = Map<String, dynamic>.from(raw);
-      final name = (city['description'] ??
-              city['name'] ??
-              city['title'] ??
-              '')
+      final name = (city['description'] ?? city['name'] ?? city['title'] ?? '')
           .toString();
       if (_locationLabelsMatch(name, trimmed)) {
         return city;
@@ -716,7 +708,10 @@ class DeliveryService {
         return null;
       }
 
-      final cached = _deliveryFeeApiCache[key];
+      final normalizedKey = normalizeDistanceTextForFeeApi(key);
+
+      final cached =
+          _deliveryFeeApiCache[normalizedKey] ?? _deliveryFeeApiCache[key];
       if (cached != null && cached['from_api'] == true) {
         return Map<String, dynamic>.from(cached);
       }
@@ -728,10 +723,13 @@ class DeliveryService {
       }
 
       final url = ApiConfig.getEndpointUrl(ApiConfig.calculateDeliveryFee);
-      final jsonBody = json.encode({'distance_text': key});
+      final jsonBody = json.encode({'distance_text': normalizedKey});
 
       debugPrint('📤 [CALCULATE-DELIVERY-FEE] Calling API: $url');
-      debugPrint('📤 [CALCULATE-DELIVERY-FEE] distance_text: "$key"');
+      debugPrint(
+        '📤 [CALCULATE-DELIVERY-FEE] distance_text: "$key"'
+        '${normalizedKey != key ? ' → normalized: "$normalizedKey"' : ''}',
+      );
 
       var result = await _repository.calculateDeliveryFee(
         headers: headers,
@@ -743,7 +741,7 @@ class DeliveryService {
       if (result.statusCode != 200 && result.statusCode != 201) {
         result = await _repository.calculateDeliveryFee(
           headers: headers,
-          body: 'distance_text=${Uri.encodeComponent(key)}',
+          body: 'distance_text=${Uri.encodeComponent(normalizedKey)}',
           formEncoded: true,
           timeout: _apiTimeout,
         );
@@ -769,7 +767,10 @@ class DeliveryService {
         return fallbackToLocalEstimate ? _localEstimateResult(key) : null;
       }
 
-      _deliveryFeeApiCache[key] = parsed;
+      _deliveryFeeApiCache[normalizedKey] = parsed;
+      if (normalizedKey != key) {
+        _deliveryFeeApiCache[key] = parsed;
+      }
       return parsed;
     } on TimeoutException catch (e) {
       debugPrint('❌ [CALCULATE-DELIVERY-FEE] Timeout: $e');
@@ -822,6 +823,44 @@ class DeliveryService {
     if (trimmed.contains('km')) return value;
     if (trimmed.contains('m') && !trimmed.contains('km')) return value / 1000.0;
     return value;
+  }
+
+  /// Sends sub-km labels in km so the server does not treat "5 m" as 5 km.
+  static String normalizeDistanceTextForFeeApi(String distanceText) {
+    final trimmed = distanceText.trim();
+    final km = parseDistanceTextToKm(trimmed);
+    if (km == null) return trimmed;
+    if (km < 1) {
+      final decimals = km < 0.01 ? 3 : (km < 0.1 ? 2 : 1);
+      return '${km.toStringAsFixed(decimals)} km';
+    }
+    return '${km.toStringAsFixed(1)} km';
+  }
+
+  /// Rejects calculate-delivery-fee payloads when distance drifts from the label.
+  static bool isCalculateDeliveryFeeResponseTrusted({
+    required String distanceText,
+    required Map<String, dynamic> apiResult,
+  }) {
+    final expectedKm = parseDistanceTextToKm(distanceText.trim());
+    final apiDistanceRaw = apiResult['distance'];
+    if (expectedKm == null || apiDistanceRaw == null) return true;
+
+    final apiKm = apiDistanceRaw is num
+        ? apiDistanceRaw.toDouble()
+        : double.tryParse(apiDistanceRaw.toString());
+    if (apiKm == null) return true;
+
+    final delta = (apiKm - expectedKm).abs();
+    if (delta <= 0.2) return true;
+
+    // Server mis-parsed meter labels as km (e.g. "5 m" → distance 5).
+    if (expectedKm < 0.5 && apiKm >= 1.0 && apiKm / expectedKm > 20) {
+      return false;
+    }
+
+    final maxKm = expectedKm > apiKm ? expectedKm : apiKm;
+    return maxKm <= 0 || delta / maxKm < 0.35;
   }
 
   /// Calculate delivery fee from distance_text (e.g. "4.2 km", "500 m").

@@ -124,7 +124,9 @@ class _HomePopularProductsStripState extends State<HomePopularProductsStrip> {
       child: ValueListenableBuilder<double>(
         valueListenable: _scrollOffset,
         builder: (context, currentOffset, _) {
-          return ListView.builder(
+          return NotificationListener<ScrollNotification>(
+            onNotification: (_) => true,
+            child: ListView.builder(
             controller: _scrollController,
             scrollDirection: Axis.horizontal,
             clipBehavior: Clip.none,
@@ -180,6 +182,7 @@ class _HomePopularProductsStripState extends State<HomePopularProductsStrip> {
                 ),
               );
             },
+          ),
           );
         },
       ),

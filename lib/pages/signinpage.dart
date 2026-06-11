@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:eclapp/pages/forgot_password.dart';
-import 'package:eclapp/pages/homepage.dart';
+import 'package:eclapp/pages/main_tab_shell.dart';
 import 'package:eclapp/pages/createaccount.dart';
+import 'package:eclapp/pages/otp.dart';
 import 'package:eclapp/services/auth_service.dart';
 import 'package:eclapp/utils/app_error_utils.dart';
+import 'package:eclapp/utils/terms_gate.dart';
 import 'package:eclapp/providers/auth_provider.dart';
 import 'package:eclapp/providers/cart_provider.dart';
 import 'package:provider/provider.dart';
@@ -185,6 +187,41 @@ class SignInScreenState extends State<SignInScreen> {
     });
   }
 
+  Future<void> _openSignUp() async {
+    final accepted = await TermsGate.ensureAccepted(context);
+    if (!accepted || !mounted) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SignUpScreen()),
+    );
+  }
+
+  Future<void> _navigateToOtpVerification({
+    required String email,
+    required String phone,
+    required String password,
+  }) async {
+    if (!mounted) return;
+
+    debugPrint(
+      '🔐 SignIn: navigating to OTP for $email (login already sent code)',
+    );
+
+    // Login already delivered an OTP for status:0 accounts — don't resend here.
+    await Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (context) => OtpVerificationScreen(
+          email: email,
+          phoneNumber: phone.isNotEmpty ? phone : email,
+          password: password,
+          resendOtpOnOpen: false,
+        ),
+      ),
+      (route) => false,
+    );
+  }
+
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -194,10 +231,9 @@ class SignInScreenState extends State<SignInScreen> {
     });
 
     try {
-      final result = await AuthService.signIn(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-      );
+      final email = _emailController.text.trim();
+      final password = _passwordController.text.trim();
+      final result = await AuthService.signIn(email, password);
       debugPrint('=== SIGN IN API RESPONSE ===');
       debugPrint('Sign in result: $result');
       debugPrint('Success: ${result['success']}');
@@ -205,6 +241,16 @@ class SignInScreenState extends State<SignInScreen> {
       debugPrint('Token: ${result['token']}');
       debugPrint('User: ${result['user']}');
       debugPrint('============================');
+
+      if (AuthService.resultNeedsOtpVerification(result)) {
+        if (!mounted) return;
+        await _navigateToOtpVerification(
+          email: result['email']?.toString() ?? email,
+          phone: result['phone']?.toString() ?? '',
+          password: password,
+        );
+        return;
+      }
 
       // Check if login was successful
       if (result['success'] == true && result['token'] != null) {
@@ -302,13 +348,23 @@ class SignInScreenState extends State<SignInScreen> {
               debugPrint(
                   '🔍 SignIn: No pending prescription, navigating to HomePage');
               if (!context.mounted) return;
-              Navigator.pushReplacement(
+              Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (context) => const HomePage()),
+                MaterialPageRoute(
+                  builder: (context) => const MainTabShell(),
+                ),
+                (route) => false,
               );
             }
           }
         }
+      } else if (AuthService.resultNeedsOtpVerification(result)) {
+        if (!mounted) return;
+        await _navigateToOtpVerification(
+          email: result['email']?.toString() ?? email,
+          phone: result['phone']?.toString() ?? '',
+          password: password,
+        );
       } else {
         // get the actual error message from the api response
         final errorMessage =
@@ -822,15 +878,7 @@ class SignInScreenState extends State<SignInScreen> {
                         ),
                       ),
                       TextButton(
-                        onPressed: _isLoading
-                            ? null
-                            : () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) => SignUpScreen()),
-                                );
-                              },
+                        onPressed: _isLoading ? null : _openSignUp,
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 4,

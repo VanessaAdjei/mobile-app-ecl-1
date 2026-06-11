@@ -1,4 +1,6 @@
 // pages/paymentwebview.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -7,11 +9,13 @@ import '../utils/app_theme_colors.dart';
 import '../models/cart_item.dart';
 import '../services/auth_service.dart';
 import '../utils/payment_redirect_url.dart';
+import '../config/api_config.dart';
 import '../utils/app_error_utils.dart';
+import '../utils/expresspay_amount_guard.dart';
 import '../widgets/checkout_progress_stepper.dart';
 import 'post_checkout_order_page.dart';
 
-enum _PaymentOutcome { success, failed, none }
+enum _PaymentOutcome { success, failed, pending, none }
 
 /// Classifies a redirect URL as a payment success/failure using whole path
 /// segments and status query params — never loose substring matching.
@@ -22,8 +26,8 @@ enum _PaymentOutcome { success, failed, none }
 /// post-checkout page polls for the real status); this only drives navigation.
 _PaymentOutcome classifyPaymentUrl(String rawUrl) {
   final uri = Uri.tryParse(rawUrl);
-  final segments =
-      uri?.pathSegments.map((s) => s.toLowerCase()).toList() ?? const <String>[];
+  final segments = uri?.pathSegments.map((s) => s.toLowerCase()).toList() ??
+      const <String>[];
   final query = uri?.queryParameters ?? const <String, String>{};
   final status =
       (query['status'] ?? query['payment_status'] ?? '').toLowerCase();
@@ -34,6 +38,40 @@ _PaymentOutcome classifyPaymentUrl(String rawUrl) {
       status == 'cancelled' ||
       status == 'declined') {
     return _PaymentOutcome.failed;
+  }
+
+  // Pending — user should leave ExpressPay and wait on the in-app confirmation page.
+  if (segments.contains('payment-pending') ||
+      status == 'pending' ||
+      status == 'processing') {
+    return _PaymentOutcome.pending;
+  }
+
+  final host = uri?.host.toLowerCase() ?? '';
+  if (host.contains('expresspay')) {
+    if (segments.any((segment) => segment.contains('pending'))) {
+      return _PaymentOutcome.pending;
+    }
+    if (segments.any(
+      (segment) =>
+          segment.contains('success') ||
+          segment.contains('complete') ||
+          segment.contains('callback') ||
+          segment.contains('receipt') ||
+          segment.contains('thank'),
+    )) {
+      return _PaymentOutcome.success;
+    }
+  }
+
+  // Any navigation back to the merchant site (ExpressPay redirect_url target).
+  if (isMerchantPaymentReturnUrl(rawUrl)) {
+    return _PaymentOutcome.success;
+  }
+
+  // Success on configured ExpressPay return URL (e.g. http://eclcommerce.test/).
+  if (matchesPaymentRedirectUrl(rawUrl, ApiConfig.paymentRedirectUrl)) {
+    return _PaymentOutcome.success;
   }
 
   // Success only on a whole path segment ('complete' is the redirect path) so
@@ -62,6 +100,8 @@ class PaymentWebView extends StatefulWidget {
   final String estimatedDeliveryTime;
   final double? deliveryFee;
   final double discount;
+  final double? expectedPayableAmount;
+  final double? merchandiseSubtotal;
 
   PaymentWebView({
     super.key,
@@ -76,6 +116,8 @@ class PaymentWebView extends StatefulWidget {
     required this.estimatedDeliveryTime,
     this.deliveryFee,
     required this.discount,
+    this.expectedPayableAmount,
+    this.merchandiseSubtotal,
     this.onPaymentComplete,
   }) : assert(
           url != null || resolveRedirectUrl != null,
@@ -92,6 +134,195 @@ class PaymentWebViewState extends State<PaymentWebView> {
   bool _isResolvingPortal = false;
   bool _isShowingDialog = false;
   String? _loadError;
+  bool _checkoutNavigationStarted = false;
+  int _amountVerifyAttempts = 0;
+  int _expressPayScanAttempts = 0;
+  String? _lastExpressPayScanUrl;
+  String? _initialExpressPayCheckoutUrl;
+  static const int _maxAmountVerifyAttempts = 3;
+  static const int _maxExpressPayScanAttempts = 8;
+
+  double? get _expectedPayableAmount =>
+      widget.expectedPayableAmount ??
+      tryParsePayableAmount(widget.paymentParams['amount']);
+
+  void _onExpressPayUrlChanged(String url, {required String source}) {
+    if (_checkoutNavigationStarted || !mounted) return;
+
+    final lower = url.toLowerCase();
+    if (lower.contains('checkout.php') && _initialExpressPayCheckoutUrl == null) {
+      _initialExpressPayCheckoutUrl = url;
+    }
+
+    _evaluatePaymentUrl(url, source: source);
+
+    if (_shouldScanExpressPayPage(url)) {
+      _lastExpressPayScanUrl = null;
+      _expressPayScanAttempts = 0;
+      unawaited(_scanExpressPayPage(url));
+    }
+  }
+
+  bool _shouldScanExpressPayPage(String url) {
+    final lower = url.toLowerCase();
+    if (!lower.contains('expresspay')) return false;
+
+    // Don't spam scans on the initial checkout form before the user pays.
+    if (expressPayUrlIsCheckoutEntry(url) &&
+        (_initialExpressPayCheckoutUrl == null ||
+            url == _initialExpressPayCheckoutUrl)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _injectExpressPayNavigationHook() async {
+    final controller = _controller;
+    if (controller == null || !mounted) return;
+    try {
+      await controller.runJavaScript(injectExpressPayNavigationHookJs);
+    } catch (e) {
+      debugPrint('[EXPRESS PAY] Navigation hook skipped: $e');
+    }
+  }
+
+  void _handlePaymentOutcome(_PaymentOutcome outcome) {
+    if (_checkoutNavigationStarted || !mounted) return;
+
+    switch (outcome) {
+      case _PaymentOutcome.success:
+      case _PaymentOutcome.pending:
+        widget.onPaymentComplete?.call(true, null);
+        _navigateToConfirmation(pending: true);
+        break;
+      case _PaymentOutcome.failed:
+        widget.onPaymentComplete?.call(false, null);
+        _navigateToConfirmation(pending: false);
+        break;
+      case _PaymentOutcome.none:
+        break;
+    }
+  }
+
+  /// Logs checkout amount for debugging only — does not block payment.
+  Future<void> _logExpressPayAmount(String url) async {
+    if (_amountVerifyAttempts >= _maxAmountVerifyAttempts || !mounted) return;
+
+    final expected = _expectedPayableAmount;
+    final controller = _controller;
+    if (expected == null || controller == null) return;
+
+    final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
+    if (!host.contains('expresspay')) return;
+
+    _amountVerifyAttempts++;
+
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
+
+      final raw = await controller.runJavaScriptReturningResult(
+        extractExpressPayPageTextJs,
+      );
+      final normalizedText = normalizeWebViewJsString(raw);
+      final displayed = parseExpressPayDisplayedAmount(normalizedText);
+      if (displayed == null) {
+        debugPrint(
+          '[EXPRESS PAY] Could not read checkout amount '
+          '(attempt $_amountVerifyAttempts/$_maxAmountVerifyAttempts, '
+          'textLen=${normalizedText.length})',
+        );
+        return;
+      }
+
+      debugPrint(
+        '[EXPRESS PAY] Checkout display amount=$displayed; expected=$expected',
+      );
+      if (!expressPayAmountMatchesExpected(
+        expected: expected,
+        displayed: displayed,
+      )) {
+        debugPrint(
+          '[EXPRESS PAY] Amount mismatch (not blocking): '
+          'displayed=$displayed expected=$expected',
+        );
+      }
+    } catch (e) {
+      debugPrint('[EXPRESS PAY] Amount log skipped: $e');
+    }
+  }
+
+  /// Scans ExpressPay pages for success/pending/failure when redirect never fires.
+  Future<void> _scanExpressPayPage(String url) async {
+    if (_checkoutNavigationStarted || !mounted) return;
+    if (!_shouldScanExpressPayPage(url)) return;
+
+    if (_lastExpressPayScanUrl != url) {
+      _lastExpressPayScanUrl = url;
+      _expressPayScanAttempts = 0;
+    }
+    if (_expressPayScanAttempts >= _maxExpressPayScanAttempts) return;
+
+    _expressPayScanAttempts++;
+
+    final controller = _controller;
+    if (controller == null) return;
+
+    try {
+      final delayMs = 700 + (_expressPayScanAttempts * 500);
+      await Future<void>.delayed(Duration(milliseconds: delayMs));
+      if (_checkoutNavigationStarted || !mounted) return;
+
+      final raw = await controller.runJavaScriptReturningResult(
+        extractExpressPayPageTextJs,
+      );
+      final normalizedText = normalizeWebViewJsString(raw);
+
+      final signal = expressPayPageSignal(normalizedText, pageUrl: url);
+      debugPrint(
+        '[EXPRESS PAY] Page scan $_expressPayScanAttempts/$_maxExpressPayScanAttempts '
+        'on $url → ${signal.name} (textLen=${normalizedText.length})',
+      );
+
+      switch (signal) {
+        case ExpressPayPageSignal.success:
+        case ExpressPayPageSignal.pending:
+          _handlePaymentOutcome(
+            signal == ExpressPayPageSignal.pending
+                ? _PaymentOutcome.pending
+                : _PaymentOutcome.success,
+          );
+          return;
+        case ExpressPayPageSignal.failed:
+          _handlePaymentOutcome(_PaymentOutcome.failed);
+          return;
+        case ExpressPayPageSignal.none:
+          if (_expressPayScanAttempts < _maxExpressPayScanAttempts) {
+            unawaited(_scanExpressPayPage(url));
+          }
+          return;
+      }
+    } catch (e) {
+      debugPrint('[EXPRESS PAY] Page scan skipped: $e');
+      if (_expressPayScanAttempts < _maxExpressPayScanAttempts) {
+        unawaited(_scanExpressPayPage(url));
+      }
+    }
+  }
+
+  void _evaluatePaymentUrl(String url, {required String source}) {
+    if (_checkoutNavigationStarted || !mounted) return;
+
+    final outcome = classifyPaymentUrl(url);
+    debugPrint(
+      '[EXPRESS PAY] URL ($source): $url → ${outcome.name}',
+    );
+
+    if (outcome != _PaymentOutcome.none) {
+      _handlePaymentOutcome(outcome);
+    }
+  }
 
   Future<void> _checkAndRefreshAuth() async {
     try {
@@ -109,7 +340,10 @@ class PaymentWebViewState extends State<PaymentWebView> {
     }
   }
 
-  void _navigateToConfirmation(bool success) async {
+  void _navigateToConfirmation({required bool pending}) async {
+    if (_checkoutNavigationStarted) return;
+    _checkoutNavigationStarted = true;
+
     // check auth state before navigating
     await _checkAndRefreshAuth();
 
@@ -133,7 +367,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
         estimatedDeliveryTime: widget.estimatedDeliveryTime,
         deliveryFee: widget.deliveryFee,
         discount: widget.discount,
-        initialStatus: success ? 'pending' : 'failed',
+        initialStatus: pending ? 'pending' : 'failed',
       ),
     );
   }
@@ -245,7 +479,8 @@ class PaymentWebViewState extends State<PaymentWebView> {
                           backgroundColor: t.isDark
                               ? dialogTheme.fieldBg
                               : Colors.grey.shade800,
-                          foregroundColor: t.isDark ? dialogTheme.ink : Colors.white,
+                          foregroundColor:
+                              t.isDark ? dialogTheme.ink : Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -353,6 +588,15 @@ class PaymentWebViewState extends State<PaymentWebView> {
 
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..addJavaScriptChannel(
+        'EclPaymentNav',
+        onMessageReceived: (JavaScriptMessage message) {
+          _onExpressPayUrlChanged(
+            message.message,
+            source: 'js-channel',
+          );
+        },
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (String url) {
@@ -360,39 +604,48 @@ class PaymentWebViewState extends State<PaymentWebView> {
               _isLoading = true;
               _loadError = null;
             });
+            _onExpressPayUrlChanged(url, source: 'page-started');
           },
-          onPageFinished: (String url) {
+          onPageFinished: (String url) async {
             setState(() => _isLoading = false);
 
             if (!mounted) return;
 
-            // check for completion urls
-            final outcome = classifyPaymentUrl(url);
-            if (outcome == _PaymentOutcome.success) {
-              widget.onPaymentComplete?.call(true, null);
-              _navigateToConfirmation(true);
-            } else if (outcome == _PaymentOutcome.failed) {
-              widget.onPaymentComplete?.call(false, null);
-              _navigateToConfirmation(false);
-            }
+            await _injectExpressPayNavigationHook();
+            unawaited(_logExpressPayAmount(url));
+            _onExpressPayUrlChanged(url, source: 'page-finished');
+          },
+          onUrlChange: (UrlChange change) {
+            final url = change.url;
+            if (url == null || url.isEmpty) return;
+            _onExpressPayUrlChanged(url, source: 'url-change');
           },
           onNavigationRequest: (NavigationRequest request) {
-            if (!mounted) return NavigationDecision.prevent;
+            if (!mounted) return NavigationDecision.navigate;
 
-            // check if the url means payment is done
-            final outcome = classifyPaymentUrl(request.url);
-            if (outcome == _PaymentOutcome.success) {
-              widget.onPaymentComplete?.call(true, null);
-              _navigateToConfirmation(true);
+            _onExpressPayUrlChanged(request.url, source: 'navigation');
+
+            if (_checkoutNavigationStarted) {
               return NavigationDecision.prevent;
-            } else if (outcome == _PaymentOutcome.failed) {
-              widget.onPaymentComplete?.call(false, null);
-              _navigateToConfirmation(false);
+            }
+
+            final outcome = classifyPaymentUrl(request.url);
+            if (outcome == _PaymentOutcome.success ||
+                outcome == _PaymentOutcome.pending ||
+                outcome == _PaymentOutcome.failed) {
               return NavigationDecision.prevent;
             }
             return NavigationDecision.navigate;
           },
           onWebResourceError: (WebResourceError error) {
+            if (_checkoutNavigationStarted) {
+              debugPrint(
+                '[EXPRESS PAY] Ignoring WebView error after checkout handoff: '
+                '${error.description}',
+              );
+              return;
+            }
+
             debugPrint('WebView Error: ${error.description}');
             debugPrint('WebView Error Code: ${error.errorCode}');
 
@@ -651,7 +904,8 @@ class PaymentWebViewState extends State<PaymentWebView> {
                                     height: 52,
                                     decoration: BoxDecoration(
                                       color: theme.isDark
-                                          ? Colors.orange.withValues(alpha: 0.14)
+                                          ? Colors.orange
+                                              .withValues(alpha: 0.14)
                                           : Colors.orange.shade50,
                                       shape: BoxShape.circle,
                                     ),
@@ -1044,9 +1298,7 @@ class _PortalStepLine extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16, left: 4, right: 4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(2),
-        color: isActive
-            ? AppColors.primary.withValues(alpha: 0.45)
-            : t.border,
+        color: isActive ? AppColors.primary.withValues(alpha: 0.45) : t.border,
       ),
     );
   }

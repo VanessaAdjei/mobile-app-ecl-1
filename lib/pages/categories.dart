@@ -987,7 +987,7 @@ class CategoryPageState extends State<CategoryPage> {
       return products;
     } on TimeoutException {
       return [];
-    } catch (e) {
+            } catch (e) {
       debugPrint('🔍 Category typeahead search error: $e');
       return [];
     }
@@ -1708,9 +1708,9 @@ class CategoryPageState extends State<CategoryPage> {
             _showSearchDropdown = false;
           });
           _searchFocusNode.unfocus();
-          Navigator.push(
-            context,
-            MaterialPageRoute(
+              Navigator.push(
+                context,
+                MaterialPageRoute(
               builder: (context) => ProductDetailNavigation.itemPage(
                 urlName: matching.urlName.isNotEmpty
                     ? matching.urlName
@@ -1760,9 +1760,9 @@ class CategoryPageState extends State<CategoryPage> {
                             ),
                           ),
                           errorWidget: (context, url, error) => Icon(
-                            Icons.image_not_supported,
-                            color: Colors.grey.shade400,
-                            size: 24,
+                              Icons.image_not_supported,
+                              color: Colors.grey.shade400,
+                              size: 24,
                           ),
                         )
                       : Icon(
@@ -1776,15 +1776,15 @@ class CategoryPageState extends State<CategoryPage> {
               Expanded(
                 child: Text(
                   suggestion.name,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                     color: theme.ink,
-                    height: 1.2,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                        height: 1.2,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
               ),
               Icon(
                 Icons.chevron_right_rounded,
@@ -2792,11 +2792,11 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     scrollController.addListener(() {
       if (!mounted || !scrollController.hasClients) return;
 
-      final shouldShow = scrollController.offset > 300;
-      if (showScrollToTop != shouldShow) {
-        setState(() {
-          showScrollToTop = shouldShow;
-        });
+        final shouldShow = scrollController.offset > 300;
+        if (showScrollToTop != shouldShow) {
+          setState(() {
+            showScrollToTop = shouldShow;
+          });
       }
     });
   }
@@ -3078,7 +3078,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           child: Center(
             child: SubcategoryDesign.loadingOverlayPill(
               context,
-              'Loading subcategories...',
+                    'Loading subcategories...',
             ),
           ),
         ),
@@ -3223,7 +3223,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                   child: Text(
                     'Subcategory',
                     style: TextStyle(
-                      fontSize: 13,
+                    fontSize: 13,
                       fontWeight: FontWeight.w800,
                       color: SubcategoryDesign.ink(context),
                       letterSpacing: 0.3,
@@ -3321,8 +3321,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                           ),
                           if (isSelected)
                             Icon(
-                              Icons.check,
-                              size: 13,
+                                Icons.check,
+                                size: 13,
                               color: SubcategoryDesign.accent(context),
                             ),
                         ],
@@ -3499,25 +3499,25 @@ class SubcategoryPageState extends State<SubcategoryPage> {
               child: RefreshIndicator(
                 color: SubcategoryDesign.accent(context),
                 backgroundColor: SubcategoryDesign.contentBg(context),
-                onRefresh: _refreshSelectedSubcategory,
-                child: GridView.builder(
-                  controller: scrollController,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: EdgeInsets.fromLTRB(
-                    horizontalPadding,
-                    14,
-                    horizontalPadding,
+          onRefresh: _refreshSelectedSubcategory,
+          child: GridView.builder(
+          controller: scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            14,
+            horizontalPadding,
                     12,
-                  ),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    childAspectRatio: childAspectRatio,
-                    crossAxisSpacing: spacing,
-                    mainAxisSpacing: spacing,
-                  ),
-                  itemCount: products.length,
-                  itemBuilder: (context, index) {
-                    final product = products[index];
+          ),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: childAspectRatio,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+          ),
+          itemCount: products.length,
+          itemBuilder: (context, index) {
+            final product = products[index];
             final isHighlighted = highlightedProductId == product['id'];
             final productKey = product['id'] ?? index;
 
@@ -3556,8 +3556,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                 ),
               ),
             );
-                  },
-                ),
+          },
+          ),
               ),
             ),
             _buildCategoryProductPaginationBar(
@@ -4511,62 +4511,62 @@ class ProductListPageState extends State<ProductListPage> {
       children: [
         Expanded(
           child: RefreshIndicator(
-            onRefresh: () => fetchProducts(forceRefresh: true),
-            color: Colors.green.shade700,
-            child: GridView.builder(
-              controller: scrollController,
-              physics: AlwaysScrollableScrollPhysics(),
+      onRefresh: () => fetchProducts(forceRefresh: true),
+      color: Colors.green.shade700,
+      child: GridView.builder(
+        controller: scrollController,
+        physics: AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount:
                     MediaQuery.of(context).size.width > 600 ? 3 : 2,
                 childAspectRatio:
                     MediaQuery.of(context).size.width > 600 ? 0.74 : 0.68,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-              ),
-              itemCount: products.length,
-              itemBuilder: (context, index) {
-                final product = products[index];
-                final isHighlighted = highlightedProductId == product['id'];
-                final productKey = product['id'] ?? index;
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+        ),
+        itemCount: products.length,
+        itemBuilder: (context, index) {
+          final product = products[index];
+          final isHighlighted = highlightedProductId == product['id'];
+          final productKey = product['id'] ?? index;
 
-                return Container(
-                  key: ValueKey('list_product_$productKey'),
-                  decoration: isHighlighted
-                      ? BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
+          return Container(
+            key: ValueKey('list_product_$productKey'),
+            decoration: isHighlighted
+                ? BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
                           border:
                               Border.all(color: AppColors.primary, width: 2.5),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.2),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        )
-                      : null,
-                  child: OpenContainer(
-                    transitionType: ContainerTransitionType.fadeThrough,
-                    openColor: Theme.of(context).scaffoldBackgroundColor,
-                    closedColor: Colors.transparent,
-                    closedElevation: 0,
-                    openElevation: 0,
-                    transitionDuration: Duration(milliseconds: 200),
-                    closedShape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    openBuilder: (context, _) =>
-                        _CategoryProductDetailRoute(product: product),
-                    closedBuilder: (context, openContainer) => ProductCard(
-                      product: product,
-                      onTap: openContainer,
-                    ),
-                  ),
-                );
-              },
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.2),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  )
+                : null,
+            child: OpenContainer(
+              transitionType: ContainerTransitionType.fadeThrough,
+              openColor: Theme.of(context).scaffoldBackgroundColor,
+              closedColor: Colors.transparent,
+              closedElevation: 0,
+              openElevation: 0,
+              transitionDuration: Duration(milliseconds: 200),
+              closedShape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              openBuilder: (context, _) =>
+                  _CategoryProductDetailRoute(product: product),
+              closedBuilder: (context, openContainer) => ProductCard(
+                product: product,
+                onTap: openContainer,
+              ),
             ),
+          );
+        },
+      ),
           ),
         ),
         _buildCategoryProductPaginationBar(
@@ -4592,7 +4592,7 @@ class ProductListPageState extends State<ProductListPage> {
           child: Center(
             child: SubcategoryDesign.loadingOverlayPill(
               context,
-              'Loading products...',
+                    'Loading products...',
             ),
           ),
         ),

@@ -14,12 +14,12 @@ class MainTabShell extends StatefulWidget {
 
   final int initialIndex;
 
-  static final GlobalKey<MainTabShellState> navigatorKey =
-      GlobalKey<MainTabShellState>();
+  /// Active shell instance — avoids a shared [GlobalKey] on multiple routes.
+  static MainTabShellState? attachedState;
 
   /// Switches the visible tab when [MainTabShell] is already under [context].
   static bool switchToTab(BuildContext context, int index) {
-    final shell = navigatorKey.currentState ??
+    final shell = attachedState ??
         context.findAncestorStateOfType<MainTabShellState>();
     if (shell == null) return false;
     shell.selectTab(index);
@@ -28,22 +28,24 @@ class MainTabShell extends StatefulWidget {
 
   /// Opens a main tab without recreating [HomePage] when the shell is active.
   static void goToTab(BuildContext context, int index) {
+    if (index == 2) return;
+
     final switched = switchToTab(context, index);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!context.mounted) return;
-      if (switched) {
-        Navigator.of(context).popUntil((route) => route.isFirst);
-        return;
-      }
-      final route = switch (index) {
-        0 => AppRoutes.home,
-        1 => AppRoutes.cart,
-        3 => AppRoutes.categoryPage,
-        4 => AppRoutes.profile,
-        _ => AppRoutes.home,
-      };
-      Navigator.of(context).pushNamedAndRemoveUntil(route, (route) => false);
-    });
+    if (switched) {
+      Navigator.of(context, rootNavigator: true)
+          .popUntil((route) => route.isFirst);
+      return;
+    }
+
+    final route = switch (index) {
+      0 => AppRoutes.home,
+      1 => AppRoutes.cart,
+      3 => AppRoutes.categoryPage,
+      4 => AppRoutes.profile,
+      _ => AppRoutes.home,
+    };
+    Navigator.of(context, rootNavigator: true)
+        .pushNamedAndRemoveUntil(route, (route) => false);
   }
 
   @override
@@ -65,6 +67,7 @@ class MainTabShellState extends State<MainTabShell> {
   @override
   void initState() {
     super.initState();
+    MainTabShell.attachedState = this;
     _selectedIndex = widget.initialIndex.clamp(0, _tabCount - 1);
     _ensureTabBuilt(0);
     if (_selectedIndex != 0) {
@@ -106,6 +109,14 @@ class MainTabShellState extends State<MainTabShell> {
     if (_selectedIndex == index) return;
     _ensureTabBuilt(index);
     setState(() => _selectedIndex = index);
+  }
+
+  @override
+  void dispose() {
+    if (MainTabShell.attachedState == this) {
+      MainTabShell.attachedState = null;
+    }
+    super.dispose();
   }
 
   @override

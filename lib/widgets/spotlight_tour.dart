@@ -144,68 +144,85 @@ class _SpotlightTourOverlayState extends State<_SpotlightTourOverlay>
     final size = MediaQuery.sizeOf(context);
     final hole = _hole;
 
-    return Material(
-      color: Colors.transparent,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _pulse,
-              builder: (_, __) => CustomPaint(
-                painter: _SpotlightPainter(
-                  hole: hole,
-                  pulse: _pulse.value,
-                ),
-                child: const SizedBox.expand(),
-              ),
-            ),
-          ),
-          if (hole != null)
-            Positioned(
-              left: hole.left,
-              top: hole.top,
-              width: hole.width,
-              height: hole.height,
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppColors.primary.withValues(
-                        alpha: 0.5 + _pulse.value * 0.35,
+    return PopScope(
+      canPop: false,
+      child: Material(
+        color: Colors.transparent,
+        child: Stack(
+          children: [
+            // Block taps, scrolls, and drags on the UI beneath the tour.
+            Positioned.fill(
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: (_) {},
+                onPointerSignal: (_) {},
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {},
+                  onVerticalDragStart: (_) {},
+                  onHorizontalDragStart: (_) {},
+                  child: IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: _pulse,
+                      builder: (_, __) => CustomPaint(
+                        painter: _SpotlightPainter(
+                          hole: hole,
+                          pulse: _pulse.value,
+                        ),
+                        child: const SizedBox.expand(),
                       ),
-                      width: 2.5,
                     ),
                   ),
                 ),
               ),
             ),
-          if (hole != null)
-            _TooltipCard(
-              hole: hole,
-              screenSize: size,
-              title: step.title,
-              body: step.body,
-              align: step.align,
-              index: _index,
-              total: widget.steps.length,
-              onNext: _next,
-              onSkip: _skip,
-              isLast: _index == widget.steps.length - 1,
-            )
-          else
-            Center(
-              child: _FallbackTooltip(
+            if (hole != null)
+              Positioned(
+                left: hole.left,
+                top: hole.top,
+                width: hole.width,
+                height: hole.height,
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(
+                          alpha: 0.5 + _pulse.value * 0.35,
+                        ),
+                        width: 2.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            if (hole != null)
+              _TooltipCard(
+                hole: hole,
+                screenSize: size,
                 title: step.title,
                 body: step.body,
+                align: step.align,
                 index: _index,
                 total: widget.steps.length,
                 onNext: _next,
                 onSkip: _skip,
                 isLast: _index == widget.steps.length - 1,
+              )
+            else
+              Center(
+                child: _FallbackTooltip(
+                  title: step.title,
+                  body: step.body,
+                  index: _index,
+                  total: widget.steps.length,
+                  onNext: _next,
+                  onSkip: _skip,
+                  isLast: _index == widget.steps.length - 1,
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

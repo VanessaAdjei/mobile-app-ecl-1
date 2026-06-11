@@ -79,6 +79,46 @@ class RefillMedicine {
     );
   }
 
+  RefillMedicine copyWith({
+    int? id,
+    String? name,
+    String? description,
+    String? dosage,
+    String? price,
+    String? thumbnail,
+    String? category,
+    String? lastPurchased,
+    bool? isRefillable,
+    String? batchNo,
+    String? route,
+    String? otcpom,
+    String? drug,
+    String? wellness,
+    String? selfcare,
+    String? accessories,
+    int? quantityInStock,
+  }) {
+    return RefillMedicine(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      dosage: dosage ?? this.dosage,
+      price: price ?? this.price,
+      thumbnail: thumbnail ?? this.thumbnail,
+      category: category ?? this.category,
+      lastPurchased: lastPurchased ?? this.lastPurchased,
+      isRefillable: isRefillable ?? this.isRefillable,
+      batchNo: batchNo ?? this.batchNo,
+      route: route ?? this.route,
+      otcpom: otcpom ?? this.otcpom,
+      drug: drug ?? this.drug,
+      wellness: wellness ?? this.wellness,
+      selfcare: selfcare ?? this.selfcare,
+      accessories: accessories ?? this.accessories,
+      quantityInStock: quantityInStock ?? this.quantityInStock,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

@@ -50,7 +50,7 @@ class OnboardingPermissionsSlide extends StatelessWidget {
                     iconColor: AppColors.primary,
                     title: 'Order alerts',
                     description:
-                        'Confirmations, delivery updates, and pharmacist messages.',
+                        'Confirmations, delivery updates, and messages from pharmacists.',
                   ),
                   const SizedBox(height: 12),
                   const _PermissionTile(
@@ -59,7 +59,7 @@ class OnboardingPermissionsSlide extends StatelessWidget {
                     iconColor: _teal,
                     title: 'Delivery location',
                     description:
-                        'Suggest your address and show accurate fees while you shop.',
+                        'Provide your delivery address to show accurate delivery fees while you shop.',
                   ),
                   const SizedBox(height: 16),
                   Container(
@@ -249,7 +249,8 @@ class _PermissionTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(title, style: OnboardingUi.bodyStrong.copyWith(fontSize: 15)),
+                Text(title,
+                    style: OnboardingUi.bodyStrong.copyWith(fontSize: 15)),
                 const SizedBox(height: 4),
                 Text(
                   description,

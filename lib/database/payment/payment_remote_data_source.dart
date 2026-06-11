@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import '../../config/api_config.dart';
 import '../../models/category_fetch_result.dart';
 import '../../services/auth_service.dart';
@@ -25,6 +27,52 @@ abstract class PaymentRemoteDataSource {
   });
 }
 
+void _logPaymentHttp({
+  required String tag,
+  required String method,
+  required String url,
+  required Map<String, String> headers,
+  required String body,
+  Map<String, dynamic>? bodyMap,
+}) {
+  if (!kDebugMode) return;
+
+  final encoder = const JsonEncoder.withIndent('  ');
+  final safeHeaders = headers.map((key, value) {
+    if (key.toLowerCase() == 'authorization' && value.length > 16) {
+      return MapEntry(key, '${value.substring(0, 14)}…(${value.length} chars)');
+    }
+    return MapEntry(key, value);
+  });
+
+  debugPrint('');
+  debugPrint('══════════════════════════════════════════════════════');
+  debugPrint('[$tag] $method $url');
+  debugPrint('── Headers ──');
+  debugPrint(encoder.convert(safeHeaders));
+  if (bodyMap != null) {
+    debugPrint('── Body (map) ──');
+    debugPrint(encoder.convert(bodyMap));
+  }
+  debugPrint('── Body (wire) ──');
+  debugPrint(body);
+  debugPrint('══════════════════════════════════════════════════════');
+}
+
+void _logPaymentHttpResponse({
+  required String tag,
+  required int statusCode,
+  required String body,
+}) {
+  if (!kDebugMode) return;
+
+  debugPrint('[$tag] ← HTTP $statusCode');
+  debugPrint('── Response body ──');
+  debugPrint(body.isEmpty ? '(empty)' : body);
+  debugPrint('══════════════════════════════════════════════════════');
+  debugPrint('');
+}
+
 class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
   @override
   Future<CategoryFetchResult> submitExpressPayment({
@@ -33,6 +81,10 @@ class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
     Duration timeout = const Duration(seconds: 60),
   }) async {
     try {
+      final url = ApiConfig.getEndpointUrl(ApiConfig.expressPayment);
+      final bodyMap = params.map(
+        (key, value) => MapEntry(key, value?.toString() ?? ''),
+      );
       final formBody = params.entries
           .map(
             (e) =>
@@ -43,16 +95,36 @@ class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
         ...headers,
         'Content-Type': 'application/x-www-form-urlencoded',
       };
+
+      _logPaymentHttp(
+        tag: 'EXPRESS PAYMENT SUBMIT',
+        method: 'POST',
+        url: url,
+        headers: formHeaders,
+        body: formBody,
+        bodyMap: bodyMap,
+      );
+
       final response = await HttpClientService.post(
-        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.expressPayment)),
+        Uri.parse(url),
         headers: formHeaders,
         body: formBody,
       ).timeout(timeout);
+
+      _logPaymentHttpResponse(
+        tag: 'EXPRESS PAYMENT SUBMIT',
+        statusCode: response.statusCode,
+        body: response.body,
+      );
+
       return CategoryFetchResult.fromResponse(
         response.statusCode,
         response.body,
       );
     } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[EXPRESS PAYMENT SUBMIT] ✗ Error: $e');
+      }
       return CategoryFetchResult(statusCode: 0, error: e);
     }
   }
@@ -64,16 +136,38 @@ class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
     Duration timeout = const Duration(seconds: 15),
   }) async {
     try {
-      final response = await HttpClientService.post(
-        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.checkPayment)),
+      final url = ApiConfig.getEndpointUrl(ApiConfig.checkPayment);
+      final jsonBody = jsonEncode(body);
+
+      _logPaymentHttp(
+        tag: 'CHECK PAYMENT',
+        method: 'POST',
+        url: url,
         headers: headers,
-        body: jsonEncode(body),
+        body: jsonBody,
+        bodyMap: body,
+      );
+
+      final response = await HttpClientService.post(
+        Uri.parse(url),
+        headers: headers,
+        body: jsonBody,
       ).timeout(timeout);
+
+      _logPaymentHttpResponse(
+        tag: 'CHECK PAYMENT',
+        statusCode: response.statusCode,
+        body: response.body,
+      );
+
       return CategoryFetchResult.fromResponse(
         response.statusCode,
         response.body,
       );
     } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[CHECK PAYMENT] ✗ Error: $e');
+      }
       return CategoryFetchResult(statusCode: 0, error: e);
     }
   }

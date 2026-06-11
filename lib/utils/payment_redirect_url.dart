@@ -73,3 +73,48 @@ String? _extractUrlFromJson(Object? value) {
   }
   return null;
 }
+
+/// Hosts ExpressPay may redirect to after checkout (merchant return URLs).
+const merchantPaymentReturnHosts = <String>[
+  'eclcommerce.ernestchemists.com.gh',
+  'eclcommerce.test',
+  'ernestchemists.com.gh',
+];
+
+/// True when [url] navigates away from ExpressPay back to the merchant site.
+bool isMerchantPaymentReturnUrl(String url) {
+  final uri = Uri.tryParse(url.trim());
+  if (uri == null || !uri.hasScheme) return false;
+  final scheme = uri.scheme.toLowerCase();
+  if (!scheme.startsWith('http')) return false;
+
+  final host = uri.host.toLowerCase();
+  if (host.contains('expresspay')) return false;
+
+  return merchantPaymentReturnHosts.any(
+    (known) => host == known || host.endsWith('.$known'),
+  );
+}
+
+/// True when [candidate] is the configured ExpressPay return URL (e.g. test root).
+bool matchesPaymentRedirectUrl(String candidate, String configuredRedirect) {
+  final configured = Uri.tryParse(configuredRedirect.trim());
+  final current = Uri.tryParse(candidate.trim());
+  if (configured == null || current == null) return false;
+  if (configured.host.toLowerCase() != current.host.toLowerCase()) {
+    return false;
+  }
+  if (configured.scheme.toLowerCase() != current.scheme.toLowerCase()) {
+    return false;
+  }
+
+  final configPath =
+      configured.path.isEmpty || configured.path == '/' ? '/' : configured.path;
+  final currentPath =
+      current.path.isEmpty || current.path == '/' ? '/' : current.path;
+
+  if (configPath == '/') {
+    return currentPath == '/';
+  }
+  return currentPath == configPath || currentPath.startsWith('$configPath/');
+}

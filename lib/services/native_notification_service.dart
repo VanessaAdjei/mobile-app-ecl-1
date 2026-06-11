@@ -283,7 +283,7 @@ class NativeNotificationService {
     if (await canPostSystemNotifications()) return true;
     if (!requestIfNeeded) {
       debugPrint(
-        '📱 Native: Notifications off — enable in Settings → Ernest Chemist → Notifications',
+        '📱 Native: Notifications off — enable in Settings → Ernest Chemists Ltd → Notifications',
       );
       return false;
     }
@@ -314,7 +314,7 @@ class NativeNotificationService {
         if (!allowed) {
           debugPrint(
             '📱 Native: Cannot show "$title" — notifications are off. '
-            'Open Settings → Ernest Chemist → Notifications.',
+            'Open Settings → Ernest Chemists Ltd → Notifications.',
           );
           return;
         }

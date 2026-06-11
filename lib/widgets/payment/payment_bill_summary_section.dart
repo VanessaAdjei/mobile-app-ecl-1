@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../config/app_colors.dart';
+import '../../utils/checkout_order_totals.dart';
 import '../../utils/app_theme_colors.dart';
 import '../../utils/responsive_extension.dart';
 import 'payment_section_style.dart';
@@ -14,6 +15,7 @@ class PaymentBillSummarySection extends StatelessWidget {
   final bool showDeliveryFee;
   final double emergencyOrderFee;
   final double discountAmount;
+  final double? runningSubtotal;
   final bool useRawDeliveryFee;
   final bool forceFreeDelivery;
   final bool lockPromoEditing;
@@ -32,6 +34,7 @@ class PaymentBillSummarySection extends StatelessWidget {
     required this.showDeliveryFee,
     required this.emergencyOrderFee,
     required this.discountAmount,
+    this.runningSubtotal,
     this.useRawDeliveryFee = false,
     this.forceFreeDelivery = false,
     this.lockPromoEditing = false,
@@ -50,8 +53,15 @@ class PaymentBillSummarySection extends StatelessWidget {
     return OrderThresholdPromoBanner.displayDeliveryFee(subtotal, deliveryFee);
   }
 
-  double get _total =>
-      subtotal + _displayDeliveryFee + emergencyOrderFee - discountAmount;
+  double get _total => CheckoutOrderTotals(
+        merchandiseSubtotal: subtotal,
+        discount: discountAmount,
+        deliveryFee: deliveryFee,
+        emergencyOrderFee: emergencyOrderFee,
+        runningSubtotal: runningSubtotal,
+        shippingFree: forceFreeDelivery,
+        isDelivery: showDeliveryFee,
+      ).total;
 
   @override
   Widget build(BuildContext context) {
@@ -61,10 +71,15 @@ class PaymentBillSummarySection extends StatelessWidget {
             horizontal: context.rs(12),
             vertical: context.rs(12),
           )
-        : PaymentSectionStyle.paddingOf(context);
-    final blockGap = compact ? context.rs(7) : context.rs(8);
-    final titleFontSize = compact ? context.sp(13) : context.sp(14);
-    final accentBarHeight = compact ? context.rs(15) : context.rs(16);
+        : EdgeInsets.symmetric(
+            horizontal: context.rs(18),
+            vertical: context.rs(18),
+          );
+    final blockGap = compact ? context.rs(7) : context.rs(12);
+    final titleFontSize = compact ? context.sp(13) : context.sp(16);
+    final accentBarHeight = compact ? context.rs(15) : context.rs(20);
+    final innerPanelPadding = compact ? context.rs(9) : context.rs(16);
+    final rowGap = compact ? 6.0 : context.rs(10);
 
     return Container(
       margin: PaymentSectionStyle.marginOf(context),
@@ -96,7 +111,7 @@ class PaymentBillSummarySection extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: compact ? 7 : 10),
+          SizedBox(height: compact ? 7 : 12),
           OrderThresholdPromoBanner(compact: true, subtotal: subtotal),
           SizedBox(height: blockGap),
           _PromoCodeBlock(
@@ -111,7 +126,7 @@ class PaymentBillSummarySection extends StatelessWidget {
           ),
           SizedBox(height: blockGap),
           Container(
-            padding: EdgeInsets.all(compact ? 9 : 12),
+            padding: EdgeInsets.all(innerPanelPadding),
             decoration: PaymentSectionStyle.innerPanelDecoration(context),
             child: Column(
               children: [
@@ -121,7 +136,7 @@ class PaymentBillSummarySection extends StatelessWidget {
                   icon: Icons.shopping_cart_outlined,
                 ),
                 if (discountAmount > 0) ...[
-                  const SizedBox(height: 6),
+                  SizedBox(height: rowGap),
                   PaymentSummaryRow(
                     label: 'Discount',
                     value: -discountAmount,
@@ -130,7 +145,7 @@ class PaymentBillSummarySection extends StatelessWidget {
                   ),
                 ],
                 if (showDeliveryFee && _displayDeliveryFee > 0) ...[
-                  const SizedBox(height: 6),
+                  SizedBox(height: rowGap),
                   PaymentSummaryRow(
                     label: 'Delivery fee',
                     value: _displayDeliveryFee,
@@ -138,14 +153,14 @@ class PaymentBillSummarySection extends StatelessWidget {
                   ),
                 ],
                 if (emergencyOrderFee > 0) ...[
-                  const SizedBox(height: 6),
+                  SizedBox(height: rowGap),
                   PaymentSummaryRow(
                     label: 'xPress order fee',
                     value: emergencyOrderFee,
                     icon: Icons.flash_on,
                   ),
                 ],
-                Divider(height: 18, thickness: 1, color: t.border),
+                Divider(height: compact ? 18 : 24, thickness: 1, color: t.border),
                 PaymentSummaryRow(
                   label: 'Total',
                   value: _total,
@@ -190,7 +205,7 @@ class _PromoCodeBlock extends StatelessWidget {
     final lockedLabel = appliedPromoCode ?? 'Server pricing';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: PaymentSectionStyle.accentPanelDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

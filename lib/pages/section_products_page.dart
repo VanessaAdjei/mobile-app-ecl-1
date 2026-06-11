@@ -128,7 +128,7 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
           padding: EdgeInsets.only(
             bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
           ),
-          child: Container(
+            child: Container(
             decoration: BoxDecoration(
               color: theme.sheetBg,
               borderRadius: BorderRadius.vertical(
@@ -141,10 +141,10 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
               context.rs(20),
               context.rs(20) + MediaQuery.paddingOf(sheetContext).bottom,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+                  children: [
                 Center(
                   child: Container(
                     width: context.rs(40),
@@ -190,28 +190,28 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
                         ),
                       )
                       .toList(),
-                ),
-                if (_categories.length > 1) ...[
+                    ),
+                    if (_categories.length > 1) ...[
                   SizedBox(height: context.rs(20)),
                   _FilterSectionTitle(
                     icon: Icons.category_outlined,
                     label: 'Category',
                   ),
                   SizedBox(height: context.rs(10)),
-                  Wrap(
+                      Wrap(
                     spacing: context.rs(8),
                     runSpacing: context.rs(8),
-                    children: _categories
+                        children: _categories
                         .map(
                           (cat) => _FilterChip(
                             label: cat,
-                            selected: _selectedCategory == cat,
+                                  selected: _selectedCategory == cat,
                             onTap: () => _applyCategory(cat),
                           ),
                         )
-                        .toList(),
-                  ),
-                ],
+                            .toList(),
+                      ),
+                    ],
                 SizedBox(height: context.rs(24)),
                 FilledButton(
                   onPressed: () => Navigator.pop(sheetContext),
@@ -219,7 +219,7 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     padding: EdgeInsets.symmetric(vertical: context.rs(14)),
-                    shape: RoundedRectangleBorder(
+                          shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(context.rs(12)),
                     ),
                   ),
@@ -573,20 +573,20 @@ class _SearchField extends StatelessWidget {
       builder: (context, _) {
         final hasText = controller.text.isNotEmpty;
         return DecoratedBox(
-          decoration: BoxDecoration(
+                        decoration: BoxDecoration(
             color: theme.surface,
             borderRadius: BorderRadius.circular(context.rs(14)),
             border: Border.all(color: theme.border),
             boxShadow: theme.isDark
                 ? null
                 : [
-                    BoxShadow(
+                            BoxShadow(
                       color: Colors.black.withValues(alpha: 0.04),
                       blurRadius: context.rs(10),
                       offset: Offset(0, context.rs(2)),
-                    ),
-                  ],
-          ),
+                            ),
+                          ],
+                        ),
           child: TextField(
             controller: controller,
             style: GoogleFonts.poppins(
@@ -621,9 +621,9 @@ class _SearchField extends StatelessWidget {
               ),
             ),
             textInputAction: TextInputAction.search,
-          ),
-        );
-      },
+                                                        ),
+                                                      );
+                                                    },
     );
   }
 }
@@ -679,9 +679,9 @@ class _QuickSortRow extends StatelessWidget {
                   onSelected: (_) => onSortTap(entry.key),
                 );
               },
-            ),
-          ),
-        ),
+                                                    ),
+                                                  ),
+                                          ),
         SizedBox(width: context.rs(8)),
         Material(
           color: theme.surface,
@@ -698,10 +698,10 @@ class _QuickSortRow extends StatelessWidget {
                 Icons.tune_rounded,
                 size: context.rs(20),
                 color: AppColors.primary,
-              ),
-            ),
-          ),
-        ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
         if (hasActiveFilters) ...[
           SizedBox(width: context.rs(6)),
           TextButton(
@@ -717,9 +717,9 @@ class _QuickSortRow extends StatelessWidget {
                 fontSize: context.sp(11),
                 fontWeight: FontWeight.w600,
                 color: AppColors.primary,
-              ),
-            ),
-          ),
+                                      ),
+                                    ),
+                                  ),
         ],
       ],
     );
@@ -739,14 +739,14 @@ class _FilterSectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.appColors;
     return Row(
-      children: [
+                                        children: [
         Icon(icon, size: context.rs(18), color: AppColors.primary),
         SizedBox(width: context.rs(8)),
-        Text(
+                                          Text(
           label,
           style: GoogleFonts.poppins(
             fontSize: context.sp(14),
-            fontWeight: FontWeight.w600,
+                                              fontWeight: FontWeight.w600,
             color: theme.ink,
           ),
         ),
@@ -792,10 +792,10 @@ class _FilterChip extends StatelessWidget {
               fontSize: context.sp(12),
               fontWeight: FontWeight.w500,
               color: selected ? Colors.white : theme.ink,
-            ),
-          ),
-        ),
-      ),
+                              ),
+                            ),
+                          ),
+                        ),
     );
   }
 }

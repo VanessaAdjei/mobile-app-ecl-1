@@ -174,127 +174,40 @@ class CartProvider with ChangeNotifier {
     }
   }
 
-  int _findLocalCartIndex({
-    required String name,
-    required String batchNo,
+  bool _isCheckAuthSuccess(Map<String, dynamic>? data) {
+    if (data == null) return false;
+    final added = data['added']?.toString().toLowerCase() ?? '';
+    return data['status']?.toString() == 'success' || added.contains('updated');
+  }
+
+  /// Local cart qty/price/ids come only from check-auth `items` (field `qty`).
+  bool _applyCheckAuthCartResponse(
+    Map<String, dynamic>? data, {
+    CartItem? productHint,
+    bool wasDecrease = false,
   }) {
-    final byName = _cartItems.indexWhere((c) {
-      if (batchNo.isNotEmpty && c.batchNo != batchNo) return false;
-      return _normalizeProductName(c.name) == _normalizeProductName(name);
-    });
-    if (byName != -1) return byName;
+    if (!_isCheckAuthSuccess(data)) return false;
 
-    if (batchNo.isEmpty) return -1;
-    final byBatch = _cartItems.where((c) => c.batchNo == batchNo).toList();
-    if (byBatch.length == 1) {
-      return _cartItems.indexOf(byBatch.first);
-    }
-    return _cartItems.indexWhere(
-      (c) => c.batchNo == batchNo && _productNamesLooselyMatch(c.name, name),
-    );
-  }
-
-  bool _serverLineMatchesProduct(Map<String, dynamic> line, CartItem item) {
-    final name = line['product_name']?.toString() ?? '';
-    final batch = line['batch_no']?.toString() ?? '';
-    return _productNamesLooselyMatch(name, item.name) &&
-        (item.batchNo.isEmpty || batch == item.batchNo);
-  }
-
-  List<Map<String, dynamic>> _matchingServerCartLines(
-    List<dynamic> serverItems,
-    CartItem item,
-  ) {
-    return serverItems
-        .whereType<Map>()
-        .map((e) => Map<String, dynamic>.from(e))
-        .where((m) => _serverLineMatchesProduct(m, item))
-        .toList();
-  }
-
-  /// Applies the qty the user chose; only refreshes line ids/prices from the server.
-  void _applyLocalQuantityTarget(
-    CartItem item,
-    int targetQuantity,
-    List<dynamic> serverItems, {
-    String? catalogProductId,
-    bool notify = true,
-  }) {
-    final localIndex =
-        _findLocalCartIndex(name: item.name, batchNo: item.batchNo);
-    if (localIndex == -1) return;
-
-    final previousQty = _cartItems[localIndex].quantity;
-    final lines = _matchingServerCartLines(serverItems, item);
-    if (lines.isNotEmpty) {
-      final primary = CartItem.fromServerJson(lines.first);
-      _cartItems[localIndex] = _cartItems[localIndex].copyWith(
-        id: primary.id.isNotEmpty ? primary.id : _cartItems[localIndex].id,
-        serverProductId:
-            primary.serverProductId ?? _cartItems[localIndex].serverProductId,
-        originalProductId:
-            catalogProductId ?? _cartItems[localIndex].originalProductId,
-        price: primary.price,
-        totalPrice: primary.price * targetQuantity,
-      );
+    final items = data!['items'] as List? ?? [];
+    if (items.isNotEmpty) {
+      if (productHint != null) {
+        _pendingOriginalProductId =
+            productHint.originalProductId ?? productHint.productId;
+        _pendingItemName = productHint.name;
+        _pendingItemBatch = productHint.batchNo;
+      }
+      _mergeFullServerCartFromCheckAuthItems(items);
+      return true;
     }
 
-    if (_cartItems[localIndex].quantity != targetQuantity) {
-      _cartItems[localIndex].updateQuantity(targetQuantity);
-    }
-    debugPrint(
-      '✅ Local qty kept at $targetQuantity for ${item.name} (server had ${lines.length} line(s))',
-    );
-    unawaited(_saveUserCarts());
-    if (notify && previousQty != targetQuantity) {
+    if (wasDecrease && productHint != null) {
+      _cartItems.removeWhere((line) => _sameCartProduct(line, productHint));
+      unawaited(_saveUserCarts());
       notifyListeners();
-    }
-  }
-
-  /// Sets local qty/price/ids from matching rows in check-auth `items` (source of truth).
-  void _reconcileLocalQuantityFromServerResponse(
-    List<dynamic> serverItems,
-    CartItem item, {
-    String? catalogProductId,
-  }) {
-    final lines = _matchingServerCartLines(serverItems, item);
-    if (lines.isEmpty) return;
-
-    var totalQty = 0;
-    var totalPrice = 0.0;
-    double unitPrice = item.price;
-    String? primaryLineId;
-    int? serverProductId;
-
-    for (final line in lines) {
-      final parsed = CartItem.fromServerJson(line);
-      totalQty += parsed.quantity;
-      totalPrice += parsed.totalPrice;
-      unitPrice = parsed.price;
-      primaryLineId ??= parsed.id;
-      serverProductId ??= parsed.serverProductId;
+      return true;
     }
 
-    final localIndex =
-        _findLocalCartIndex(name: item.name, batchNo: item.batchNo);
-    if (localIndex == -1) return;
-
-    _cartItems[localIndex] = _cartItems[localIndex].copyWith(
-      quantity: totalQty,
-      totalPrice: totalPrice > 0 ? totalPrice : unitPrice * totalQty,
-      price: unitPrice,
-      id: primaryLineId ?? _cartItems[localIndex].id,
-      serverProductId:
-          serverProductId ?? _cartItems[localIndex].serverProductId,
-      originalProductId:
-          catalogProductId ?? _cartItems[localIndex].originalProductId,
-    );
-
-    debugPrint(
-      '✅ Reconciled local qty for ${item.name}: $totalQty (${lines.length} server line(s))',
-    );
-    unawaited(_saveUserCarts());
-    notifyListeners();
+    return true;
   }
 
   /// Replaces local cart with the full `items` list from check-auth (server is billing source).
@@ -362,61 +275,6 @@ class CartProvider with ChangeNotifier {
     );
     unawaited(_saveUserCarts());
     notifyListeners();
-  }
-
-  /// Links server line ids to local rows from check-auth response (no full cart fetch).
-  bool _applyServerCartLinesFromResponse(
-    List<dynamic> serverItems, {
-    String? pendingOriginalProductId,
-    String? pendingName,
-    String? pendingBatch,
-  }) {
-    var applied = false;
-    for (final raw in serverItems) {
-      if (raw is! Map) continue;
-      final serverName = raw['product_name']?.toString() ?? '';
-      final serverBatch = raw['batch_no']?.toString() ?? '';
-      final serverCartId = raw['id']?.toString();
-      final serverProductId = int.tryParse(raw['product_id']?.toString() ?? '');
-      if (serverCartId == null) continue;
-
-      var localIndex =
-          _findLocalCartIndex(name: serverName, batchNo: serverBatch);
-      if (localIndex == -1 &&
-          pendingBatch != null &&
-          pendingBatch == serverBatch) {
-        localIndex = _findLocalCartIndex(
-          name: pendingName ?? serverName,
-          batchNo: pendingBatch,
-        );
-        if (localIndex == -1) {
-          localIndex = _cartItems.indexWhere(
-            (c) =>
-                c.batchNo == pendingBatch &&
-                _productNamesLooselyMatch(
-                  c.name,
-                  pendingName ?? serverName,
-                ),
-          );
-        }
-      }
-      if (localIndex == -1) continue;
-
-      _cartItems[localIndex] = _cartItems[localIndex].copyWith(
-        id: serverCartId,
-        serverProductId:
-            serverProductId ?? _cartItems[localIndex].serverProductId,
-        originalProductId: pendingOriginalProductId ??
-            _cartItems[localIndex].originalProductId ??
-            _cartItems[localIndex].productId,
-      );
-      applied = true;
-    }
-    if (applied) {
-      unawaited(_saveUserCarts());
-      notifyListeners();
-    }
-    return applied;
   }
 
   /// True when [id] is a server line id (not empty / not a local timestamp id).
@@ -721,26 +579,18 @@ class CartProvider with ChangeNotifier {
   }
 
   Future<void> addToCart(CartItem item) async {
-    debugPrint('🚀 ADD TO CART METHOD CALLED ===');
-    debugPrint('Cart items count before adding: ${_cartItems.length}');
-    debugPrint('Adding item: ${item.name}');
-    debugPrint('================================');
+    debugPrint('🚀 ADD TO CART: ${item.name} (qty ${item.quantity})');
 
     _currentUserId ??= await AuthService.getCurrentUserID();
 
-    // --- GUEST SESSION LOGIC ---
     final isLoggedIn = await AuthService.isLoggedIn();
     if (!isLoggedIn) {
-      // Re-enable guest cart loading when guest adds to cart
       _shouldLoadGuestCart = true;
-
-      // Check if guest_id exists
       final prefs = await SharedPreferences.getInstance();
       String? guestId = prefs.getString('guest_id');
       if (guestId == null || guestId.isEmpty) {
         try {
           guestId = await AuthService.generateGuestId();
-          debugPrint('[CartProvider] Created guest_id: $guestId');
         } catch (e) {
           debugPrint('[CartProvider] guest_id unavailable: $e');
           await _addToLocalCart(item);
@@ -748,141 +598,51 @@ class CartProvider with ChangeNotifier {
         }
       }
     }
-    // --- END GUEST SESSION LOGIC ---
 
     try {
       final token = await AuthService.getToken();
-
       if (token == null) {
-        // Fallback to local cart if no token
-        debugPrint(
-            'Cannot add to cart - missing auth token, adding to local cart');
+        debugPrint('No auth token — local cart only');
         await _addToLocalCart(item);
         return;
       }
 
+      final unitsToAdd = item.quantity > 0 ? item.quantity : 1;
       final existingIndex =
           _cartItems.indexWhere((cartItem) => _sameCartProduct(cartItem, item));
-
-      if (existingIndex != -1) {
-        // Item exists, add to existing quantity
-        final oldQuantity = _cartItems[existingIndex].quantity;
-        final newQuantity = oldQuantity + item.quantity;
-
-        debugPrint('🔍 ITEM EXISTS - ADDING TO QUANTITY ===');
-        debugPrint('Product: ${item.name}');
-        debugPrint('Old Quantity: $oldQuantity');
-        debugPrint('Adding Quantity: ${item.quantity}');
-        debugPrint('New Total Quantity: $newQuantity');
-        debugPrint('=====================================');
-
-        _cartItems[existingIndex] = _cartItems[existingIndex].copyWith(
-          originalProductId: item.originalProductId ?? item.productId,
-          productId: item.productId.isNotEmpty
-              ? item.productId
-              : _cartItems[existingIndex].productId,
-          batchNo: item.batchNo.isNotEmpty
-              ? item.batchNo
-              : _cartItems[existingIndex].batchNo,
+      final targetQty = existingIndex != -1
+          ? _cartItems[existingIndex].quantity + unitsToAdd
+          : unitsToAdd;
+      final synced = await _syncAddToServer(item, quantity: targetQty);
+      if (!synced) {
+        _showSyncError(
+          'Could not add to cart on server. The product may be unavailable.',
         );
-        _cartItems[existingIndex].updateQuantity(newQuantity);
-
-        debugPrint('✅ ITEM UPDATED LOCALLY - WILL SYNC WITH SERVER ===');
-        debugPrint('Product: ${item.name}');
-        debugPrint('New Total Quantity: $newQuantity');
-        debugPrint(
-            'Catalog Product ID: ${_cartItems[existingIndex].originalProductId}');
-        debugPrint('App Product ID: ${_cartItems[existingIndex].productId}');
-        debugPrint(
-            'Server Product ID: ${_cartItems[existingIndex].serverProductId}');
-        debugPrint('Batch: ${_cartItems[existingIndex].batchNo}');
-        debugPrint('========================================');
-
-        await _saveUserCarts();
-        notifyListeners();
-
-        final synced = await _syncAddToServer(
-          _cartItems[existingIndex],
-          syncQuantity: item.quantity,
-        );
-        if (!synced) {
-          _cartItems[existingIndex].updateQuantity(oldQuantity);
-          await _saveUserCarts();
-          notifyListeners();
-          _showSyncError(
-            'Could not add to cart on server. The product may be unavailable.',
-          );
-        } else {
-          _scheduleBackgroundCartSync();
-        }
-      } else {
-        _cartItems.add(item);
-
-        debugPrint('✅ NEW ITEM ADDED LOCALLY - WILL SYNC WITH SERVER ===');
-        debugPrint('Product: ${item.name}');
-        debugPrint('Quantity: ${item.quantity}');
-        debugPrint('Catalog Product ID: ${item.originalProductId}');
-        debugPrint('App Product ID: ${item.productId}');
-        debugPrint('============================================');
-
-        await _saveUserCarts();
-        notifyListeners();
-
-        final synced = await _syncAddToServer(item);
-        if (!synced) {
-          _cartItems.removeWhere((c) => _sameCartProduct(c, item));
-          await _saveUserCarts();
-          notifyListeners();
-          _showSyncError(
-            'Could not add to cart on server. The product may be unavailable.',
-          );
-        } else {
-          _scheduleBackgroundCartSync();
-        }
       }
     } catch (e) {
-      // Any exception, fallback to local cart
-      debugPrint('Error adding to cart: $e, adding to local cart');
+      debugPrint('Error adding to cart: $e');
       await _addToLocalCart(item);
     }
   }
 
-  /// Returns true when the server accepted the add/update.
-  Future<bool> _syncAddToServer(CartItem item, {int? syncQuantity}) async {
+  /// POST /check-auth; local cart is updated only from the response `items`.
+  Future<bool> _syncAddToServer(CartItem item, {required int quantity}) async {
     try {
       String? token = await AuthService.getToken();
-      Map<String, String> headers = {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      };
-      bool isLoggedIn = await AuthService.isLoggedIn();
-      if (token != null) {
-        if (isLoggedIn) {
-          headers['Authorization'] = 'Bearer $token';
-          debugPrint('[CartProvider] Using Bearer token for cart sync');
-        } else if (token.startsWith('guest')) {
-          headers['Authorization'] = 'Guest $token';
-          headers['X-Guest-ID'] = token;
-          debugPrint('[CartProvider] Using Guest token for cart sync');
-        } else {
-          debugPrint('Token present but not logged in and not a guest_id.');
-          return false;
-        }
-      } else {
-        debugPrint(
-            'Cannot sync add to server - missing auth token and guest_id');
+      final isLoggedIn = await AuthService.isLoggedIn();
+      if (token == null) {
+        debugPrint('Cannot sync add to server — missing auth token');
         return false;
       }
 
+      final headers = _cartAuthHeaders(token, isLoggedIn);
       final candidates = _productIdCandidatesForCheckAuth(item);
       if (candidates.isEmpty) {
-        debugPrint('❌ No valid product ID found - cannot add to cart');
+        debugPrint('❌ No valid product ID — cannot add to cart');
         return false;
       }
 
-      final qtyToSend = syncQuantity ?? item.quantity;
-      final catalogProductId = item.originalProductId ?? item.productId;
-
+      final qtyToSend = quantity > 0 ? quantity : 1;
       final response = await _cartService.checkAuthWithProductCandidates(
         headers: headers,
         productIds: candidates,
@@ -906,84 +666,12 @@ class CartProvider with ChangeNotifier {
       );
 
       if (!CartService.isSuccessStatus(response.statusCode)) {
-        debugPrint(
-            'Failed to add/update cart item on server: ${response.statusCode}');
-        if (response.statusCode == 404) {
-          debugPrint(
-              '⚠️ Product not found (404) after trying ids: $candidates');
-          debugPrint('Product: ${item.name}');
-          debugPrint('Batch: ${item.batchNo}');
-          debugPrint('Response: ${response.rawBody}');
-        }
+        debugPrint('Add to cart failed: ${response.statusCode}');
         return false;
       }
 
-      debugPrint('Successfully added item to server cart');
-
-      List<dynamic> serverItems = [];
-      try {
-        final responseData = CartService.decodeBody(response);
-        if (responseData != null) {
-          serverItems = responseData['items'] as List? ?? [];
-        }
-        if (serverItems.isNotEmpty) {
-          _pendingOriginalProductId = catalogProductId;
-          _pendingItemName = item.name;
-          _pendingItemBatch = item.batchNo;
-          _mergeFullServerCartFromCheckAuthItems(serverItems);
-          return true;
-        }
-
-        if (syncQuantity != null) {
-          final idx =
-              _findLocalCartIndex(name: item.name, batchNo: item.batchNo);
-          final targetQty = idx >= 0 ? _cartItems[idx].quantity : item.quantity;
-          _applyLocalQuantityTarget(
-            item,
-            targetQty,
-            serverItems,
-            catalogProductId: catalogProductId,
-          );
-        } else {
-          _reconcileLocalQuantityFromServerResponse(
-            serverItems,
-            item,
-            catalogProductId: catalogProductId,
-          );
-        }
-        if (_applyServerCartLinesFromResponse(
-          serverItems,
-          pendingOriginalProductId: catalogProductId,
-          pendingName: item.name,
-          pendingBatch: item.batchNo,
-        )) {
-          _consolidateDuplicateCartLines();
-          return true;
-        }
-      } catch (e) {
-        debugPrint('⚠️ Error extracting server cart from response: $e');
-      }
-
-      final syncedItemIndex = _findLocalCartIndex(
-        name: item.name,
-        batchNo: item.batchNo,
-      );
-      if (syncedItemIndex != -1) {
-        _cartItems[syncedItemIndex] = _cartItems[syncedItemIndex].copyWith(
-          originalProductId: catalogProductId,
-        );
-        notifyListeners();
-        await _saveUserCarts();
-        _consolidateDuplicateCartLines();
-        return true;
-      }
-
-      _pendingOriginalProductId = catalogProductId;
-      _pendingItemName = item.name;
-      _pendingItemBatch = item.batchNo;
-      await syncWithApi();
-      _consolidateDuplicateCartLines();
-      return true;
+      final data = CartService.decodeBody(response);
+      return _applyCheckAuthCartResponse(data, productHint: item);
     } catch (e) {
       debugPrint('Error adding/updating cart item on server: $e');
       return false;
@@ -1038,38 +726,29 @@ class CartProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Removes every cart line for this product locally and on the server.
+  /// Removes one cart row locally and via POST /remove-from-cart (`cart_id`).
   /// Pass [rowIndex] when the line has no server id yet (empty `cartId`).
   Future<void> removeFromCart(String cartId, {int? rowIndex}) async {
-    CartItem? itemToRemove;
-    if (rowIndex != null &&
-        rowIndex >= 0 &&
-        rowIndex < _cartItems.length &&
-        (cartId.isEmpty || _cartItems[rowIndex].id == cartId)) {
-      itemToRemove = _cartItems[rowIndex];
-    } else {
-      final itemIndex = _cartItems.indexWhere((item) => item.id == cartId);
-      if (itemIndex != -1) {
-        itemToRemove = _cartItems[itemIndex];
-      }
-    }
-
-    if (itemToRemove == null) {
+    final itemIndex = _resolveCartLineIndex(cartId, rowIndex: rowIndex);
+    if (itemIndex == -1) {
       debugPrint('❌ Item not found in cart with ID: $cartId');
       return;
     }
-    final target = itemToRemove;
+    final target = _cartItems[itemIndex];
 
-    debugPrint('=== REMOVE FROM CART (all instances) ===');
+    debugPrint('=== REMOVE FROM CART ===');
     debugPrint('Product: ${target.name}');
-    debugPrint('Batch: ${target.batchNo}');
     debugPrint('Cart line ID: ${target.id}');
-    debugPrint('========================================');
+    debugPrint('========================');
 
-    // Remove every local row for this product (name/batch/ID match).
-    _cartItems.removeWhere((item) => _sameCartProduct(item, target));
+    _cartItems.removeAt(itemIndex);
     await _saveUserCarts();
     notifyListeners();
+
+    if (!hasServerCartLineId(target.id)) {
+      debugPrint('Local-only cart line removed (no server id yet)');
+      return;
+    }
 
     final isLoggedIn = await AuthService.isLoggedIn();
     String? token = await AuthService.getToken();
@@ -1082,14 +761,17 @@ class CartProvider with ChangeNotifier {
     _inhibitRemoteCartSync = true;
     _holdRemoteCartSync(const Duration(seconds: 5));
     try {
-      await _removeAllProductInstances(
-        target,
+      final ok = await _removeCartLineById(
+        target.id,
         token,
         isLoggedIn,
-        allServerLines: true,
+        reason: 'user remove',
       );
+      if (!ok && !_remoteSyncPaused) {
+        await syncWithApi();
+      }
     } catch (e) {
-      debugPrint('⚠️ Error removing all server instances: $e');
+      debugPrint('⚠️ Error removing cart line: $e');
       if (!_remoteSyncPaused) {
         await syncWithApi();
       }
@@ -1153,83 +835,105 @@ class CartProvider with ChangeNotifier {
   ) =>
       cart.isItemUpdating(itemId, rowIndex);
 
-  // New method that uses item ID instead of index.
-  // Pass [rowIndex] so only that row shows the loader (avoids loader on other items when ids duplicate).
-  Future<void> updateQuantityById(String itemId, int newQuantity,
-      {int? rowIndex}) async {
-    int itemIndex = -1;
-    if (rowIndex != null &&
-        rowIndex >= 0 &&
-        rowIndex < _cartItems.length &&
-        (itemId.isEmpty || _cartItems[rowIndex].id == itemId)) {
-      itemIndex = rowIndex;
-    } else if (itemId.isNotEmpty) {
-      itemIndex = _cartItems.indexWhere((item) => item.id == itemId);
-    }
+  /// +1 on the cart line — POST /check-auth with absolute new qty (current + 1).
+  Future<void> incrementCartLine(String itemId, {int? rowIndex}) =>
+      _stepCartLineQuantity(itemId, delta: 1, rowIndex: rowIndex);
+
+  /// −1 on the cart line — POST /check-auth with absolute new qty (current − 1).
+  Future<void> decrementCartLine(String itemId, {int? rowIndex}) =>
+      _stepCartLineQuantity(itemId, delta: -1, rowIndex: rowIndex);
+
+  Future<void> _stepCartLineQuantity(
+    String itemId, {
+    required int delta,
+    int? rowIndex,
+  }) async {
+    if (delta == 0) return;
+
+    final itemIndex = _resolveCartLineIndex(itemId, rowIndex: rowIndex);
     if (itemIndex == -1) {
       debugPrint('⚠️ Item not found with ID: $itemId');
       return;
     }
 
     final item = _cartItems[itemIndex];
-    final oldQuantity = item.quantity;
-
-    debugPrint('=== UPDATE QUANTITY (local) ===');
-    debugPrint('Product: ${item.name}');
-    debugPrint('Batch: ${item.batchNo}');
-    debugPrint('Old Quantity: $oldQuantity');
-    debugPrint('New Quantity: $newQuantity');
-    debugPrint('Cart line ID: ${item.id}');
-    debugPrint('================================');
-
-    // Update local state immediately for UI responsiveness
-    _cartItems[itemIndex].updateQuantity(newQuantity);
-    await _saveUserCarts();
-    notifyListeners();
+    final currentQty = item.quantity > 0 ? item.quantity : 1;
+    final targetQty = currentQty + delta;
+    if (targetQty < 0) return;
+    if (targetQty == currentQty) return;
 
     final loaderKey = rowIndex != null ? '${itemId}_$rowIndex' : itemId;
 
     final isLoggedIn = await AuthService.isLoggedIn();
     String? token = await AuthService.getToken();
-
     if (!isLoggedIn && token == null) {
       final prefs = await SharedPreferences.getInstance();
       token = prefs.getString('guest_id');
     }
 
-    if (token != null) {
-      _inhibitRemoteCartSync = true;
-      _holdRemoteCartSync(const Duration(seconds: 5));
-      try {
-        await _withLoader(
-          loaderKey,
-          () async {
-            await _simpleQuantityUpdate(
-              item,
-              newQuantity,
-              previousQuantity: oldQuantity,
-            );
-          },
-        );
-      } catch (e) {
-        debugPrint('⚠️ Update error for ${item.name}: $e');
-        final rollbackIndex = _findLocalCartIndex(
-          name: item.name,
-          batchNo: item.batchNo,
-        );
-        if (rollbackIndex >= 0 && rollbackIndex < _cartItems.length) {
-          _cartItems[rollbackIndex].updateQuantity(oldQuantity);
-          await _saveUserCarts();
-          notifyListeners();
-        }
-        if (e is TimeoutException) {
-          _showSyncError('Update timed out. Please try again.');
-        } else if (e is! StateError) {
-          _showSyncError('Quantity update failed. Please try again.');
-        }
-      } finally {
-        _inhibitRemoteCartSync = false;
+    if (token == null) {
+      debugPrint('⚠️ No token — cannot update quantity on server');
+      return;
+    }
+
+    debugPrint(
+      'check-auth qty step: ${item.name} $currentQty → $targetQty '
+      '(delta $delta)',
+    );
+
+    _inhibitRemoteCartSync = true;
+    _holdRemoteCartSync(const Duration(seconds: 5));
+    try {
+      await _withLoader(
+        loaderKey,
+        () async {
+          final synced = await _adjustQuantityViaCheckAuth(
+            item,
+            targetQty,
+            token!,
+            isLoggedIn,
+            previousQuantity: currentQty,
+          );
+          if (!synced) {
+            throw Exception('check-auth quantity update failed');
+          }
+        },
+      );
+    } catch (e) {
+      debugPrint('⚠️ Update error for ${item.name}: $e');
+      if (e is TimeoutException) {
+        _showSyncError('Update timed out. Please try again.');
+      } else if (e is! StateError) {
+        _showSyncError('Quantity update failed. Please try again.');
       }
+    } finally {
+      _inhibitRemoteCartSync = false;
+    }
+  }
+
+  int _resolveCartLineIndex(String itemId, {int? rowIndex}) {
+    if (rowIndex != null &&
+        rowIndex >= 0 &&
+        rowIndex < _cartItems.length &&
+        (itemId.isEmpty || _cartItems[rowIndex].id == itemId)) {
+      return rowIndex;
+    }
+    if (itemId.isNotEmpty) {
+      return _cartItems.indexWhere((item) => item.id == itemId);
+    }
+    return -1;
+  }
+
+  /// Legacy entry — prefer [incrementCartLine] / [decrementCartLine].
+  Future<void> updateQuantityById(String itemId, int newQuantity,
+      {int? rowIndex}) async {
+    final itemIndex = _resolveCartLineIndex(itemId, rowIndex: rowIndex);
+    if (itemIndex == -1) return;
+    final currentQty = _cartItems[itemIndex].quantity;
+    if (newQuantity > currentQty) {
+      await incrementCartLine(itemId, rowIndex: rowIndex);
+    } else if (newQuantity < currentQty) {
+      await decrementCartLine(itemId, rowIndex: rowIndex);
     }
   }
 
@@ -1242,7 +946,8 @@ class CartProvider with ChangeNotifier {
     );
   }
 
-  /// IDs to try for check-auth — catalog id first, then cart row ids.
+  /// IDs to try for check-auth — catalog id first, then other known ids.
+  /// Server cart `product_id` is last; it often 404s while catalog id works.
   List<int> _productIdCandidatesForCheckAuth(CartItem item) {
     final ids = <int>[];
     void add(int? value) {
@@ -1257,11 +962,6 @@ class CartProvider with ChangeNotifier {
     return ids;
   }
 
-  int? _resolveCartProductId(CartItem item) {
-    final candidates = _productIdCandidatesForCheckAuth(item);
-    return candidates.isEmpty ? null : candidates.first;
-  }
-
   Map<String, String> _cartAuthHeaders(String token, bool isLoggedIn) =>
       CartService.cartAuthHeaders(token, isLoggedIn);
 
@@ -1269,84 +969,52 @@ class CartProvider with ChangeNotifier {
     return _cartItems.where((c) => _sameCartProduct(c, item)).length;
   }
 
-  /// Collapse duplicate local rows for one SKU to a single line at [quantity].
-  void _setSingleLocalLineQuantity(CartItem item, int quantity) {
-    CartItem? primary;
-    for (final line in _cartItems) {
-      if (_sameCartProduct(line, item)) {
-        primary ??= line;
-      }
-    }
-    _cartItems.removeWhere((line) => _sameCartProduct(line, item));
-    if (primary != null && quantity > 0) {
-      _cartItems.add(
-        primary.copyWith(
-          quantity: quantity,
-          totalPrice: primary.price * quantity,
-        ),
-      );
-    }
-  }
-
-  /// One POST to check-auth (backend returns "Cart Updated" for qty changes).
-  Future<bool> _fastQuantityUpdateViaCheckAuth(
+  /// POST /check-auth for +/- stepper — `quantity` is the new line total (not a delta).
+  Future<bool> _adjustQuantityViaCheckAuth(
     CartItem item,
-    int quantityToSend,
+    int targetQuantity,
     String token,
     bool isLoggedIn, {
-    required int targetLocalQuantity,
+    required int previousQuantity,
   }) async {
-    final productId = _resolveCartProductId(item);
-    if (productId == null) return false;
+    final candidates = _productIdCandidatesForCheckAuth(item);
+    if (candidates.isEmpty) return false;
+    if (targetQuantity < 1) return false;
 
     final headers = _cartAuthHeaders(token, isLoggedIn);
-    final body = <String, dynamic>{
-      'productID': productId,
-      'quantity': quantityToSend > 0 ? quantityToSend : 1,
-    };
-    if (item.batchNo.isNotEmpty) {
-      body['batch_no'] = item.batchNo;
-    }
-    final requestBody = jsonEncode(body);
 
-    final response = await _cartService.checkAuth(
+    final response = await _cartService.checkAuthWithProductCandidates(
       headers: headers,
-      body: body,
+      productIds: candidates,
+      quantity: targetQuantity,
+      batchNo: item.batchNo.isNotEmpty ? item.batchNo : null,
       timeout: _cartHttpTimeout,
-    );
-
-    _logCartApiResponse(
-      label: 'UPDATE QUANTITY API RESPONSE (check-auth)',
-      url: 'check-auth',
-      headers: headers,
-      requestBody: requestBody,
-      result: response,
+      onAttempt: ({
+        required String url,
+        required Map<String, String> headers,
+        required String requestBody,
+        required CategoryFetchResult result,
+      }) {
+        _logCartApiResponse(
+          label: 'UPDATE QUANTITY API RESPONSE (check-auth)',
+          url: url,
+          headers: headers,
+          requestBody: requestBody,
+          result: result,
+        );
+      },
     );
 
     if (!CartService.isSuccessStatus(response.statusCode)) {
       return false;
     }
 
-    try {
-      final data = CartService.decodeBody(response);
-      if (data == null) return false;
-      final items = data['items'] as List? ?? [];
-      final catalogId = item.originalProductId ?? item.productId;
-
-      _applyLocalQuantityTarget(
-        item,
-        targetLocalQuantity,
-        items,
-        catalogProductId: catalogId,
-        notify: false,
-      );
-
-      final added = data['added']?.toString().toLowerCase() ?? '';
-      return data['status']?.toString() == 'success' ||
-          added.contains('updated');
-    } catch (_) {
-      return false;
-    }
+    final data = CartService.decodeBody(response);
+    return _applyCheckAuthCartResponse(
+      data,
+      productHint: item,
+      wasDecrease: targetQuantity < previousQuantity,
+    );
   }
 
   Future<bool> _removeCartLineById(
@@ -1382,96 +1050,6 @@ class CartProvider with ChangeNotifier {
       return data?['status']?.toString() == 'success';
     } catch (_) {
       return true;
-    }
-  }
-
-  Future<void> _simpleQuantityUpdate(
-    CartItem item,
-    int newQuantity, {
-    int? previousQuantity,
-  }) async {
-    try {
-      final isLoggedIn = await AuthService.isLoggedIn();
-      String? token = await AuthService.getToken();
-
-      if (token == null && !isLoggedIn) {
-        final prefs = await SharedPreferences.getInstance();
-        token = prefs.getString('guest_id');
-      }
-
-      if (token == null) {
-        return;
-      }
-
-      if (newQuantity <= 0) {
-        await _removeAllProductInstances(
-          item,
-          token,
-          isLoggedIn,
-          allServerLines: true,
-        );
-        return;
-      }
-
-      final isIncrease =
-          previousQuantity != null && newQuantity > previousQuantity;
-
-      // Increases: only check-auth / add — never remove existing server lines.
-      if (isIncrease) {
-        final delta = newQuantity - previousQuantity;
-        debugPrint(
-          '🔄 Quantity sync path: increase (check-auth, +$delta → $newQuantity)',
-        );
-        final fast = await _fastQuantityUpdateViaCheckAuth(
-          item,
-          delta,
-          token,
-          isLoggedIn,
-          targetLocalQuantity: newQuantity,
-        );
-        if (fast) {
-          debugPrint('✅ Quantity increase synced via check-auth');
-          await _saveUserCarts();
-          return;
-        }
-
-        debugPrint(
-            '🔄 Quantity sync fallback: add $delta unit(s) via check-auth');
-        final synced = await _syncAddToServer(item, syncQuantity: delta);
-        if (synced) {
-          final idx =
-              _findLocalCartIndex(name: item.name, batchNo: item.batchNo);
-          if (idx >= 0) {
-            _cartItems[idx].updateQuantity(newQuantity);
-          }
-          await _saveUserCarts();
-          notifyListeners();
-        }
-        return;
-      }
-
-      // Decrease: check-auth only ADDS units. Clear every server row for this
-      // SKU (duplicates are common), then one check-auth add at target qty.
-      debugPrint(
-        '🔄 Quantity sync path: remove all server lines + re-add '
-        '(decrease → $newQuantity, local dupes=${_localLineCountForProduct(item)})',
-      );
-      if (_localLineCountForProduct(item) > 1) {
-        _setSingleLocalLineQuantity(item, newQuantity);
-        unawaited(_saveUserCarts());
-      }
-
-      await _removeAllProductInstances(
-        item,
-        token,
-        isLoggedIn,
-        allServerLines: true,
-      );
-      await _addSingleItemWithQuantity(item, newQuantity, token);
-      _consolidateDuplicateCartLines();
-    } catch (e) {
-      debugPrint('❌ Quantity sync error: $e');
-      _showSyncError('Quantity update failed. Please try again.');
     }
   }
 
@@ -1583,59 +1161,6 @@ class CartProvider with ChangeNotifier {
       }
     } catch (e) {
       debugPrint('⚠️ Error removing product instances: $e');
-    }
-  }
-
-  // Add single item with correct quantity
-  Future<void> _addSingleItemWithQuantity(
-      CartItem item, int quantity, String token) async {
-    try {
-      final productId = _resolveCartProductId(item);
-      if (productId == null) return;
-
-      final isLoggedIn = await AuthService.isLoggedIn();
-      final body = <String, dynamic>{
-        'productID': productId,
-        'quantity': quantity,
-      };
-      if (item.batchNo.isNotEmpty) {
-        body['batch_no'] = item.batchNo;
-      }
-
-      final headers = _cartAuthHeaders(token, isLoggedIn);
-      final requestBody = jsonEncode(body);
-
-      final addResponse = await _cartService.checkAuth(
-        headers: headers,
-        body: body,
-        timeout: _cartHttpTimeout,
-      );
-
-      _logCartApiResponse(
-        label: 'UPDATE QUANTITY API RESPONSE (check-auth re-add)',
-        url: 'check-auth',
-        headers: headers,
-        requestBody: requestBody,
-        result: addResponse,
-      );
-
-      if (CartService.isSuccessStatus(addResponse.statusCode)) {
-        try {
-          final data = CartService.decodeBody(addResponse);
-          final serverItems = data?['items'] as List? ?? [];
-          _applyLocalQuantityTarget(
-            item,
-            quantity,
-            serverItems,
-            catalogProductId: item.originalProductId ?? item.productId,
-          );
-        } catch (_) {}
-      } else {
-        _showSyncError('Failed to update quantity. Please try again.');
-      }
-    } catch (e) {
-      debugPrint('❌ Error adding single item: $e');
-      _showSyncError('Failed to update quantity. Please try again.');
     }
   }
 
@@ -1905,7 +1430,9 @@ class CartProvider with ChangeNotifier {
       await _clearServerCart(token);
 
       // Add all items in batch
-      final futures = _cartItems.map((item) => _syncAddToServer(item)).toList();
+      final futures = _cartItems
+          .map((item) => _syncAddToServer(item, quantity: item.quantity))
+          .toList();
       await Future.wait(futures);
 
       debugPrint('✅ Batch sync completed for ${_cartItems.length} items');

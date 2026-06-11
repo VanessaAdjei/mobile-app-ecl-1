@@ -166,27 +166,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       }
     }).catchError((_) {});
 
-    if (widget.fromProductCard) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _showAccidentalOpenUndo());
-    }
-  }
-
-  void _showAccidentalOpenUndo() {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Opened product'),
-        duration: const Duration(seconds: 3),
-        behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: 'Go back',
-          onPressed: () {
-            if (Navigator.canPop(context)) Navigator.pop(context);
-          },
-        ),
-      ),
-    );
   }
 
   /// Shows prior visits from disk before the current product API finishes.
@@ -1802,6 +1781,46 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     );
   }
 
+  /// Shown only if cart qty > 0 but [CartProvider.findLineForSku] missed (transient).
+  Widget _buildInCartFallbackBar(
+    BuildContext context,
+    int cartQuantity,
+    double unitPrice,
+  ) {
+    return Row(
+      children: [
+        Text(
+          'In cart ($cartQuantity)',
+          style: GoogleFonts.poppins(
+            fontSize: _fsBodyMedium,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const Spacer(),
+        SizedBox(
+          height: 42,
+          child: OutlinedButton(
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.cart),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: ItemDetailDesign.headingAccent(context),
+              side: BorderSide(color: ItemDetailDesign.accentBorder(context)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              'View cart',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                fontSize: _fsButton,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildInCartBottomBar(
     BuildContext context,
     Product product,
@@ -1815,21 +1834,20 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         catalogProductId: product.id.toString(),
       ),
       builder: (context, cartQuantity, _) {
-        final cartProvider = Provider.of<CartProvider>(context, listen: false);
-        final productNameNorm = CartProvider.normalizeProductName(product.name);
-        final cartItems = cartProvider.cartItems;
-        final existingItem = cartItems.cast<CartItem>().where(
-              (item) =>
-                  CartProvider.normalizeProductName(item.name) ==
-                      productNameNorm &&
-                  item.batchNo == product.batch_no,
-            );
-        final line = existingItem.isNotEmpty ? existingItem.first : null;
-        if (line == null) return const SizedBox.shrink();
+        if (cartQuantity <= 0) return const SizedBox.shrink();
 
-        final itemIndex = cartItems.indexWhere((item) =>
-            CartProvider.normalizeProductName(item.name) == productNameNorm &&
-            item.batchNo == product.batch_no);
+        final cartProvider = Provider.of<CartProvider>(context, listen: false);
+        final line = CartProvider.findLineForSku(
+          cartProvider,
+          productName: product.name,
+          batchNo: product.batch_no,
+          catalogProductId: product.id.toString(),
+        );
+        if (line == null) {
+          return _buildInCartFallbackBar(context, cartQuantity, price);
+        }
+
+        final itemIndex = cartProvider.cartItems.indexOf(line);
 
         return Column(
           mainAxisSize: MainAxisSize.min,
@@ -1913,22 +1931,26 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                 }
                                 _lastQuantityUpdateTime = now;
                                 HapticFeedback.mediumImpact();
-                                final incrementItem = CartItem(
-                                  id: line.id,
-                                  productId: product.id.toString(),
-                                  originalProductId: product.id.toString(),
-                                  serverProductId: line.serverProductId,
-                                  name: line.name,
-                                  price: line.price,
-                                  quantity: 1,
-                                  image: line.image,
-                                  batchNo: product.batch_no.isNotEmpty
-                                      ? product.batch_no
-                                      : line.batchNo,
-                                  urlName: line.urlName,
-                                  totalPrice: line.price,
-                                );
-                                cartProvider.addToCart(incrementItem);
+                                if (line.id.isNotEmpty) {
+                                  await cartProvider.incrementCartLine(line.id);
+                                } else {
+                                  final incrementItem = CartItem(
+                                    id: line.id,
+                                    productId: product.id.toString(),
+                                    originalProductId: product.id.toString(),
+                                    serverProductId: line.serverProductId,
+                                    name: line.name,
+                                    price: line.price,
+                                    quantity: 1,
+                                    image: line.image,
+                                    batchNo: product.batch_no.isNotEmpty
+                                        ? product.batch_no
+                                        : line.batchNo,
+                                    urlName: line.urlName,
+                                    totalPrice: line.price,
+                                  );
+                                  await cartProvider.addToCart(incrementItem);
+                                }
                                 if (context.mounted) {
                                   await _flyToCartAnimation(context);
                                   if (context.mounted && mounted) {

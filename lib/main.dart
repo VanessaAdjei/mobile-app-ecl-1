@@ -599,7 +599,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             isLoggedIn: _isLoggedIn,
             refreshAuthState: _refreshAuthState,
             child: MaterialApp(
-              title: 'Ernest Chemist',
+              title: 'Ernest Chemists Ltd',
               debugShowCheckedModeBanner: false,
               // hide keychain errors here too; tablet/desktop: centered max-width column
               builder: (context, widget) {
@@ -809,15 +809,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                             setState(() => _isFirstLaunch = false);
                           },
                         )
-                      : MainTabShell(
-                          key: MainTabShell.navigatorKey,
-                        ),
+                      : const MainTabShell(),
               onGenerateRoute: (settings) =>
                   AppRouteGenerator.generate(settings) ??
                   MaterialPageRoute(
-                    builder: (_) => MainTabShell(
-                      key: MainTabShell.navigatorKey,
-                    ),
+                    builder: (_) => const MainTabShell(),
                   ),
               routes: {
                 '/clearance-admin': (context) => const ClearanceAdminPage(),

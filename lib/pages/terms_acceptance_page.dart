@@ -140,7 +140,7 @@ class _TermsAcceptancePageState extends State<TermsAcceptancePage> {
                         Column(
                           children: [
                             Text(
-                              'Welcome to Ernest Chemists Limited',
+                              'Welcome to Ernest Chemists Ltd',
                               textAlign: TextAlign.center,
                               style: GoogleFonts.poppins(
                                 fontSize: 15,

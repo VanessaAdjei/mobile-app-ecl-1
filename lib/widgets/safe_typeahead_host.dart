@@ -39,6 +39,12 @@ class _SafeTypeAheadHostState<T> extends State<SafeTypeAheadHost<T>> {
   }
 
   @override
+  void activate() {
+    super.activate();
+    _active = true;
+  }
+
+  @override
   void deactivate() {
     _tearDownField();
     _active = false;

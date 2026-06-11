@@ -11,8 +11,8 @@ import '../services/delivery_service.dart';
 import '../utils/app_theme_colors.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
+import '../widgets/logout_confirm_dialog.dart';
 import 'bottomnav.dart';
-import 'homepage.dart';
 import 'loggedout.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -129,97 +129,14 @@ class ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showLogoutDialog() {
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    final isDark = themeProvider.isDarkMode;
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: isDark ? Colors.grey[900] : Colors.white,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  Icons.logout_rounded,
-                  color: Colors.red.shade600,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                "Confirm Logout",
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 18,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
-              ),
-            ],
-          ),
-          content: Text(
-            "Are you sure you want to logout from your account?",
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              color: isDark ? Colors.white70 : Colors.black54,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                if (Navigator.canPop(context)) {
-                  Navigator.pop(context);
-                } else {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => HomePage()),
-                  );
-                }
-              },
-              child: Text(
-                "Cancel",
-                style: GoogleFonts.poppins(
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade500,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 0,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              ),
-              onPressed: () async {
-                final navigator = Navigator.of(context);
-                await AuthService.logout();
-                if (mounted) {
-                  navigator.pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => LoggedOutScreen()),
-                    (route) => false,
-                  );
-                }
-              },
-              child: Text(
-                "Logout",
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ],
+    LogoutConfirmDialog.show(
+      context,
+      onConfirm: () async {
+        await AuthService.logout();
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoggedOutScreen()),
+          (route) => false,
         );
       },
     );

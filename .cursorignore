@@ -1,0 +1,14 @@
+build/
+.dart_tool/
+android/.gradle/
+android/build/
+ios/Pods/
+ios/.symlinks/
+ios/DerivedData/
+.flutter-plugins-dependencies*
+assets/images/
+analysis_results*.txt
+.git/
+*.iml
+.idea/
+temp_aar/

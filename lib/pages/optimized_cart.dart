@@ -343,8 +343,10 @@ class OptimizedCartState extends State<OptimizedCart> {
                           if (index != -1) {
                             _optimizationService.debounceOperation(
                               'update_quantity_${item.productId}',
-                              () => cartProvider.updateQuantity(
-                                  index, item.quantity - 1),
+                              () => cartProvider.decrementCartLine(
+                                    item.id,
+                                    rowIndex: index,
+                                  ),
                             );
                           }
                         },
@@ -375,8 +377,10 @@ class OptimizedCartState extends State<OptimizedCart> {
                           if (index != -1) {
                             _optimizationService.debounceOperation(
                               'update_quantity_${item.productId}',
-                              () => cartProvider.updateQuantity(
-                                  index, item.quantity + 1),
+                              () => cartProvider.incrementCartLine(
+                                    item.id,
+                                    rowIndex: index,
+                                  ),
                             );
                           }
                         },

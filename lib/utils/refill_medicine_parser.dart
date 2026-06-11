@@ -75,6 +75,51 @@ class RefillMedicineParser {
     return const [];
   }
 
+  static int? parseIntId(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value > 0 ? value : null;
+    if (value is String) {
+      final parsed = int.tryParse(value.trim());
+      return parsed != null && parsed > 0 ? parsed : null;
+    }
+    return null;
+  }
+
+  static int? extractProductIdFromMedicineMap(Map<String, dynamic> medicineMap) {
+    Map<String, dynamic>? nestedProduct;
+    final product = medicineMap['product'];
+    if (product is Map) {
+      nestedProduct = Map<String, dynamic>.from(product);
+    }
+
+    return parseIntId(medicineMap['product_id']) ??
+        parseIntId(medicineMap['productID']) ??
+        parseIntId(nestedProduct?['product_id']) ??
+        parseIntId(nestedProduct?['id']) ??
+        parseIntId(medicineMap['id']);
+  }
+
+  static List<int> cartProductIdCandidates({
+    required RefillMedicine medicine,
+    List<Product>? catalogProducts,
+  }) {
+    final ids = <int>[];
+    void add(int? value) {
+      if (value != null && value > 0 && !ids.contains(value)) {
+        ids.add(value);
+      }
+    }
+
+    add(medicine.id);
+
+    final catalog = catalogProducts;
+    if (catalog == null || catalog.isEmpty) return ids;
+
+    final matched = findProduct(catalog, medicine.id, medicine.name);
+    add(matched?.id);
+    return ids;
+  }
+
   static List<RefillMedicine> parseRefillEndpointMedicines(
     List<dynamic> medicinesData,
   ) {
@@ -89,7 +134,7 @@ class RefillMedicineParser {
         final imageUrl = getProductImageUrl(productImg?.toString());
 
         medicines.add(RefillMedicine(
-          id: medicineMap['product_id'] ?? medicineMap['id'] ?? 0,
+          id: extractProductIdFromMedicineMap(medicineMap) ?? 0,
           name: medicineMap['product_name'] ?? 'Unknown Medicine',
           description: medicineMap['description'] ?? '',
           dosage: medicineMap['dosage'] ?? medicineMap['route'] ?? '',
@@ -160,12 +205,19 @@ class RefillMedicineParser {
     }
 
     if (productName != null && productName.isNotEmpty) {
+      final lower = productName.toLowerCase().trim();
       try {
         return allProducts.firstWhere(
-          (p) => p.name.toLowerCase().contains(productName.toLowerCase()),
+          (p) => p.name.toLowerCase().trim() == lower,
         );
       } catch (_) {
-        return null;
+        try {
+          return allProducts.firstWhere(
+            (p) => p.name.toLowerCase().contains(lower),
+          );
+        } catch (_) {
+          return null;
+        }
       }
     }
 
@@ -191,15 +243,16 @@ class RefillMedicineParser {
           ? prescription['product'] as Map<String, dynamic>
           : <String, dynamic>{};
 
-      final productId = prescription['product_id'] ??
-          productData['id'] ??
-          prescription['id'];
+      final productId =
+          prescription['product_id'] ?? productData['id'];
       final productName = prescription['product_name'] ??
           productData['name'] ??
           prescription['name'] ??
           'Prescribed Medicine';
 
       final matchedProduct = findProduct(allProducts, productId, productName);
+      final resolvedProductId =
+          matchedProduct?.id ?? parseIntId(productId) ?? 0;
 
       final createdAt =
           prescription['created_at'] ?? prescription['updated_at'] ?? '';
@@ -209,9 +262,7 @@ class RefillMedicineParser {
       }
 
       final medicine = RefillMedicine(
-        id: productId is int
-            ? productId
-            : (productId is String ? int.tryParse(productId) ?? 0 : 0),
+        id: resolvedProductId,
         name: productName,
         description: productData['description'] ??
             prescription['description'] ??

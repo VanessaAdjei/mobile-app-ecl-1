@@ -1074,16 +1074,14 @@ class CartState extends State<Cart> {
                             quantity: vm.quantity,
                             enabled: !vm.isBusy,
                             onDecrement: () {
-                              cart.updateQuantityById(
+                              cart.decrementCartLine(
                                 vm.lineId,
-                                vm.quantity - 1,
                                 rowIndex: index,
                               );
                             },
                             onIncrement: () {
-                              cart.updateQuantityById(
+                              cart.incrementCartLine(
                                 vm.lineId,
-                                vm.quantity + 1,
                                 rowIndex: index,
                               );
                             },

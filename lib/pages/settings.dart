@@ -23,6 +23,7 @@ import 'package:eclapp/services/native_notification_service.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
+import '../widgets/logout_confirm_dialog.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -121,60 +122,15 @@ class SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showLogoutDialog() {
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor:
-              themeProvider.isDarkMode ? Colors.grey[900] : Colors.white,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(
-            "Logout",
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.bold,
-              color: themeProvider.isDarkMode ? Colors.white : Colors.black,
-            ),
-          ),
-          content: Text(
-            "Are you sure you want to logout?",
-            style: GoogleFonts.poppins(
-              color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                "Cancel",
-                style: GoogleFonts.poppins(
-                  color: Colors.grey,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              onPressed: () async {
-                await AuthService.logout();
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => LoggedOutScreen()),
-                  (route) => false,
-                );
-              },
-              child: Text(
-                "Logout",
-                style: GoogleFonts.poppins(),
-              ),
-            ),
-          ],
+    LogoutConfirmDialog.show(
+      context,
+      onConfirm: () async {
+        await AuthService.logout();
+        if (!mounted) return;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const LoggedOutScreen()),
+          (route) => false,
         );
       },
     );

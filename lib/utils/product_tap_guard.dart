@@ -19,7 +19,7 @@ class ProductTapGuard {
     final now = DateTime.now();
     if (_lastScrollAt != null &&
         now.difference(_lastScrollAt!) <
-            const Duration(milliseconds: 220)) {
+            const Duration(milliseconds: 120)) {
       return false;
     }
     if (_lastOpenAt != null &&
@@ -59,10 +59,14 @@ class ProductTapScrollScope extends StatelessWidget {
   Widget build(BuildContext context) {
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
-        if (notification is ScrollUpdateNotification ||
-            notification is ScrollStartNotification ||
-            notification is ScrollEndNotification) {
-          ProductTapGuard.markScrolling();
+        // Only the main vertical feed should block taps — ignore nested
+        // horizontal lists (e.g. popular products auto-scroll).
+        if (notification is ScrollUpdateNotification &&
+            notification.metrics.axis == Axis.vertical) {
+          final delta = notification.scrollDelta;
+          if (delta != null && delta.abs() > 2) {
+            ProductTapGuard.markScrolling();
+          }
         }
         return false;
       },

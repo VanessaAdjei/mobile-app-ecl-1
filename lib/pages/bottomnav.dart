@@ -449,7 +449,8 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                     subtitle: 'Support team',
                                     color: Colors.orange.shade600,
                                     onTap: () {
-                                      _popThen(() => _showContactOptions(context));
+                                      _popThen(
+                                          () => _showContactOptions(context));
                                     },
                                   ),
                                 ),
@@ -607,7 +608,8 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                             Navigator.pop(context);
                             _afterRouteUnlock(() async {
                               if (!mounted || !context.mounted) return;
-                              final selected = await showModalBottomSheet<String>(
+                              final selected =
+                                  await showModalBottomSheet<String>(
                                 context: context,
                                 builder: (ctx) => SafeArea(
                                   child: Column(
@@ -653,7 +655,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                             _popThen(() {
                               _launchWhatsApp(
                                 whatsapp,
-                                'Hello! I need help with the Ernest Chemist app. Can you assist me?',
+                                'Hello! I need help with the Ernest Chemists Ltd app. Can you assist me?',
                               );
                             });
                           },
@@ -669,7 +671,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                             _popThen(() {
                               _launchEmail(
                                 email,
-                                'Ernest Chemist Support & Inquiry',
+                                'Ernest Chemists Ltd Support & Inquiry',
                               );
                             });
                           },
@@ -826,8 +828,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
         await launchUrl(emailUri);
       } else {
         if (mounted) {
-          AppErrorUtils.showSnack(
-              context, 'No email app found on your device');
+          AppErrorUtils.showSnack(context, 'No email app found on your device');
         }
       }
     } catch (e) {
@@ -852,11 +853,9 @@ class _CustomBottomNavState extends State<CustomBottomNav>
       ScaffoldMessenger.of(context).clearSnackBars();
     }
 
-    if (_isNavigating) return;
-
     if (index == 2) {
       _centerButtonController.forward().then((_) {
-        _centerButtonController.reverse();
+        if (mounted) _centerButtonController.reverse();
       });
       _showPlusMenu(context);
       return;
@@ -865,69 +864,20 @@ class _CustomBottomNavState extends State<CustomBottomNav>
     if (_navItemControllers.containsKey(index)) {
       final controller = _navItemControllers[index]!;
       controller.forward().then((_) {
-        controller.reverse();
+        if (mounted) controller.reverse();
       });
     }
 
     if (_usesShellNavigation) {
-      if (index == _activeIndex) return;
-      widget.onTabSelected!(index);
-      if (widget.selectedIndex == null) {
-        setState(() => _selectedIndex = index);
+      if (index != _activeIndex) {
+        widget.onTabSelected!(index);
       }
+      Navigator.of(context, rootNavigator: true)
+          .popUntil((route) => route.isFirst);
       return;
     }
 
-    if (index == _activeIndex) {
-      if (index == 0 && _isOnHomePage()) return;
-      switch (index) {
-        case 1:
-          if (_isOnPage<Cart>()) return;
-          break;
-        case 3:
-          if (_isOnPage<CategoryPage>()) return;
-          break;
-        case 4:
-          if (_isOnPage<Profile>()) return;
-          break;
-      }
-    }
-
-    _isNavigating = true;
-    setState(() => _selectedIndex = index);
-
-    _afterRouteUnlock(() {
-      if (!mounted || _disposed || !context.mounted) {
-        _isNavigating = false;
-        return;
-      }
-
-      try {
-        if (MainTabShell.switchToTab(context, index)) {
-          return;
-        }
-        switch (index) {
-          case 0:
-            Navigator.pushReplacementNamed(context, AppRoutes.home);
-            break;
-          case 1:
-            Navigator.pushReplacementNamed(context, AppRoutes.cart);
-            break;
-          case 3:
-            Navigator.pushReplacementNamed(context, AppRoutes.categoryPage);
-            break;
-          case 4:
-            Navigator.pushReplacementNamed(context, AppRoutes.profile);
-            break;
-        }
-      } catch (e) {
-        debugPrint('Bottom nav error: $e');
-      } finally {
-        if (mounted && !_disposed) {
-          _isNavigating = false;
-        }
-      }
-    });
+    MainTabShell.goToTab(context, index);
   }
 
   Widget _buildCenterMenuButton(double diameter, {bool tappable = false}) {
@@ -1061,8 +1011,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
 
     final finalIconSize = iconSize.clamp(16.0, 20.0);
     final finalFontSize = fontSize.clamp(7.0, 10.0);
-    final centerButtonSize =
-        (screenWidth * 0.134).clamp(52.0, 58.0);
+    final centerButtonSize = (screenWidth * 0.134).clamp(52.0, 58.0);
     final centerButtonLift = centerButtonSize * 0.22;
     final navLabelStyle = TextStyle(
       fontSize: finalFontSize,

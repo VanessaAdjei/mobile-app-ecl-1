@@ -3,7 +3,6 @@
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:pull_to_refresh/pull_to_refresh.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../config/api_config.dart';
@@ -16,8 +15,7 @@ import 'itemdetail.dart';
 import 'package:shimmer/shimmer.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:eclapp/widgets/safe_typeahead_field.dart';
-import 'package:eclapp/widgets/typeahead_box_style.dart';
+import 'package:eclapp/widgets/home/home_search_bar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'search_results_page.dart';
 import 'dart:convert';
@@ -109,7 +107,8 @@ class ImagePreloader {
 }
 
 // ─── Home section buckets (shared by sync hydrate + background isolate) ─────
-Map<String, List<Product>> categorizeProductsForHome(List<Product> allProducts) {
+Map<String, List<Product>> categorizeProductsForHome(
+    List<Product> allProducts) {
   final otcDrug = <Product>[];
   final prescribed = <Product>[];
   final wellness = <Product>[];
@@ -158,10 +157,8 @@ class ErrorDisplayWidget extends StatelessWidget {
           Icon(Icons.wifi_off_rounded, size: 50, color: theme.muted),
           const SizedBox(height: 16),
           Text('No Internet Connection',
-            style: TextStyle(
-              fontSize: 16,
-              color: theme.ink,
-                  fontWeight: FontWeight.w500)),
+              style: TextStyle(
+                  fontSize: 16, color: theme.ink, fontWeight: FontWeight.w500)),
           const SizedBox(height: 8),
           Text('Please check your connection and try again',
               style: TextStyle(fontSize: 14, color: theme.muted)),
@@ -179,31 +176,133 @@ class ErrorDisplayWidget extends StatelessWidget {
   }
 }
 
-class SliverSearchBarDelegate extends SliverPersistentHeaderDelegate {
-  final Widget Function(double shrinkOffset) builder;
+/// Buffer below the status bar / Dynamic Island when only the search bar is pinned.
+const double _kHomeSearchPinnedTopExtra = 2;
 
-  SliverSearchBarDelegate({required this.builder});
+/// Grey search placeholder shown while the catalog loads.
+class _HomeSearchSkeleton extends StatelessWidget {
+  const _HomeSearchSkeleton({required this.isTablet});
+
+  final bool isTablet;
 
   @override
-  Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      color: shrinkOffset > 0
-          ? AppThemeColors.headerBackground
-          : Theme.of(context).scaffoldBackgroundColor,
-      child: builder(shrinkOffset),
+  Widget build(BuildContext context) {
+    final theme = context.appColors;
+    final radius = isTablet ? 24.0 : 18.0;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        isTablet ? 24 : 16,
+        isTablet ? 18 : 12,
+        isTablet ? 24 : 16,
+        isTablet ? 10 : 6,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.skeleton,
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.35),
+          ),
+        ),
+      ),
     );
   }
+}
+
+/// Green logo row + search in one collapsible [SliverAppBar] (safe area when collapsed).
+class _HomeHeaderSearchFlexibleSpace extends StatelessWidget {
+  const _HomeHeaderSearchFlexibleSpace({
+    required this.toolbarHeight,
+    required this.searchExtent,
+    required this.isTablet,
+    required this.skeleton,
+    required this.tourCartKey,
+    required this.searchBarKey,
+    required this.products,
+  });
+
+  final double toolbarHeight;
+  final double searchExtent;
+  final bool isTablet;
+  final bool skeleton;
+  final GlobalKey tourCartKey;
+  final GlobalKey<HomeSearchBarState> searchBarKey;
+  final List<Product> products;
 
   @override
-  double get maxExtent => 96.0;
+  Widget build(BuildContext context) {
+    final top = MediaQuery.viewPaddingOf(context).top;
+    final collapsedHeight = top + _kHomeSearchPinnedTopExtra + searchExtent;
 
-  @override
-  double get minExtent => 96.0;
+    return Material(
+      color: AppThemeColors.headerBackground,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final showToolbar = constraints.maxHeight > collapsedHeight + 1;
 
-  @override
-  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) =>
-      true;
+          return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (showToolbar)
+              ColoredBox(
+                color: AppThemeColors.headerBackground,
+                child: SafeArea(
+                  bottom: false,
+                  child: SizedBox(
+                    height: toolbarHeight,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Padding(
+                          padding: EdgeInsets.only(left: isTablet ? 16 : 1),
+                          child: Image.asset(
+                            'assets/images/png.png',
+                            height: isTablet ? 32 : 20,
+                          ),
+                        ),
+                        CartIconButton(
+                          key: tourCartKey,
+                          iconColor: Colors.white,
+                          iconSize: isTablet ? 28 : 24,
+                          backgroundColor: Colors.transparent,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            else
+              ColoredBox(
+                color: AppThemeColors.headerBackground,
+                child: SizedBox(height: top + _kHomeSearchPinnedTopExtra),
+              ),
+            Expanded(
+              child: ColoredBox(
+                color: showToolbar
+                    ? Theme.of(context).scaffoldBackgroundColor
+                    : AppThemeColors.headerBackground,
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: SizedBox(
+                    height: searchExtent,
+                    child: skeleton
+                        ? _HomeSearchSkeleton(isTablet: isTablet)
+                        : HomeSearchBar(
+                            key: searchBarKey,
+                            isTablet: isTablet,
+                            catalogProducts: products,
+                          ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+          );
+        },
+      ),
+    );
+  }
 }
 
 class HomePage extends StatefulWidget {
@@ -248,11 +347,9 @@ class HomePageState extends State<HomePage>
   List<Product> selfcareProducts = [];
   List<Product> accessoriesProducts = [];
 
-  final RefreshController _refreshController = RefreshController();
-  final TextEditingController searchController = TextEditingController();
-  final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey _tourSearchKey = GlobalKey();
+  final GlobalKey<HomeSearchBarState> _homeSearchBarKey =
+      GlobalKey<HomeSearchBarState>();
   final GlobalKey _tourCartKey = GlobalKey();
   final GlobalKey _tourCategoriesKey = GlobalKey();
   final GlobalKey _tourMedicationKey = GlobalKey();
@@ -264,6 +361,7 @@ class HomePageState extends State<HomePage>
   GlobalKey get tourMenuKey => widget.tourMenuKey ?? _tourMenuKey;
   GlobalKey get tourShopKey => widget.tourShopKey ?? _tourShopKey;
 
+  /// Kept for scroll listener stability across hot reload (header uses [SliverAppBar]).
   bool _isScrolled = false;
 
   List<dynamic> _categories = [];
@@ -275,7 +373,6 @@ class HomePageState extends State<HomePage>
   final HomepageOptimizationService _optimizationService =
       HomepageOptimizationService();
   final Map<String, bool> _preloadedImages = {};
-
 
   /// Set by pull-to-refresh so [loadProducts] skips the intermediate section
   /// seed and lets [_processProducts] produce the single (reshuffled) update.
@@ -294,8 +391,12 @@ class HomePageState extends State<HomePage>
   bool _homeWarmStarted = false;
   int _homeImageWarmGeneration = 0;
 
+  /// Blocks taps on home until the first-run spotlight tour starts or gives up.
+  bool _homeTourInputBlocked = false;
+
   /// Categorize on a worker when the catalog is large enough to jank the UI.
   static const int _isolateProcessThreshold = 50;
+
   /// Grid sections on home (Wellness, Selfcare, etc.) show up to this many cards.
   static const int _homeGridSectionVisibleCount = 6;
   bool _spotlightTourScheduled = false;
@@ -362,6 +463,7 @@ class HomePageState extends State<HomePage>
     if (ProductCache.hasProductsInMemory || _products.isNotEmpty) {
       _scheduleSpotlightTourDelayed();
     }
+    unawaited(_armTourInputBlockAfterOnboarding());
 
     if (ProductImagePreloadService.isHomeGridWarm) {
       _homeGridImagesReady = true;
@@ -377,15 +479,14 @@ class HomePageState extends State<HomePage>
       unawaited(_loadCategories());
     }
 
-    _scrollController.addListener(() {
-    if (!mounted) return;
-      if (_scrollController.offset > 100 && !_isScrolled) {
-        setState(() => _isScrolled = true);
-      } else if (_scrollController.offset <= 100 && _isScrolled) {
-        setState(() => _isScrolled = false);
-      }
-    });
+    _scrollController.addListener(_onHomeScroll);
+  }
 
+  void _onHomeScroll() {
+    if (!mounted) return;
+    final scrolled = _scrollController.offset > 100;
+    if (scrolled == _isScrolled) return;
+    setState(() => _isScrolled = scrolled);
   }
 
   /// Categories preloaded during onboarding — apply before first frame.
@@ -650,8 +751,8 @@ class HomePageState extends State<HomePage>
     final cachedPopular = ProductCache.cachedPopularProducts;
     _seedOptimizationFromProductCache();
 
-    final shouldShuffle =
-        reshuffleSections && (drugsSectionProducts.isEmpty || _forceSectionShuffleOnce);
+    final shouldShuffle = reshuffleSections &&
+        (drugsSectionProducts.isEmpty || _forceSectionShuffleOnce);
     final shouldFillOthers = !shouldShuffle &&
         cachedAll.isNotEmpty &&
         (_nonDrugSectionsNeedMoreProducts() ||
@@ -892,10 +993,91 @@ class HomePageState extends State<HomePage>
   }
 
   void _scheduleSpotlightTourDelayed() {
+    unawaited(_armTourInputBlockForPendingTour());
     Future<void>.delayed(const Duration(seconds: 2), () {
       if (mounted) _scheduleSpotlightTour();
     });
   }
+
+  /// After onboarding, block accidental taps until coach marks appear.
+  Future<void> _armTourInputBlockAfterOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!(prefs.getBool('just_finished_onboarding') ?? false)) return;
+    if (prefs.getBool('has_seen_smart_tips') ?? false) return;
+    if (!mounted) return;
+    setState(() => _homeTourInputBlocked = true);
+  }
+
+  Future<void> _armTourInputBlockForPendingTour() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!(prefs.getBool('hasLaunchedBefore') ?? false)) return;
+    if (prefs.getBool('has_seen_smart_tips') ?? false) return;
+    if (!mounted) return;
+    setState(() => _homeTourInputBlocked = true);
+  }
+
+  void _releaseTourInputBlock() {
+    if (!_homeTourInputBlocked) return;
+    if (!mounted) return;
+    setState(() => _homeTourInputBlocked = false);
+  }
+
+  Widget _wrapWithTourInputShield(Widget child) {
+    if (!_homeTourInputBlocked) return child;
+    return Stack(
+      children: [
+        child,
+        const Positioned.fill(
+          child: AbsorbPointer(
+            child: ColoredBox(color: Colors.transparent),
+          ),
+        ),
+      ],
+    );
+  }
+
+  SliverAppBar _buildHomeAppBarWithSearch(
+    bool isTablet, {
+    bool skeleton = false,
+  }) {
+    final toolbarHeight = isTablet ? 80.0 : 60.0;
+    final searchExtent = HomeSearchBar.headerExtent(isTablet: isTablet);
+    final top = MediaQuery.viewPaddingOf(context).top;
+    final collapsedHeight = top + _kHomeSearchPinnedTopExtra + searchExtent;
+    final expandedHeight = top + toolbarHeight + searchExtent;
+
+    return SliverAppBar(
+      automaticallyImplyLeading: false,
+      primary: false,
+      backgroundColor: AppThemeColors.headerBackground,
+      surfaceTintColor: Colors.transparent,
+      scrolledUnderElevation: 0,
+      shadowColor: Colors.transparent,
+      pinned: true,
+      floating: false,
+      stretch: false,
+      expandedHeight: expandedHeight,
+      collapsedHeight: collapsedHeight,
+      toolbarHeight: 0,
+      flexibleSpace: _HomeHeaderSearchFlexibleSpace(
+        toolbarHeight: toolbarHeight,
+        searchExtent: searchExtent,
+        isTablet: isTablet,
+        skeleton: skeleton,
+        tourCartKey: _tourCartKey,
+        searchBarKey: _homeSearchBarKey,
+        products: _products,
+      ),
+    );
+  }
+
+  List<Widget> _buildHomeTopSlivers(
+    bool isTablet, {
+    bool searchSkeleton = false,
+  }) =>
+      [
+        _buildHomeAppBarWithSearch(isTablet, skeleton: searchSkeleton),
+      ];
 
   List<Product> _visibleHomeProductsForImageWarm() {
     return [
@@ -1058,50 +1240,54 @@ class HomePageState extends State<HomePage>
     final forceTour =
         justFinished || !(prefs.getBool('has_seen_smart_tips') ?? false);
 
-    if (justFinished) {
-      await _waitForFirstHomeUiReady();
-      if (!mounted) return;
-    }
+    try {
+      if (justFinished) {
+        await _waitForFirstHomeUiReady();
+        if (!mounted) return;
+      }
 
-    final maxAttempts = justFinished ? 16 : 12;
-    for (var attempt = 0; attempt < maxAttempts; attempt++) {
-      if (!mounted) return;
-      if (_products.isEmpty) {
-        await Future<void>.delayed(
-          Duration(milliseconds: justFinished ? 80 : 350 * (attempt + 1)),
-        );
+      final maxAttempts = justFinished ? 16 : 12;
+      for (var attempt = 0; attempt < maxAttempts; attempt++) {
         if (!mounted) return;
-        continue;
-      }
-      if (attempt > 0) {
-        await Future<void>.delayed(
-          Duration(milliseconds: justFinished ? 120 : 400 * attempt),
-        );
-        if (!mounted) return;
-      }
-      final shown = await HomePageTour.maybeStart(
-        context: context,
-        targets: HomePageTourTargets(
-          searchKey: _tourSearchKey,
-          cartKey: _tourCartKey,
-          categoriesKey: _tourCategoriesKey,
-          menuKey: tourMenuKey,
-          shopKey: tourShopKey,
-          medicationKey: _tourMedicationKey,
-          popularKey: _tourPopularKey,
-        ),
-        scrollController: _scrollController,
-        force: forceTour && attempt == 0,
-      );
-      if (!mounted) return;
-      if (shown) {
-        if (justFinished) {
-          await prefs.setBool('just_finished_onboarding', false);
+        if (_products.isEmpty) {
+          await Future<void>.delayed(
+            Duration(milliseconds: justFinished ? 80 : 350 * (attempt + 1)),
+          );
+          if (!mounted) return;
+          continue;
         }
-        return;
+        if (attempt > 0) {
+          await Future<void>.delayed(
+            Duration(milliseconds: justFinished ? 120 : 400 * attempt),
+          );
+          if (!mounted) return;
+        }
+        final shown = await HomePageTour.maybeStart(
+          context: context,
+          targets: HomePageTourTargets(
+            searchKey: _homeSearchBarKey,
+            cartKey: _tourCartKey,
+            categoriesKey: _tourCategoriesKey,
+            menuKey: tourMenuKey,
+            shopKey: tourShopKey,
+            medicationKey: _tourMedicationKey,
+            popularKey: _tourPopularKey,
+          ),
+          scrollController: _scrollController,
+          force: forceTour && attempt == 0,
+        );
+        if (!mounted) return;
+        if (shown) {
+          if (justFinished) {
+            await prefs.setBool('just_finished_onboarding', false);
+          }
+          return;
+        }
       }
+      debugPrint('HomePageTour: not shown after retries');
+    } finally {
+      _releaseTourInputBlock();
     }
-    debugPrint('HomePageTour: not shown after retries');
   }
 
   // ─── Content loading ──────────────────────────────────────────────────────
@@ -1120,7 +1306,8 @@ class HomePageState extends State<HomePage>
         final catalogWait = ProductCache.isCatalogLoadInFlight
             ? const Duration(seconds: 90)
             : const Duration(seconds: 30);
-        final ready = await ProductCache.ensureCatalogReady(maxWait: catalogWait);
+        final ready =
+            await ProductCache.ensureCatalogReady(maxWait: catalogWait);
         if (!mounted) return;
         if (ready && ProductCache.hasProductsInMemory) {
           _applyCacheToState();
@@ -1148,9 +1335,9 @@ class HomePageState extends State<HomePage>
         await _processProducts(_products);
         _scheduleSpotlightTour();
         unawaited(_ensureHomeGridImages());
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
             _isLoadingPopular = popularProducts.isEmpty;
           });
           _schedulePostInitHomeWork();
@@ -1176,7 +1363,6 @@ class HomePageState extends State<HomePage>
     } finally {
       _isLoadingContent = false;
       if (mounted) setState(() => _isLoading = false);
-      if (_refreshController.isRefresh) _refreshController.refreshCompleted();
       if (mounted) {
         _schedulePostInitHomeWork();
         _scheduleSpotlightTour();
@@ -1265,26 +1451,26 @@ class HomePageState extends State<HomePage>
     final cached = ProductCache.cachedProducts;
     if (cached.isNotEmpty) {
       _preloadImages(cached.take(8).toList());
-        if (mounted) {
-          setState(() {
+      if (mounted) {
+        setState(() {
           _products = cached;
           filteredProducts = cached;
           _seedSectionsFromProducts(cached);
-            _isLoading = false;
-            _error = null;
-          });
+          _isLoading = false;
+          _error = null;
+        });
         _persistSnapshot();
       }
       unawaited(_processProducts(cached));
     } else if (mounted) {
       // No cache to fall back to: always surface an error+retry view so a cold
       // offline start can't hang on an infinite spinner.
-          setState(() {
+      setState(() {
         _error = error ?? 'No internet connection';
-            _isLoading = false;
-          });
-        }
-      }
+        _isLoading = false;
+      });
+    }
+  }
 
   /// Re-buckets products; large catalogs always categorize on a worker isolate.
   Future<void> _processProducts(List<Product> allProducts) async {
@@ -1339,8 +1525,8 @@ class HomePageState extends State<HomePage>
     final selfcare = _shuffledSectionPool(sections['selfcare']!);
     final accessories = _shuffledSectionPool(sections['accessories']!);
 
-        if (mounted) {
-          setState(() {
+    if (mounted) {
+      setState(() {
         drugsSectionProducts = drugs;
         prescribedProducts = prescribed;
         wellnessProducts = wellness;
@@ -1403,8 +1589,7 @@ class HomePageState extends State<HomePage>
           _isLoadingPopular = false;
         });
         _persistSnapshot();
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {});
       } else if (list.isNotEmpty) {
         setState(() {
           popularProducts = const [];
@@ -1422,7 +1607,8 @@ class HomePageState extends State<HomePage>
           s.contains('Connection failed') ||
           s.contains('No internet');
       _fallbackToPopularCache(
-        error: isConnectivity ? 'No internet connection' : 'Something went wrong',
+        error:
+            isConnectivity ? 'No internet connection' : 'Something went wrong',
       );
     }
   }
@@ -1437,8 +1623,7 @@ class HomePageState extends State<HomePage>
         _popularError = null;
       });
       _persistSnapshot();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {});
     } else {
       setState(() {
         _popularError = error;
@@ -1453,7 +1638,6 @@ class HomePageState extends State<HomePage>
   Future<void> _handleRefresh() async {
     if (_refreshFuture != null) {
       await _refreshFuture;
-      _completePullRefresh();
       return;
     }
 
@@ -1462,13 +1646,6 @@ class HomePageState extends State<HomePage>
       await _refreshFuture;
     } finally {
       _refreshFuture = null;
-      _completePullRefresh();
-    }
-  }
-
-  void _completePullRefresh() {
-    if (mounted && _refreshController.isRefresh) {
-      _refreshController.refreshCompleted();
     }
   }
 
@@ -1578,8 +1755,7 @@ class HomePageState extends State<HomePage>
     ProductCache.removeCatalogListener(_onProductCacheUpdated);
     ProductCache.removePriorityListener(_onPriorityCacheUpdated);
     WidgetsBinding.instance.removeObserver(this);
-    searchController.dispose();
-    _searchController.dispose();
+    _scrollController.removeListener(_onHomeScroll);
     _scrollController.dispose();
     super.dispose();
   }
@@ -1663,10 +1839,7 @@ class HomePageState extends State<HomePage>
   }
 
   void _clearSearch() {
-    if (_searchController.text.isNotEmpty && mounted) {
-      _searchController.clear();
-      setState(() {});
-    }
+    _homeSearchBarKey.currentState?.clear();
   }
 
   // ─── Snackbar ──────────────────────────────────────────────────────────────
@@ -1687,106 +1860,106 @@ class HomePageState extends State<HomePage>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
-          decoration: BoxDecoration(
+        decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 20,
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 20,
                   offset: const Offset(0, -5))
             ]),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
+            Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
                     color: Colors.grey.shade300,
                     borderRadius: BorderRadius.circular(2))),
-                const SizedBox(height: 16),
-                Container(
+            const SizedBox(height: 16),
+            Container(
               padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
+              decoration: BoxDecoration(
+                  gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [Colors.green.shade50, Colors.blue.shade50]),
                   borderRadius: BorderRadius.circular(10)),
               child:
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Container(
+                Container(
                   padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.green.shade200,
-                              blurRadius: 6,
+                  decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.green.shade200,
+                            blurRadius: 6,
                             offset: const Offset(0, 1))
                       ]),
                   child: Image.asset('assets/images/png.png',
                       width: 20, height: 20, fit: BoxFit.contain),
-                      ),
-                      const SizedBox(width: 8),
+                ),
+                const SizedBox(width: 8),
                 Column(children: [
                   Text("We're Here to Help!",
-                            style: _homePoppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
+                      style: _homePoppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
                           color: Colors.grey.shade800)),
                   Text('Choose your preferred way to get in touch',
-                            style: _homePoppins(
-                              fontSize: 11,
-                              color: Colors.grey.shade600,
+                      style: _homePoppins(
+                          fontSize: 11,
+                          color: Colors.grey.shade600,
                           height: 1.1)),
                 ]),
               ]),
-                ),
-                const SizedBox(height: 16),
-                _buildModernContactOption(
-                  icon: Icons.phone_rounded,
-                  title: 'Call Us',
-                  subtitle: 'Speak directly with our team',
-                  phone: '0302908674',
-                  color: Colors.green.shade600,
-                  onTap: () {
-                    Navigator.pop(context);
-                    _launchPhoneDialer(phoneNumber);
-                    makePhoneCall(phoneNumber);
-                  },
-                ),
-                const SizedBox(height: 8),
-                _buildModernContactOption(
-                  icon: Icons.message_rounded,
-                  title: 'WhatsApp',
-                  subtitle: 'Chat with us instantly',
-                  phone: 'Chat Now',
-                  color: const Color(0xFF25D366),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _launchWhatsApp(phoneNumber,
-                        "Hello! I need help with the Ernest Chemist app. Can you assist me?");
-                  },
-                ),
-                const SizedBox(height: 8),
-                _buildModernContactOption(
-                  icon: Icons.email_rounded,
-                  title: 'Email Us',
-                  subtitle: 'Send us a detailed message',
-                  phone: 'support@ernestchemists.com',
-                  color: Colors.blue.shade600,
-                  onTap: () {
-                    Navigator.pop(context);
-                _launchEmail(
-                    'support@ernestchemists.com', 'Ernest Chemist Support & Inquiry');
-                  },
-                ),
-          ]),
             ),
-          ),
+            const SizedBox(height: 16),
+            _buildModernContactOption(
+              icon: Icons.phone_rounded,
+              title: 'Call Us',
+              subtitle: 'Speak directly with our team',
+              phone: '0302908674',
+              color: Colors.green.shade600,
+              onTap: () {
+                Navigator.pop(context);
+                _launchPhoneDialer(phoneNumber);
+                makePhoneCall(phoneNumber);
+              },
+            ),
+            const SizedBox(height: 8),
+            _buildModernContactOption(
+              icon: Icons.message_rounded,
+              title: 'WhatsApp',
+              subtitle: 'Chat with us instantly',
+              phone: 'Chat Now',
+              color: const Color(0xFF25D366),
+              onTap: () {
+                Navigator.pop(context);
+                _launchWhatsApp(phoneNumber,
+                    "Hello! I need help with the Ernest Chemists Ltd app. Can you assist me?");
+              },
+            ),
+            const SizedBox(height: 8),
+            _buildModernContactOption(
+              icon: Icons.email_rounded,
+              title: 'Email Us',
+              subtitle: 'Send us a detailed message',
+              phone: 'support@ernestchemists.com',
+              color: Colors.blue.shade600,
+              onTap: () {
+                Navigator.pop(context);
+                _launchEmail('support@ernestchemists.com',
+                    'Ernest Chemists Ltd Support & Inquiry');
+              },
+            ),
+          ]),
+        ),
+      ),
     );
   }
 
@@ -1803,59 +1976,59 @@ class HomePageState extends State<HomePage>
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.08),
-              blurRadius: 8,
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withValues(alpha: 0.2)),
+            boxShadow: [
+              BoxShadow(
+                  color: color.withValues(alpha: 0.08),
+                  blurRadius: 8,
                   offset: const Offset(0, 2))
             ]),
         child: Row(children: [
-            Container(
+          Container(
             padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
+            decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    color.withValues(alpha: 0.1),
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      color.withValues(alpha: 0.1),
                       color.withValues(alpha: 0.05)
                     ]),
                 borderRadius: BorderRadius.circular(8)),
             child: Icon(icon, color: color, size: 20),
           ),
           const SizedBox(width: 12),
-            Expanded(
+          Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title,
-                    style: _homePoppins(
+                  style: _homePoppins(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: Colors.grey.shade800)),
               const SizedBox(height: 2),
               Text(subtitle,
-                    style: _homePoppins(
+                  style: _homePoppins(
                       fontSize: 12, color: Colors.grey.shade600, height: 1.2)),
               const SizedBox(height: 4),
-                  Container(
+              Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
+                decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6)),
                 child: Text(phone,
-                      style: _homePoppins(
+                    style: _homePoppins(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
                         color: color)),
-                      ),
+              ),
             ]),
-            ),
-            Container(
+          ),
+          Container(
             padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
+            decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
             child:
                 Icon(Icons.arrow_forward_ios_rounded, color: color, size: 12),
@@ -1872,69 +2045,67 @@ class HomePageState extends State<HomePage>
       builder: (BuildContext context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(children: [
-              Icon(Icons.email_outlined, color: Colors.green.shade600),
-              const SizedBox(width: 8),
+          Icon(Icons.email_outlined, color: Colors.green.shade600),
+          const SizedBox(width: 8),
           Text('Email Not Available',
-                style: _homePoppins(
-                  fontSize: 18, fontWeight: FontWeight.w600)),
+              style: _homePoppins(fontSize: 18, fontWeight: FontWeight.w600)),
         ]),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-              Text(
-                'No email app found on your device. Here are alternative ways to contact us:',
-                style: _homePoppins(
-                  fontSize: 14, color: Colors.grey.shade700)),
-              const SizedBox(height: 16),
+          Text(
+              'No email app found on your device. Here are alternative ways to contact us:',
+              style: _homePoppins(fontSize: 14, color: Colors.grey.shade700)),
+          const SizedBox(height: 16),
           Text('Email Address:',
-                style: _homePoppins(
+              style: _homePoppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: Colors.grey.shade800)),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(8),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.grey.shade200)),
             child: Row(children: [
-                    Expanded(
+              Expanded(
                   child: Text(email,
-                        style: _homePoppins(
+                      style: _homePoppins(
                           fontSize: 14,
                           color: Colors.green.shade700,
                           fontWeight: FontWeight.w500))),
-                    GestureDetector(
-                      onTap: () {
-                        Clipboard.setData(ClipboardData(text: email));
-                        Navigator.pop(context);
+              GestureDetector(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: email));
+                  Navigator.pop(context);
                   AppErrorUtils.showSnack(
                     context,
                     'Email copied to clipboard',
                     isError: false,
-                            duration: const Duration(seconds: 2),
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade600,
+                    duration: const Duration(seconds: 2),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                      color: Colors.green.shade600,
                       borderRadius: BorderRadius.circular(6)),
                   child: const Icon(Icons.copy, color: Colors.white, size: 16),
-                        ),
-                        ),
-            ]),
+                ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                'You can copy the email address and use it in your preferred email app.',
-                style: _homePoppins(
+            ]),
+          ),
+          const SizedBox(height: 12),
+          Text(
+              'You can copy the email address and use it in your preferred email app.',
+              style: _homePoppins(
                   fontSize: 12,
                   color: Colors.grey.shade600,
                   fontStyle: FontStyle.italic)),
         ]),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
             child: Text('OK',
                 style: _homePoppins(
                     color: Colors.green.shade600, fontWeight: FontWeight.w600)),
@@ -1953,7 +2124,7 @@ class HomePageState extends State<HomePage>
       await _categoryService.initialize();
       final categories = await _categoryService.getCategories();
       if (mounted)
-          setState(() {
+        setState(() {
           _categories = categories;
           _isLoadingCategories = false;
         });
@@ -1966,16 +2137,9 @@ class HomePageState extends State<HomePage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    // Only block on catalog — product cards show placeholders while images warm.
-    final shouldShowSkeleton = _products.isEmpty;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: shouldShowSkeleton
-          ? _buildSkeletonWithLoading(
-              loadingImages:
-                  _products.isNotEmpty && !_homeGridImagesReady,
-            )
-          : _buildMainContent(),
+      body: _wrapWithTourInputShield(_buildRefreshableBody()),
       bottomNavigationBar: widget.showBottomNav
           ? CustomBottomNav(
               selectedIndex: 0,
@@ -1987,12 +2151,30 @@ class HomePageState extends State<HomePage>
   }
 
   Widget _buildSkeletonWithLoading({bool loadingImages = false}) {
+    final isTablet = MediaQuery.sizeOf(context).width >= 600;
     final message = loadingImages
         ? 'Loading product images...'
         : 'Loading your products...';
     final primary = Theme.of(context).colorScheme.primary;
     return Stack(children: [
-      const HomePageSkeletonBody(),
+      _buildHomeRefreshIndicator(
+        child: Shimmer.fromColors(
+          baseColor: Theme.of(context).brightness == Brightness.dark
+              ? Colors.grey.shade800
+              : Colors.grey.shade300,
+          highlightColor: Theme.of(context).brightness == Brightness.dark
+              ? Colors.grey.shade700
+              : Colors.grey.shade100,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              ..._buildHomeTopSlivers(isTablet, searchSkeleton: true),
+              ...HomePageSkeletonBody.shimmerSlivers(context,
+                  isTablet: isTablet),
+            ],
+          ),
+        ),
+      ),
       Positioned(
         top: 0,
         left: 0,
@@ -2035,11 +2217,19 @@ class HomePageState extends State<HomePage>
     ]);
   }
 
-  Widget _buildMainContent() {
-    if (_error != null) {
+  Widget _buildHomeRefreshIndicator({required Widget child}) {
+    return RefreshIndicator(
+      onRefresh: _handleRefresh,
+      color: Theme.of(context).colorScheme.primary,
+      child: child,
+    );
+  }
+
+  Widget _buildRefreshableBody() {
+    if (_products.isNotEmpty && _error != null) {
       return ErrorDisplayWidget(
         onRetry: () {
-    if (mounted) {
+          if (mounted) {
             setState(() => _error = null);
             _hasBeenLoaded = false;
             _loadAllContent();
@@ -2048,6 +2238,16 @@ class HomePageState extends State<HomePage>
       );
     }
 
+    final shouldShowSkeleton = _products.isEmpty;
+    if (shouldShowSkeleton) {
+      return _buildSkeletonWithLoading(
+        loadingImages: _products.isNotEmpty && !_homeGridImagesReady,
+      );
+    }
+    return _buildHomeRefreshIndicator(child: _buildMainScrollBody());
+  }
+
+  Widget _buildMainScrollBody() {
     final primary = Theme.of(context).colorScheme.primary;
 
     return Material(
@@ -2063,192 +2263,162 @@ class HomePageState extends State<HomePage>
 
         return Stack(
           children: [
-            SmartRefresher(
-          controller: _refreshController,
-          onRefresh: _handleRefresh,
-          child: ProductTapScrollScope(
-            child: CustomScrollView(
-            controller: _scrollController,
-            slivers: [
-              SliverAppBar(
-                automaticallyImplyLeading: false,
-                backgroundColor: AppThemeColors.headerBackground,
-                toolbarHeight: isTablet ? 80 : 60,
-                floating: false,
-                pinned: false,
-                title: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.only(left: isTablet ? 16 : 1),
-                      child: Image.asset('assets/images/png.png',
-                          height: isTablet ? 32 : 20),
+            ProductTapScrollScope(
+              child: CustomScrollView(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  ..._buildHomeTopSlivers(isTablet),
+                  SliverToBoxAdapter(child: const ClearanceSaleBanner()),
+                  SliverToBoxAdapter(child: buildOrderMedicineCard()),
+                  SliverToBoxAdapter(
+                    child: _buildCategoryScroll(
+                      isTablet: isTablet,
+                      tourChipsKey: _tourCategoriesKey,
                     ),
-                    CartIconButton(
-                      key: _tourCartKey,
-                      iconColor: Colors.white,
-                      iconSize: isTablet ? 28 : 24,
-                      backgroundColor: Colors.transparent,
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: KeyedSubtree(
+                        key: _tourMedicationKey,
+                        child: _buildProductSection(
+                          'Medication',
+                          Colors.green[700]!,
+                          _getLimitedProducts(drugsSectionProducts),
+                          'drugs',
+                          fontSize: cardFontSize,
+                          padding: cardPadding,
+                          imageHeight: cardImageHeight,
+                          isTablet: isTablet,
+                        ),
+                      ),
                     ),
-                  ],
-                ),
-              ),
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: SliverSearchBarDelegate(
-                    builder: (s) => _buildSearchBar(isTablet: isTablet)),
-              ),
-              SliverToBoxAdapter(child: const ClearanceSaleBanner()),
-              SliverToBoxAdapter(child: buildOrderMedicineCard()),
-              SliverToBoxAdapter(
-                child: _buildCategoryScroll(
-                  isTablet: isTablet,
-                  tourChipsKey: _tourCategoriesKey,
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: KeyedSubtree(
-                    key: _tourMedicationKey,
+                  ),
+                  SliverToBoxAdapter(child: _buildSpecialOffers()),
+                  SliverToBoxAdapter(
                     child: _buildProductSection(
-                      'Medication',
-                      Colors.green[700]!,
-                      _getLimitedProducts(drugsSectionProducts),
-                      'drugs',
+                      'Wellness',
+                      Colors.purple[700]!,
+                      _getLimitedProducts(wellnessProducts),
+                      'wellness',
                       fontSize: cardFontSize,
                       padding: cardPadding,
                       imageHeight: cardImageHeight,
                       isTablet: isTablet,
                     ),
                   ),
-                ),
-              ),
-              SliverToBoxAdapter(child: _buildSpecialOffers()),
-              SliverToBoxAdapter(
-                child: _buildProductSection(
-                  'Wellness',
-                  Colors.purple[700]!,
-                  _getLimitedProducts(wellnessProducts),
-                  'wellness',
-                  fontSize: cardFontSize,
-                  padding: cardPadding,
-                  imageHeight: cardImageHeight,
-                  isTablet: isTablet,
-                ),
-              ),
-              // Popular right now — tour highlights heading + horizontal strip
-              SliverToBoxAdapter(
-                child: KeyedSubtree(
-                  key: _tourPopularKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 16, horizontal: 16),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 4, horizontal: 10),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Colors.green[600]!,
-                                Colors.green[700]!,
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(6),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.green.withValues(alpha: 0.3),
-                                blurRadius: 4,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(6),
+                  // Popular right now — tour highlights heading + horizontal strip
+                  SliverToBoxAdapter(
+                    child: KeyedSubtree(
+                      key: _tourPopularKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 16, horizontal: 16),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 4, horizontal: 10),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.green[600]!,
+                                    Colors.green[700]!,
+                                  ],
                                 ),
-                                child: const Icon(
-                                  Icons.local_fire_department,
-                                  color: Colors.orange,
-                                  size: 16,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Popular right now',
-                                  style: _homePoppins(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.1,
+                                borderRadius: BorderRadius.circular(6),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.green.withValues(alpha: 0.3),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 1),
                                   ),
-                                ),
+                                ],
                               ),
-                            ],
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Icon(
+                                      Icons.local_fire_department,
+                                      color: Colors.orange,
+                                      size: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Popular right now',
+                                      style: _homePoppins(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 0.1,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: _buildPopularProducts(isTablet: isTablet),
+                          ),
+                        ],
                       ),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _buildPopularProducts(isTablet: isTablet),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: _buildProductSection(
+                      'Selfcare',
+                      Colors.orange[700]!,
+                      _getLimitedProducts(selfcareProducts),
+                      'selfcare',
+                      fontSize: cardFontSize,
+                      padding: cardPadding,
+                      imageHeight: cardImageHeight,
+                      isTablet: isTablet,
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: _buildProductSection(
+                      'Accessories',
+                      Colors.teal[700]!,
+                      _getLimitedProducts(accessoriesProducts),
+                      'accessories',
+                      fontSize: cardFontSize,
+                      padding: cardPadding,
+                      imageHeight: cardImageHeight,
+                      isTablet: isTablet,
+                    ),
+                  ),
+                  if (prescribedProducts.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: _buildProductSection(
+                        'PRESCRIPTION ONLY MEDICINE',
+                        Colors.red[700]!,
+                        _getLimitedProducts(prescribedProducts),
+                        'prescribed',
+                        fontSize: cardFontSize,
+                        padding: cardPadding,
+                        imageHeight: cardImageHeight,
+                        isTablet: isTablet,
                       ),
-                    ],
-                  ),
-                ),
+                    ),
+                ],
               ),
-              SliverToBoxAdapter(
-                child: _buildProductSection(
-                  'Selfcare',
-                  Colors.orange[700]!,
-                  _getLimitedProducts(selfcareProducts),
-                  'selfcare',
-                  fontSize: cardFontSize,
-                  padding: cardPadding,
-                  imageHeight: cardImageHeight,
-                  isTablet: isTablet,
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: _buildProductSection(
-                  'Accessories',
-                  Colors.teal[700]!,
-                  _getLimitedProducts(accessoriesProducts),
-                  'accessories',
-                  fontSize: cardFontSize,
-                  padding: cardPadding,
-                  imageHeight: cardImageHeight,
-                  isTablet: isTablet,
-                ),
-              ),
-              if (prescribedProducts.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: _buildProductSection(
-                    'PRESCRIPTION ONLY MEDICINE',
-                    Colors.red[700]!,
-                    _getLimitedProducts(prescribedProducts),
-                    'prescribed',
-                    fontSize: cardFontSize,
-                    padding: cardPadding,
-                    imageHeight: cardImageHeight,
-                    isTablet: isTablet,
-                  ),
-                ),
-            ],
-          ),
-        ),
-        ),
+            ),
             if (_isBackgroundRefreshing)
               Positioned(
                 top: 0,
@@ -2267,229 +2437,6 @@ class HomePageState extends State<HomePage>
     );
   }
 
-  // ─── Search bar ────────────────────────────────────────────────────────────
-  Widget _buildSearchBar({bool isTablet = false}) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(isTablet ? 24 : 16, isTablet ? 50 : 40,
-          isTablet ? 24 : 16, isTablet ? 12 : 8),
-      child: KeyedSubtree(
-        key: _tourSearchKey,
-      child: SizedBox(
-        height: isTablet ? 56 : 48,
-        child: Builder(builder: (context) {
-          if (!mounted) return const SizedBox.shrink();
-            try {
-              return SafeTypeAheadField<Product>(
-                controller: _searchController,
-                suffixIconBuilder: (controller) => controller.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          if (mounted) {
-                            controller.clear();
-                            setState(() {});
-                          }
-                        },
-                      )
-                    : null,
-                onSubmitted: (value) {
-                  if (value.trim().isNotEmpty) {
-                  _pushOnce(
-                      MaterialPageRoute(
-                        builder: (context) => SearchResultsPage(
-                            query: value.trim(), products: _products)),
-                    ).then((_) => _clearSearch());
-                  }
-                },
-                suggestionsCallback: (pattern) async {
-                if (pattern.isEmpty || !mounted) return [];
-                try {
-                  final products = await _catalogService.searchForTypeahead(
-                    pattern,
-                    timeout: const Duration(seconds: 10),
-                  );
-                      if (products.length > 1) {
-                        return [
-                          Product(
-                            id: -1,
-                            name: '__VIEW_MORE__',
-                            description: '',
-                            urlName: '',
-                            status: '',
-                            price: '',
-                            thumbnail: '',
-                            quantity: '',
-                            batch_no: '',
-                            category: '',
-                          route: ''),
-                          ...products.take(6),
-                        ];
-                      }
-                      return products;
-                  } on TimeoutException {
-                    return [];
-                } catch (_) {
-                    return [];
-                  }
-                },
-                itemBuilder: (context, Product suggestion) {
-                if (!mounted) return const SizedBox.shrink();
-                  if (suggestion.name == '__VIEW_MORE__') {
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12)),
-                    margin:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      child: ListTile(
-                        leading: Icon(Icons.list, color: Colors.green[700]),
-                      title: Text('View All Results',
-                          style: _homePoppins(
-                            color: Colors.green[700],
-                              fontWeight: FontWeight.bold)),
-                      ),
-                    );
-                  }
-                final matching = _products.firstWhere(
-                    (p) => p.id == suggestion.id || p.name == suggestion.name,
-                    orElse: () => suggestion);
-                  final imageUrl = getProductImageUrl(
-                    matching.thumbnail.isNotEmpty
-                        ? matching.thumbnail
-                          : suggestion.thumbnail);
-                  return Container(
-                    margin:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: context.appColors.surface,
-                      borderRadius: BorderRadius.circular(9),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
-                          blurRadius: 4,
-                            offset: const Offset(0, 1))
-                      ],
-                      border: Border.all(
-                          color: context.appColors.border)),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(9),
-                      onTap: () {
-                      final m = _products.firstWhere(
-                          (p) =>
-                              p.id == suggestion.id ||
-                              p.name == suggestion.name,
-                          orElse: () => suggestion);
-                        if (suggestion.name == '__VIEW_MORE__') {
-                        _pushOnce(
-                            MaterialPageRoute(
-                              builder: (context) => SearchResultsPage(
-                                query: _searchController.text,
-                                  products: _products)),
-                          ).then((_) => _clearSearch());
-                        } else {
-                        _pushOnce(
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  ProductDetailNavigation.itemPage(
-                                    urlName: m.urlName.isNotEmpty
-                                        ? m.urlName
-                                        : suggestion.urlName,
-                                    product: m,
-                                  )),
-                          ).then((_) => _clearSearch());
-                        }
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 6),
-                      child: Row(children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(7),
-                              child: CachedNetworkImage(
-                                imageUrl: imageUrl,
-                                width: 36,
-                                height: 36,
-                                fit: BoxFit.cover,
-                                memCacheWidth: 200,
-                                memCacheHeight: 200,
-                            fadeInDuration: const Duration(milliseconds: 100),
-                            placeholder: (_, __) => const SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child:
-                                    CircularProgressIndicator(strokeWidth: 2)),
-                            errorWidget: (_, __, ___) => Icon(
-                                    Icons.broken_image,
-                                    size: 20,
-                                    color: Colors.grey[400]),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                Text(suggestion.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: _homePoppins(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                        color: context.appColors.ink)),
-                              ]),
-                        ),
-                      ]),
-                      ),
-                    ),
-                  );
-                },
-                onSuggestionSelected: (Product suggestion) {
-                final m = _products.firstWhere(
-                    (p) => p.id == suggestion.id || p.name == suggestion.name,
-                    orElse: () => suggestion);
-                  if (suggestion.name == '__VIEW_MORE__') {
-                  _pushOnce(
-                      MaterialPageRoute(
-                        builder: (context) => SearchResultsPage(
-                          query: _searchController.text,
-                            products: _products)),
-                    ).then((_) => _clearSearch());
-                  } else {
-                  _pushOnce(
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            ProductDetailNavigation.itemPage(
-                              urlName: m.urlName.isNotEmpty
-                                  ? m.urlName
-                                  : suggestion.urlName,
-                              product: m,
-                            )),
-                    ).then((_) => _clearSearch());
-                  }
-                },
-                emptyBuilder: (context) => Padding(
-                padding: const EdgeInsets.all(12),
-                  child: Text('No products found',
-                      style: TextStyle(color: context.appColors.muted)),
-                ),
-                hideOnEmpty: true,
-                hideOnLoading: false,
-              debounceDuration: const Duration(milliseconds: 250),
-                boxStyle: TypeAheadBoxStyle(
-                  color: context.appColors.surface,
-                  borderRadius: BorderRadius.circular(isTablet ? 24 : 18),
-                  elevation: isTablet ? 15 : 10,
-                ),
-              );
-          } catch (_) {
-              return const SizedBox.shrink();
-            }
-        }),
-        ),
-      ),
-    );
-  }
-
   // ─── Category scroll ───────────────────────────────────────────────────────
   Widget _buildCategoryScroll({
     bool isTablet = false,
@@ -2505,52 +2452,52 @@ class HomePageState extends State<HomePage>
     }
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
+      Padding(
         padding:
             EdgeInsets.symmetric(horizontal: isTablet ? 24 : 18, vertical: 16),
         child: Container(
-                width: double.infinity,
+          width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 10),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
                 colors: [Colors.green[600]!, Colors.green[700]!]),
-                  borderRadius: BorderRadius.circular(6),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.green.withValues(alpha: 0.3),
-                      blurRadius: 4,
+            borderRadius: BorderRadius.circular(6),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.green.withValues(alpha: 0.3),
+                  blurRadius: 4,
                   offset: const Offset(0, 1))
-                  ],
-                ),
+            ],
+          ),
           child: Row(children: [
-                    const SizedBox(width: 8),
+            const SizedBox(width: 8),
             const Icon(Icons.grid_view_rounded, color: Colors.white, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
+            const SizedBox(width: 8),
+            Expanded(
               child: Text('Shop',
-                        style: _homePoppins(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                  style: _homePoppins(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                       letterSpacing: 0.1)),
-                        ),
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
+            ),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
                 onTap: () => _pushNamedOnce(AppRoutes.categoryPage),
-                        borderRadius: BorderRadius.circular(4),
-                        child: Padding(
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Text('See all',
-                                style: _homePoppins(
-                                  color: Colors.white,
-                                  fontSize: 12,
+                        style: _homePoppins(
+                            color: Colors.white,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600)),
-                              const SizedBox(width: 4),
+                    const SizedBox(width: 4),
                     const Icon(Icons.arrow_forward_ios_rounded,
                         size: 10, color: Colors.white),
                   ]),
@@ -2560,34 +2507,34 @@ class HomePageState extends State<HomePage>
           ]),
         ),
       ),
-        if (_isLoadingCategories)
-          Padding(
+      if (_isLoadingCategories)
+        Padding(
           padding: EdgeInsets.symmetric(horizontal: isTablet ? 24 : 18),
-            child: SizedBox(
-              height: 38,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: 5,
+          child: SizedBox(
+            height: 38,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: 5,
               itemBuilder: (_, __) => Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    child: Shimmer.fromColors(
-                      baseColor: context.appColors.isDark
-                          ? Colors.grey.shade800
-                          : Colors.grey.shade300,
-                      highlightColor: context.appColors.isDark
-                          ? Colors.grey.shade700
-                          : Colors.grey.shade100,
-                      child: Container(
-                        width: 90,
-                        height: 38,
-                        decoration: BoxDecoration(
+                margin: const EdgeInsets.only(right: 8),
+                child: Shimmer.fromColors(
+                  baseColor: context.appColors.isDark
+                      ? Colors.grey.shade800
+                      : Colors.grey.shade300,
+                  highlightColor: context.appColors.isDark
+                      ? Colors.grey.shade700
+                      : Colors.grey.shade100,
+                  child: Container(
+                      width: 90,
+                      height: 38,
+                      decoration: BoxDecoration(
                           color: context.appColors.surface,
                           borderRadius: BorderRadius.circular(19))),
-                        ),
-                      ),
+                ),
               ),
             ),
-          )
+          ),
+        )
       else if (_categories.isNotEmpty)
         KeyedSubtree(
           key: tourChipsKey,
@@ -2610,47 +2557,47 @@ class HomePageState extends State<HomePage>
                     child: InkWell(
                       onTap: () {
                         if (hasSubcategories) {
-                        _pushOnce(
+                          _pushOnce(
                             MaterialPageRoute(
-                              builder: (context) => SubcategoryPage(
-                                categoryName: categoryName,
-                                  categoryId: category['id'])),
+                                builder: (context) => SubcategoryPage(
+                                    categoryName: categoryName,
+                                    categoryId: category['id'])),
                           );
                         } else {
-                        _pushOnce(
+                          _pushOnce(
                             MaterialPageRoute(
-                              builder: (context) => ProductListPage(
-                                categoryName: categoryName,
-                                  categoryId: category['id'])),
+                                builder: (context) => ProductListPage(
+                                    categoryName: categoryName,
+                                    categoryId: category['id'])),
                           );
                         }
                       },
                       borderRadius: BorderRadius.circular(19),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
+                            horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
                           color: theme.surface,
                           borderRadius: BorderRadius.circular(19),
                           border: Border.all(
-                            color: AppThemeColors.headerBackground,
-                            width: 1.5),
+                              color: AppThemeColors.headerBackground,
+                              width: 1.5),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(
-                                  alpha: theme.isDark ? 0.25 : 0.05),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2))
+                                color: Colors.black.withValues(
+                                    alpha: theme.isDark ? 0.25 : 0.05),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2))
                           ],
                         ),
-                      child: Text(categoryName,
+                        child: Text(categoryName,
                             style: _homePoppins(
-                              fontSize: isTablet ? 12 : 11,
-                              fontWeight: FontWeight.w600,
-                              color: theme.isDark
-                                  ? Colors.white
-                                  : Colors.green.shade800,
-                              letterSpacing: 0.1)),
+                                fontSize: isTablet ? 12 : 11,
+                                fontWeight: FontWeight.w600,
+                                color: theme.isDark
+                                    ? Colors.white
+                                    : Colors.green.shade800,
+                                letterSpacing: 0.1)),
                       ),
                     ),
                   ),
@@ -2682,46 +2629,46 @@ class HomePageState extends State<HomePage>
     final theme = context.appColors;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const SizedBox(height: 12),
-        Container(
+      Container(
         margin: const EdgeInsets.symmetric(horizontal: 16),
         decoration:
             BoxDecoration(borderRadius: BorderRadius.circular(12), boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: theme.isDark ? 0.35 : 0.1),
-                blurRadius: 8,
+          BoxShadow(
+              color: Colors.black.withValues(alpha: theme.isDark ? 0.35 : 0.1),
+              blurRadius: 8,
               offset: const Offset(0, 4))
         ]),
         child: Column(children: [
-              ClipRRect(
+          ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
             child: Image.asset('assets/images/specialoffer.PNG',
                 fit: BoxFit.cover, width: double.infinity, height: 120),
           ),
-              Container(
-                width: double.infinity,
+          Container(
+            width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-                  color: theme.surface,
-                  borderRadius:
+                color: theme.surface,
+                borderRadius:
                     const BorderRadius.vertical(bottom: Radius.circular(12))),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('SPECIAL OFFER: FREE DELIVERY + 5% OFF',
-                      style: _homePoppins(
-                        color: AppColors.primaryLight,
-                        fontWeight: FontWeight.bold,
+                  style: _homePoppins(
+                      color: AppColors.primaryLight,
+                      fontWeight: FontWeight.bold,
                       fontSize: 14)),
               const SizedBox(height: 4),
               Text('Free delivery on GHS 150+ · 5% off on GHS 500+',
-                      style: TextStyle(
-                        color: theme.ink,
-                        fontSize: 12,
+                  style: TextStyle(
+                      color: theme.ink,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
-                    Text(
-                      'Enjoy free delivery for orders of GHS 150 and above, plus 5% off all orders of GHS 500 and above.',
-                      style: TextStyle(
-                      color: theme.muted, fontSize: 11, height: 1.3)),
+              Text(
+                  'Enjoy free delivery for orders of GHS 150 and above, plus 5% off all orders of GHS 500 and above.',
+                  style:
+                      TextStyle(color: theme.muted, fontSize: 11, height: 1.3)),
             ]),
           ),
         ]),
@@ -2768,26 +2715,25 @@ class HomePageState extends State<HomePage>
       required double imageHeight,
       bool isTablet = false}) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
+      Padding(
         padding:
             EdgeInsets.symmetric(horizontal: isTablet ? 24 : 16, vertical: 0),
         child:
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Expanded(
+          Expanded(
             child: (title.toUpperCase() == 'PRESCRIPTION ONLY MEDICINE')
                 ? Row(mainAxisSize: MainAxisSize.min, children: [
                     Image.asset(prescribedShieldAsset,
                         width: isTablet ? 32 : 24, height: isTablet ? 32 : 24),
                     const SizedBox(width: 8),
                     Flexible(
-                        child:
-                            buildSectionHeading(context, title, color,
-                                hideIcon: true)),
+                        child: buildSectionHeading(context, title, color,
+                            hideIcon: true)),
                   ])
                 : buildSectionHeading(context, title, color),
-              ),
-              TextButton(
-                onPressed: () {
+          ),
+          TextButton(
+            onPressed: () {
               // The section cards are capped on homepage; "See More" should open
               // the full backing list for that section.
               final filtered = switch (category.toLowerCase()) {
@@ -2799,44 +2745,44 @@ class HomePageState extends State<HomePage>
                 _ => List<Product>.from(products),
               };
               _pushOnce(
-                    MaterialPageRoute(
-                      builder: (context) => SectionProductsPage(
+                MaterialPageRoute(
+                    builder: (context) => SectionProductsPage(
                         sectionTitle: title, products: filtered)),
-                  );
-                },
+              );
+            },
             child: Text('See More',
-                  style: TextStyle(
+                style: TextStyle(
                     color: color, fontWeight: FontWeight.w600, fontSize: 13)),
-                  ),
+          ),
         ]),
-        ),
-        GridView.builder(
-          shrinkWrap: true,
+      ),
+      GridView.builder(
+        shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         padding: EdgeInsets.zero,
-          itemCount: products.length > 6 ? 6 : products.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: isTablet ? 3 : 2,
+        itemCount: products.length > 6 ? 6 : products.length,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: isTablet ? 3 : 2,
           childAspectRatio: isTablet ? 1.2 : 1.0,
           mainAxisSpacing: isTablet ? 8 : 0,
           crossAxisSpacing: isTablet ? 8 : 0,
         ),
         itemBuilder: (context, index) => HomeProductCard(
-              key: ValueKey(
-                'home-$_homeImageWarmGeneration-'
-                '${products[index].id}-'
-                '${ProductImagePreloadService.imageUrlFor(products[index])}',
-              ),
-              product: products[index],
-              fontSize: fontSize * 1.1,
-              padding: padding * 0.8,
-              imageHeight: imageHeight * 0.85,
-              showWishlistButton: true,
-              showHero: false,
+          key: ValueKey(
+            'home-$_homeImageWarmGeneration-'
+            '${products[index].id}-'
+            '${ProductImagePreloadService.imageUrlFor(products[index])}',
+          ),
+          product: products[index],
+          fontSize: fontSize * 1.1,
+          padding: padding * 0.8,
+          imageHeight: imageHeight * 0.85,
+          showWishlistButton: true,
+          showHero: false,
         ),
       ),
-        if (products.isEmpty)
-          EmptyStateWidget(
+      if (products.isEmpty)
+        EmptyStateWidget(
             message: 'No products found in this section.',
             icon: Icons.shopping_bag_outlined),
     ]);
@@ -2849,164 +2795,135 @@ class HomePageSkeletonBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isTablet = MediaQuery.of(context).size.width > 600;
-    final theme = context.appColors;
-    final shimmerBase =
-        theme.isDark ? Colors.grey.shade800 : Colors.grey.shade300;
-    final shimmerHighlight =
-        theme.isDark ? Colors.grey.shade700 : Colors.grey.shade100;
-
-    return Shimmer.fromColors(
-      baseColor: shimmerBase,
-      highlightColor: shimmerHighlight,
-      child: CustomScrollView(slivers: [
-          SliverAppBar(
-          automaticallyImplyLeading: false,
-          backgroundColor: AppThemeColors.headerBackground,
-          toolbarHeight: isTablet ? 80 : 60,
-          flexibleSpace: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                      width: isTablet ? 100 : 85,
-                      height: isTablet ? 40 : 35,
-                      decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.3),
-                          borderRadius: BorderRadius.circular(8))),
-                  Container(
-                      width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.3),
-                          shape: BoxShape.circle)),
-                ]),
-                ),
-              ),
-        SliverPersistentHeader(
-          pinned: true,
-          delegate: _SearchBarSkeletonDelegate(isTablet: isTablet),
-            ),
-          SliverToBoxAdapter(
-              child: Container(
-              height: isTablet ? 220 : 140,
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: theme.surface,
-                  borderRadius: BorderRadius.circular(12))),
-        ),
-          SliverToBoxAdapter(
-            child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: List.generate(
-                  3,
-                (i) => Expanded(
-            child: Container(
-                      height: isTablet ? 110 : 90,
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(
-                color: theme.surface,
-                          borderRadius: BorderRadius.circular(12))),
-              ),
-            ),
-          ),
-            ),
-            ),
-        SliverToBoxAdapter(child: const SizedBox(height: 8)),
-          SliverToBoxAdapter(
-            child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Container(
-                width: 120,
-                height: 20,
-                decoration: BoxDecoration(
-                color: theme.surface,
-                    borderRadius: BorderRadius.circular(4))),
-              ),
-            ),
-          SliverToBoxAdapter(
-            child: Container(
-            height: 100,
-            margin: const EdgeInsets.only(left: 16, bottom: 16),
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-              itemCount: 8,
-              itemBuilder: (_, __) => Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: Column(children: [
-                  Container(
-                      width: 60,
-                      height: 60,
-                    decoration: BoxDecoration(
-                          color: theme.surface, shape: BoxShape.circle)),
-                  const SizedBox(height: 6),
-                  Container(
-                      width: 60,
-                      height: 12,
-                      decoration: BoxDecoration(
-                      color: theme.surface,
-                          borderRadius: BorderRadius.circular(4))),
-                ]),
-                    ),
-                  ),
-                ),
-              ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                      width: 150,
-                      height: 24,
-                      decoration: BoxDecoration(
-                          color: theme.surface,
-                          borderRadius: BorderRadius.circular(4))),
-                  Container(
-                      width: 60,
-                      height: 20,
-                      decoration: BoxDecoration(
-                          color: theme.surface,
-                          borderRadius: BorderRadius.circular(4))),
-                ]),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          sliver: SliverGrid(
-              delegate: SliverChildBuilderDelegate(
-              (_, __) => _buildProductCardSkeleton(theme),
-              childCount: isTablet ? 9 : 6,
-            ),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: isTablet ? 3 : 2,
-              childAspectRatio: 0.7,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 12,
-            ),
-          ),
-      ),
-        SliverToBoxAdapter(child: const SizedBox(height: 20)),
-      ]),
+    final isTablet = MediaQuery.sizeOf(context).width >= 600;
+    return CustomScrollView(
+      slivers: shimmerSlivers(context, isTablet: isTablet),
     );
   }
 
-  Widget _buildProductCardSkeleton(AppThemeColors theme) {
+  static List<Widget> shimmerSlivers(
+    BuildContext context, {
+    required bool isTablet,
+  }) {
+    final theme = context.appColors;
+
+    return [
+      SliverToBoxAdapter(
+        child: Container(
+            height: isTablet ? 220 : 140,
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+                color: theme.surface, borderRadius: BorderRadius.circular(12))),
+      ),
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(
+              3,
+              (i) => Expanded(
+                child: Container(
+                    height: isTablet ? 110 : 90,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                        color: theme.surface,
+                        borderRadius: BorderRadius.circular(12))),
+              ),
+            ),
+          ),
+        ),
+      ),
+      SliverToBoxAdapter(child: const SizedBox(height: 8)),
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Container(
+              width: 120,
+              height: 20,
+              decoration: BoxDecoration(
+                  color: theme.surface,
+                  borderRadius: BorderRadius.circular(4))),
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: Container(
+          height: 100,
+          margin: const EdgeInsets.only(left: 16, bottom: 16),
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: 8,
+            itemBuilder: (_, __) => Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Column(children: [
+                Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                        color: theme.surface, shape: BoxShape.circle)),
+                const SizedBox(height: 6),
+                Container(
+                    width: 60,
+                    height: 12,
+                    decoration: BoxDecoration(
+                        color: theme.surface,
+                        borderRadius: BorderRadius.circular(4))),
+              ]),
+            ),
+          ),
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child:
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Container(
+                width: 150,
+                height: 24,
+                decoration: BoxDecoration(
+                    color: theme.surface,
+                    borderRadius: BorderRadius.circular(4))),
+            Container(
+                width: 60,
+                height: 20,
+                decoration: BoxDecoration(
+                    color: theme.surface,
+                    borderRadius: BorderRadius.circular(4))),
+          ]),
+        ),
+      ),
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        sliver: SliverGrid(
+          delegate: SliverChildBuilderDelegate(
+            (_, __) => _buildProductCardSkeleton(theme),
+            childCount: isTablet ? 9 : 6,
+          ),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: isTablet ? 3 : 2,
+            childAspectRatio: 0.7,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 12,
+          ),
+        ),
+      ),
+      SliverToBoxAdapter(child: const SizedBox(height: 20)),
+    ];
+  }
+
+  static Widget _buildProductCardSkeleton(AppThemeColors theme) {
     final block = theme.isDark ? Colors.grey.shade700 : Colors.grey.shade200;
     return Container(
       margin: const EdgeInsets.all(4),
       decoration: BoxDecoration(
           color: theme.surface, borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(
+        Expanded(
           flex: 3,
-                  child: Container(
+          child: Container(
               decoration: BoxDecoration(
-                    color: block,
+                  color: block,
                   borderRadius:
                       const BorderRadius.vertical(top: Radius.circular(12)))),
         ),
@@ -3017,7 +2934,7 @@ class HomePageSkeletonBody extends StatelessWidget {
             child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
+                children: [
                   Container(
                       width: double.infinity,
                       height: 12,
@@ -3025,28 +2942,27 @@ class HomePageSkeletonBody extends StatelessWidget {
                           color: block,
                           borderRadius: BorderRadius.circular(4))),
                   const SizedBox(height: 4),
-                Container(
-                  width: 80,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: block,
+                  Container(
+                      width: 80,
+                      height: 12,
+                      decoration: BoxDecoration(
+                          color: block,
                           borderRadius: BorderRadius.circular(4))),
                   const Spacer(),
                   Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                Container(
-                  width: 60,
+                        Container(
+                            width: 60,
                             height: 16,
-                  decoration: BoxDecoration(
+                            decoration: BoxDecoration(
                                 color: block,
                                 borderRadius: BorderRadius.circular(4))),
                         Container(
                             width: 32,
                             height: 32,
                             decoration: BoxDecoration(
-                                color: block,
-                                shape: BoxShape.circle)),
+                                color: block, shape: BoxShape.circle)),
                       ]),
                 ]),
           ),
@@ -3054,33 +2970,6 @@ class HomePageSkeletonBody extends StatelessWidget {
       ]),
     );
   }
-}
-
-class _SearchBarSkeletonDelegate extends SliverPersistentHeaderDelegate {
-  final bool isTablet;
-  _SearchBarSkeletonDelegate({required this.isTablet});
-
-  @override
-  double get minExtent => isTablet ? 80 : 70;
-  @override
-  double get maxExtent => isTablet ? 80 : 70;
-
-  @override
-  Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      color: Theme.of(context).scaffoldBackgroundColor,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Container(
-          height: isTablet ? 55 : 50,
-          decoration: BoxDecoration(
-              color: context.appColors.skeleton,
-              borderRadius: BorderRadius.circular(25))),
-    );
-  }
-
-  @override
-  bool shouldRebuild(covariant SliverPersistentHeaderDelegate _) => false;
 }
 
 // ─── Home promo banners ────────────────────────────────────────────────────────
@@ -3115,23 +3004,23 @@ Widget buildSectionHeading(
       assetPath = null;
   }
   return Row(mainAxisSize: MainAxisSize.min, children: [
-      Container(
-        width: 3,
-        height: 20,
-        decoration: BoxDecoration(
+    Container(
+      width: 3,
+      height: 20,
+      decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
               colors: [color, color.withOpacity(0.7)]),
           borderRadius: BorderRadius.circular(2),
           boxShadow: [
             BoxShadow(
                 color: color.withOpacity(0.2),
-              blurRadius: 2,
+                blurRadius: 2,
                 offset: const Offset(0, 1))
           ]),
-      ),
-      const SizedBox(width: 8),
+    ),
+    const SizedBox(width: 8),
     if (!hideIcon) ...[
       Container(
         padding: const EdgeInsets.all(5),
@@ -3147,17 +3036,17 @@ Widget buildSectionHeading(
     Flexible(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(title,
-              style: _homePoppins(
+            style: _homePoppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: ink,
                 letterSpacing: 0.2),
             overflow: TextOverflow.ellipsis,
             maxLines: 1),
-            Container(
-              width: 30,
-              height: 1,
-              decoration: BoxDecoration(
+        Container(
+          width: 30,
+          height: 1,
+          decoration: BoxDecoration(
               gradient:
                   LinearGradient(colors: [color, color.withOpacity(0.2)])),
         ),
@@ -3193,33 +3082,32 @@ Widget buildCapsuleHeading(String title, Color color) {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              color.withValues(alpha: 0.12),
+            gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  color.withValues(alpha: 0.12),
                   color.withValues(alpha: 0.06)
                 ]),
-          borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: color.withValues(alpha: 0.15), width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.08),
-              blurRadius: 4,
+            boxShadow: [
+              BoxShadow(
+                  color: color.withValues(alpha: 0.08),
+                  blurRadius: 4,
                   offset: const Offset(0, 2))
             ]),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(_getIconForSection(title), color: color, size: 16),
-            const SizedBox(width: 8),
+          const SizedBox(width: 8),
           Text(title,
               style: _homePoppins(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: color,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: color,
                   letterSpacing: 0.3)),
         ]),
       ),
     ),
   );
 }
-

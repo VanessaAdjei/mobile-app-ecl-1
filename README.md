@@ -1,4 +1,4 @@
-# Ernest Chemist 🏥
+# Ernest Chemists Ltd 🏥
 
 A modern, high-performance Flutter mobile application for Ernest Chemist, featuring advanced e-commerce capabilities, prescription management, and seamless user experience.
 
@@ -285,4 +285,4 @@ For support and questions:
 
 ---
 
-**Built with ❤️ by the Ernest Chemist Development Team**
+**Built with ❤️ by the Ernest Chemists Ltd Development Team**

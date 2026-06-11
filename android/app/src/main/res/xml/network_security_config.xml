@@ -10,6 +10,11 @@
             <certificates src="user" />
         </trust-anchors>
     </domain-config>
+
+    <!-- Local test host (ExpressPay redirect) — HTTP only for dev -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">eclcommerce.test</domain>
+    </domain-config>
     
     <!-- Default configuration for all other domains -->
     <base-config cleartextTrafficPermitted="false">

@@ -13,9 +13,6 @@ class ApiConfig {
   // main api url
   static const String baseUrl = 'https://eclcommerce.ernestchemists.com.gh/api';
 
-  // old api url (still used in some places probably)
-  static const String legacyBaseUrl = 'https://eclpharmacy.com/api';
-
   // admin url for uploading images and stuff
   static const String adminBaseUrl =
       'https://adm-ecommerce.ernestchemists.com.gh';
@@ -26,11 +23,13 @@ class ApiConfig {
   // app root (no /api) for storage paths
   static const String appBaseUrl = 'https://eclcommerce.ernestchemists.com.gh';
 
-  /// Payment gateway redirect URL. Override with --dart-define=PAYMENT_REDIRECT_URL=... for test.
+  /// Debug builds use production `/complete` so real devices can load the return URL.
+  /// Override with --dart-define=PAYMENT_REDIRECT_URL=http://eclcommerce.test/ for local testing.
   static String get paymentRedirectUrl {
     const env =
         String.fromEnvironment('PAYMENT_REDIRECT_URL', defaultValue: '');
-    return env.isNotEmpty ? env : '$appBaseUrl/complete';
+    if (env.isNotEmpty) return env;
+    return '$appBaseUrl/complete';
   }
 
   // ==================== AUTHENTICATION ENDPOINTS ====================
@@ -40,8 +39,9 @@ class ApiConfig {
   static const String register = '/register';
   static const String logout = '/logout';
   static const String otpVerification = '/otp-verification';
-  static const String resendOtp = '/resend-otp';
-  static const String resetPassword = '/reset-pwd'; // used by forgot-password flow
+  static const String resendOtpVerification = '/resend-otp-verification';
+  static const String resetPassword =
+      '/reset-pwd'; // used by forgot-password flow
   static const String forgotPassword =
       '/forgot-password'; // legacy alias — not used by the app
   static const String guestId = '/guest-id';
@@ -58,6 +58,7 @@ class ApiConfig {
   // getting products and product info
 
   static const String getAllProducts = '/get-all-products';
+
   /// Small featured set for fast home first paint (~20 products).
   static const String getHomePriority = '/get-home-priority';
   static const String productDetails =
@@ -228,7 +229,8 @@ class ApiConfig {
     final nativeKey = await MapsApiKeyService.loadFromNative();
     if (nativeKey.isNotEmpty) {
       _googleMapsApiKeyResolved = nativeKey;
-      debugPrint('🗺️ Maps API key loaded from native config (Info.plist / manifest)');
+      debugPrint(
+          '🗺️ Maps API key loaded from native config (Info.plist / manifest)');
     } else {
       debugPrint(
         '🗺️ No Maps API key — add GMSApiKey (iOS), MAPS_API_KEY (Android), '

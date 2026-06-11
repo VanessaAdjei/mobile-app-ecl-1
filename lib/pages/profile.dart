@@ -19,6 +19,7 @@ import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
+import '../widgets/logout_confirm_dialog.dart';
 import '../providers/cart_provider.dart';
 import '../main.dart';
 import '../providers/auth_provider.dart';
@@ -175,76 +176,12 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
   void _showLogoutDialog() {
     if (!mounted) return;
 
-    // Store context reference before showing dialog
-    final currentContext = context;
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    final isDark = themeProvider.isDarkMode;
-
-    showDialog(
-      context: currentContext,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          backgroundColor: isDark ? Colors.grey[900] : Colors.white,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.logout,
-                  color: Colors.red.shade600,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                "Confirm Logout",
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : Colors.black,
-                ),
-              ),
-            ],
-          ),
-          content: Text(
-            "Are you sure you want to logout from your account?",
-            style: GoogleFonts.poppins(
-              color: isDark ? Colors.white70 : Colors.black87,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(
-                "Cancel",
-                style: GoogleFonts.poppins(
-                  color: Colors.grey,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 2,
-              ),
-              onPressed: () async {
-                // get the providers before we do async stuff
-                final authProvider =
-                    Provider.of<AuthProvider>(context, listen: false);
-                final cartProvider =
-                    Provider.of<CartProvider>(context, listen: false);
-                final userProvider =
-                    Provider.of<UserProvider>(context, listen: false);
+    LogoutConfirmDialog.show(
+      context,
+      onConfirm: () async {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final cartProvider = Provider.of<CartProvider>(context, listen: false);
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
                 bool logoutSuccess = false;
                 String? errorMsg;
                 try {
@@ -256,14 +193,11 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     debugPrint('🔍 Profile: authProvider.logout() completed');
                   } catch (e) {
                     debugPrint('🔍 Profile: authProvider.logout() error: $e');
-                    // ignore this error, we dont care
                   }
                   await cartProvider.handleUserLogout();
-                  debugPrint(
-                      '🔍 Profile: cartProvider.handleUserLogout() completed');
+          debugPrint('🔍 Profile: cartProvider.handleUserLogout() completed');
                   userProvider.clearUserData();
-                  debugPrint(
-                      '🔍 Profile: userProvider.clearUserData() completed');
+          debugPrint('🔍 Profile: userProvider.clearUserData() completed');
                   logoutSuccess = true;
                   debugPrint('🔍 Profile: Logout successful');
                 } catch (e) {
@@ -272,48 +206,24 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                 }
                 if (!mounted) return;
 
-                if (dialogContext.mounted) {
-                  Navigator.of(dialogContext, rootNavigator: true).pop();
+        if (Navigator.of(context, rootNavigator: true).canPop()) {
+          Navigator.of(context, rootNavigator: true).pop();
                 }
 
-                await Future.delayed(Duration(milliseconds: 100));
-
+        await Future.delayed(const Duration(milliseconds: 100));
                 if (!mounted) return;
 
                 if (logoutSuccess) {
-                  debugPrint('🔍 Profile: Setting userLoggedIn to false');
-                  setState(() {
-                    _userLoggedIn = false;
-                  });
-
-                  if (mounted) {
-                    debugPrint('🔍 Profile: Starting navigation delay');
-                    await Future.delayed(Duration(milliseconds: 200));
-                    if (mounted) {
-                      debugPrint('🔍 Profile: Navigating to LoggedOutScreen');
+          setState(() => _userLoggedIn = false);
+          await Future.delayed(const Duration(milliseconds: 200));
+          if (!mounted) return;
                       Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                            builder: (context) => LoggedOutScreen()),
+            MaterialPageRoute(builder: (context) => const LoggedOutScreen()),
                         (route) => false,
                       );
-                      debugPrint('🔍 Profile: Navigation completed');
-                    } else {
-                      debugPrint('🔍 Profile: Widget not mounted after delay');
-                    }
-                  } else {
-                    debugPrint('🔍 Profile: Widget not mounted before delay');
-                  }
-                } else if (errorMsg != null && mounted) {
+        } else if (errorMsg != null) {
                   AppErrorUtils.showSnack(context, errorMsg, isError: true);
                 }
-              },
-              child: Text(
-                "Logout",
-                style: GoogleFonts.poppins(),
-              ),
-            ),
-          ],
-        );
       },
     );
   }

@@ -29,6 +29,8 @@ class SafeTypeAheadField<T> extends StatefulWidget {
     this.contentPadding = const EdgeInsets.symmetric(vertical: 12),
     this.fillColor,
     this.focusNode,
+    this.borderColor,
+    this.borderWidth = 1.5,
   });
 
   final TextEditingController controller;
@@ -50,6 +52,8 @@ class SafeTypeAheadField<T> extends StatefulWidget {
   final EdgeInsetsGeometry contentPadding;
   final Color? fillColor;
   final FocusNode? focusNode;
+  final Color? borderColor;
+  final double borderWidth;
 
   @override
   State<SafeTypeAheadField<T>> createState() => _SafeTypeAheadFieldState<T>();
@@ -76,6 +80,25 @@ class _SafeTypeAheadFieldState<T> extends State<SafeTypeAheadField<T>> {
 
         try {
           final theme = context.appColors;
+          final radius = BorderRadius.circular(widget.borderRadius);
+          final outlineBorder = widget.borderColor == null
+              ? OutlineInputBorder(borderRadius: radius, borderSide: BorderSide.none)
+              : OutlineInputBorder(
+                  borderRadius: radius,
+                  borderSide: BorderSide(
+                    color: widget.borderColor!,
+                    width: widget.borderWidth,
+                  ),
+                );
+          final focusedBorder = widget.borderColor == null
+              ? outlineBorder
+              : OutlineInputBorder(
+                  borderRadius: radius,
+                  borderSide: BorderSide(
+                    color: widget.borderColor!,
+                    width: widget.borderWidth + 0.5,
+                  ),
+                );
           return TypeAheadField<T>(
             controller: widget.controller,
             focusNode: widget.focusNode,
@@ -98,10 +121,9 @@ class _SafeTypeAheadFieldState<T> extends State<SafeTypeAheadField<T>> {
                   fillColor: widget.fillColor ?? theme.fieldBg,
                   suffixIcon:
                       widget.suffixIconBuilder?.call(widget.controller),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(widget.borderRadius),
-                    borderSide: BorderSide.none,
-                  ),
+                  border: outlineBorder,
+                  enabledBorder: outlineBorder,
+                  focusedBorder: focusedBorder,
                   contentPadding: widget.contentPadding,
                 ),
                 onSubmitted: (value) {
@@ -131,7 +153,8 @@ class _SafeTypeAheadFieldState<T> extends State<SafeTypeAheadField<T>> {
             hideOnLoading: widget.hideOnLoading,
             debounceDuration: widget.debounceDuration,
           );
-        } catch (_) {
+        } catch (e, st) {
+          debugPrint('SafeTypeAheadField build error: $e\n$st');
           return const SizedBox.shrink();
         }
       },

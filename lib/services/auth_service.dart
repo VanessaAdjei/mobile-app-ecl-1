@@ -17,6 +17,24 @@ import '../services/guest_local_order_service.dart';
 import '../services/http_client_service.dart';
 import '../utils/app_error_utils.dart';
 
+/// Thrown when sign-up hits a duplicate email for an account that is not verified yet.
+class UnverifiedAccountException implements Exception {
+  const UnverifiedAccountException({
+    required this.email,
+    required this.phone,
+    required this.password,
+    this.name,
+  });
+
+  final String email;
+  final String phone;
+  final String password;
+  final String? name;
+
+  @override
+  String toString() => 'UnverifiedAccountException(email: $email)';
+}
+
 class AuthService {
   static String get baseUrl => ApiConfig.baseUrl;
   static const String usersKey = "users";
@@ -384,6 +402,117 @@ class AuthService {
     }
   }
 
+  static bool isUserPendingVerification(
+    Map<String, dynamic>? user,
+    Map<String, dynamic>? responseData,
+  ) {
+    if (user != null) {
+      final status = user['status'];
+      if (status == 0 || status == '0') return true;
+    }
+
+    final success = responseData?['success'];
+    if (success is String) {
+      final lower = success.toLowerCase();
+      if (lower.contains('pending') ||
+          lower.contains('not verified') ||
+          lower.contains('verification')) {
+        return true;
+      }
+    }
+
+    final message = responseData?['message']?.toString().toLowerCase() ?? '';
+    return message.contains('pending approval') ||
+        message.contains('not verified') ||
+        message.contains('pending verification');
+  }
+
+  static Map<String, dynamic> _pendingVerificationResult({
+    required Map<String, dynamic> responseData,
+    required String fallbackEmail,
+  }) {
+    final user = _extractUserMap(responseData);
+    return {
+      'success': false,
+      'needsVerification': true,
+      'message': AppErrorUtils.messageFromMap(
+        responseData,
+        fallback: 'Your account is pending verification.',
+      ),
+      'email': user?['email']?.toString() ?? fallbackEmail,
+      'phone': user?['phone']?.toString() ?? '',
+      'user': user,
+    };
+  }
+
+  /// True when sign-in succeeded at the API but the account still needs OTP.
+  static bool resultNeedsOtpVerification(Map<String, dynamic> result) {
+    if (result['needsVerification'] == true) return true;
+
+    final user = result['user'];
+    if (user is Map) {
+      final userMap = user is Map<String, dynamic>
+          ? user
+          : Map<String, dynamic>.from(user);
+      if (isUserPendingVerification(userMap, null)) return true;
+    }
+
+    final message = result['message']?.toString().toLowerCase() ?? '';
+    return message.contains('pending verification') ||
+        message.contains('pending approval');
+  }
+
+  static Never _throwEmailAlreadyRegistered() {
+    throw Exception(
+      'This email is already registered. Please use a different email or sign in.',
+    );
+  }
+
+  static Future<void> _handleDuplicateEmailOnSignup({
+    required String email,
+    required String password,
+    required String phoneNumber,
+    required String name,
+  }) async {
+    try {
+      final probe = await signIn(
+        email,
+        password,
+        persistSession: false,
+      );
+      if (probe['needsVerification'] == true) {
+        throw UnverifiedAccountException(
+          email: email,
+          phone: probe['phone']?.toString() ?? phoneNumber,
+          password: password,
+          name: name,
+        );
+      }
+    } on UnverifiedAccountException {
+      rethrow;
+    } catch (e) {
+      debugPrint('Duplicate email verification probe failed: $e');
+    }
+    _throwEmailAlreadyRegistered();
+  }
+
+  /// Requests a fresh OTP. Skips the network call when login/register already sent one.
+  static Future<Map<String, dynamic>> requestVerificationOtp({
+    required String email,
+    bool otpAlreadySent = false,
+  }) async {
+    if (otpAlreadySent) {
+      debugPrint('🔄 OTP already sent for $email — skipping resend request');
+      return {
+        'success': true,
+        'message': 'Verification code sent. Check your messages.',
+      };
+    }
+
+    debugPrint('🔄 Requesting verification OTP for: $email');
+    return resendOTP(email);
+  }
+
   // sign up a new user
   static Future<bool> signUp(
       String name, String email, String password, String phoneNumber) async {
@@ -417,16 +546,12 @@ class AuthService {
           debugPrint('🔍 AUTH SERVICE: 200 errors: $errors');
 
           if (errors['email'] != null) {
-            final emailError = errors['email'];
-            if (emailError is List && emailError.isNotEmpty) {
-              final errorMessage = emailError[0].toString();
-              if (errorMessage.toLowerCase().contains('already been taken')) {
-                throw Exception(
-                    'This email is already registered. Please use a different email or sign in.');
-              }
-            }
-            throw Exception(
-                'This email is already registered. Please use a different email or sign in.');
+            await _handleDuplicateEmailOnSignup(
+              email: email,
+              password: password,
+              phoneNumber: phoneNumber,
+              name: name,
+            );
           } else if (errors['phone'] != null) {
             throw Exception(
                 'This phone number is already registered. Please use a different number.');
@@ -440,6 +565,7 @@ class AuthService {
           // if we get here, it might be a successful response with errors
           return true;
         } catch (e) {
+          if (e is UnverifiedAccountException) rethrow;
           if (e.toString().contains('email is already registered')) {
             rethrow;
           }
@@ -451,8 +577,12 @@ class AuthService {
         debugPrint('🔍 AUTH SERVICE: 422 errors: $errors');
 
         if (errors['email'] != null) {
-          throw Exception(
-              'This email is already registered. Please use a different email or sign in.');
+          await _handleDuplicateEmailOnSignup(
+            email: email,
+            password: password,
+            phoneNumber: phoneNumber,
+            name: name,
+          );
         } else if (errors['phone'] != null) {
           throw Exception(
               'This phone number is already registered. Please use a different number.');
@@ -467,20 +597,29 @@ class AuthService {
           // check if the error says email already exists
           final message = data['message']?.toString().toLowerCase() ?? '';
           if (message.contains('email') && message.contains('already')) {
-            throw Exception(
-                'This email is already registered. Please use a different email or sign in.');
+            await _handleDuplicateEmailOnSignup(
+              email: email,
+              password: password,
+              phoneNumber: phoneNumber,
+              name: name,
+            );
           }
 
           // also check in the errors object
           final errors = data['errors'] ?? {};
           if (errors['email'] != null) {
-            throw Exception(
-                'This email is already registered. Please use a different email or sign in.');
+            await _handleDuplicateEmailOnSignup(
+              email: email,
+              password: password,
+              phoneNumber: phoneNumber,
+              name: name,
+            );
           }
 
           throw Exception(data['message'] ??
               'Please check your information and try again.');
         } catch (e) {
+          if (e is UnverifiedAccountException) rethrow;
           if (e.toString().contains('email is already registered')) {
             rethrow;
           }
@@ -566,67 +705,79 @@ class AuthService {
     }
   }
 
-  // Resend OTP
+  // Resend OTP — `POST /resend-otp-verification` with `{ email }`.
   static Future<Map<String, dynamic>> resendOTP(String email) async {
-    final url = Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.resendOtp));
+    final url =
+        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.resendOtpVerification));
+    final trimmedEmail = email.trim();
 
     debugPrint('🔄 [AuthService] Resending OTP to: $url');
-    debugPrint('📧 [AuthService] Email: $email');
+    debugPrint('📧 [AuthService] Email: $trimmedEmail');
 
     try {
-      final response = await http
-          .post(
-            url,
-            headers: {"Content-Type": "application/json"},
-            body: jsonEncode({"email": email}),
-          )
-          .timeout(const Duration(seconds: 30));
+      final response = await HttpClientService.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({'email': trimmedEmail}),
+      ).timeout(const Duration(seconds: 30));
 
       debugPrint('📡 [AuthService] Resend OTP API Response:');
       debugPrint('   Status Code: ${response.statusCode}');
-      debugPrint('   Response Headers: ${response.headers}');
       debugPrint('   Raw Response Body: ${response.body}');
-      debugPrint('   Response Body Length: ${response.body.length}');
 
-      final responseData = json.decode(response.body);
-      debugPrint('   Parsed Response Data: $responseData');
-      debugPrint('   Response Data Type: ${responseData.runtimeType}');
+      final responseData = AppErrorUtils.tryDecodeJsonMap(response.body) ?? {};
 
-      if (response.statusCode == 200) {
-        debugPrint('✅ [AuthService] OTP resent successfully (200)');
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        debugPrint('✅ [AuthService] OTP resent successfully');
         return {
           'success': true,
-          'message': responseData['message'] ?? 'OTP resent successfully',
+          'message': AppErrorUtils.messageFromMap(
+            responseData,
+            fallback: 'A new verification code has been sent.',
+          ),
         };
-      } else if (response.statusCode == 400) {
-        debugPrint(
-            '❌ [AuthService] Bad request (400): ${responseData['message']}');
+      }
+
+      if (response.statusCode == 400) {
         return {
           'success': false,
-          'message': responseData['message'] ?? 'Invalid email address',
+          'message': AppErrorUtils.messageFromMap(
+            responseData,
+            fallback: 'Invalid email address',
+          ),
         };
       } else if (response.statusCode == 404) {
-        debugPrint(
-            '❌ [AuthService] Email not found (404): ${responseData['message']}');
         return {
           'success': false,
-          'message': responseData['message'] ?? 'Email not found',
+          'message': AppErrorUtils.messageFromMap(
+            responseData,
+            fallback: 'Email not found',
+          ),
+        };
+      } else if (response.statusCode == 422) {
+        return {
+          'success': false,
+          'message': AppErrorUtils.messageFromMap(
+            responseData,
+            fallback: 'Could not resend verification code. Please try again.',
+          ),
         };
       } else if (response.statusCode >= 500) {
-        debugPrint(
-            '❌ [AuthService] Server error (${response.statusCode}): ${responseData['message']}');
         return {
           'success': false,
           'message': 'Server is currently unavailable. Please try again later.',
         };
       }
 
-      debugPrint(
-          '❌ [AuthService] Unexpected status code (${response.statusCode}): ${responseData['message']}');
       return {
         'success': false,
-        'message': responseData['message'] ??
-            'Unable to resend OTP. Please try again.',
+        'message': AppErrorUtils.messageFromMap(
+          responseData,
+          fallback: 'Unable to resend OTP. Please try again.',
+        ),
       };
     } on TimeoutException {
       debugPrint('⏰ [AuthService] Request timeout');
@@ -724,7 +875,10 @@ class AuthService {
 
   // Sign in a  user
   static Future<Map<String, dynamic>> signIn(
-      String email, String password) async {
+    String email,
+    String password, {
+    bool persistSession = true,
+  }) async {
     try {
       final trimmedEmail = email.trim();
       final response = await HttpClientService.post(
@@ -778,7 +932,15 @@ class AuthService {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final token = _extractAuthToken(responseData);
+        final user = _extractUserMap(responseData);
+
         if (token == null || token.isEmpty) {
+          if (isUserPendingVerification(user, responseData)) {
+            return _pendingVerificationResult(
+              responseData: responseData,
+              fallbackEmail: trimmedEmail,
+            );
+          }
           return {
             'success': false,
             'message': AppErrorUtils.messageFromMap(
@@ -789,9 +951,16 @@ class AuthService {
           };
         }
 
+        if (!persistSession) {
+          return {
+            'success': true,
+            'token': token,
+            'user': user,
+          };
+        }
+
         await saveToken(token);
 
-        final user = _extractUserMap(responseData);
         if (user != null) {
           await _persistUserFromLogin(user);
         } else {

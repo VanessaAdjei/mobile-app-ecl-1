@@ -1,7 +1,11 @@
 // pages/loggedout.dart
-import 'package:eclapp/pages/homepage.dart';
+import 'package:eclapp/config/app_colors.dart';
+import 'package:eclapp/pages/main_tab_shell.dart';
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:google_fonts/google_fonts.dart';
+
 import '../services/auth_service.dart';
 
 class LoggedOutScreen extends StatefulWidget {
@@ -11,322 +15,209 @@ class LoggedOutScreen extends StatefulWidget {
   State<LoggedOutScreen> createState() => _LoggedOutScreenState();
 }
 
-class _LoggedOutScreenState extends State<LoggedOutScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _logoController;
-  late AnimationController _textController;
-  late AnimationController _buttonController;
-  late AnimationController _featuresController;
-  late AnimationController _signInController;
-
-  late Animation<double> _logoScale;
-  late Animation<double> _logoRotation;
-  late Animation<double> _textSlide;
-  late Animation<double> _buttonSlide;
-  late Animation<double> _featuresSlide;
-  late Animation<double> _signInFade;
-
-  @override
-  void initState() {
-    super.initState();
-
-    // Initialize animation controllers with faster durations
-    _logoController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-
-    _textController = AnimationController(
-      duration: const Duration(milliseconds: 400),
-      vsync: this,
-    );
-
-    _buttonController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-
-    _featuresController = AnimationController(
-      duration: const Duration(milliseconds: 500),
-      vsync: this,
-    );
-
-    _signInController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-
-    // Define animations with simpler curves
-    _logoScale = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _logoController, curve: Curves.easeOut),
-    );
-
-    _logoRotation = Tween<double>(begin: 0.0, end: 0.0).animate(
-      CurvedAnimation(parent: _logoController, curve: Curves.easeOut),
-    );
-
-    _textSlide = Tween<double>(begin: 30.0, end: 0.0).animate(
-      CurvedAnimation(parent: _textController, curve: Curves.easeOut),
-    );
-
-    _buttonSlide = Tween<double>(begin: 50.0, end: 0.0).animate(
-      CurvedAnimation(parent: _buttonController, curve: Curves.easeOut),
-    );
-
-    _featuresSlide = Tween<double>(begin: 50.0, end: 0.0).animate(
-      CurvedAnimation(parent: _featuresController, curve: Curves.easeOut),
-    );
-
-    _signInFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _signInController, curve: Curves.easeIn),
-    );
-
-    // Start animations in sequence with shorter delays
-    _startAnimations();
-  }
-
-  void _startAnimations() async {
-    await _logoController.forward();
-    await _textController.forward();
-    await _buttonController.forward();
-    await _featuresController.forward();
-    await Future.delayed(const Duration(milliseconds: 150));
-    _signInController.forward();
-  }
-
-  @override
-  void dispose() {
-    _logoController.dispose();
-    _textController.dispose();
-    _buttonController.dispose();
-    _featuresController.dispose();
-    _signInController.dispose();
-    super.dispose();
-  }
+class _LoggedOutScreenState extends State<LoggedOutScreen> {
+  bool _isStarting = false;
 
   Future<void> _ensureLoggedOut() async {
     await AuthService.logout();
   }
 
+  Future<void> _startShopping() async {
+    if (_isStarting) return;
+    setState(() => _isStarting = true);
+    try {
+      await _ensureLoggedOut();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const MainTabShell(initialIndex: 0)),
+        (_) => false,
+      );
+    } finally {
+      if (mounted) setState(() => _isStarting = false);
+    }
+  }
+
+  void _openSignIn() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const SignInScreen(returnTo: '/'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      body: Stack(
+      backgroundColor: const Color(0xFFF4FAF6),
+      body: Column(
         children: [
-          // Animated background gradient
-          AnimatedBuilder(
-            animation: _logoController,
-            builder: (context, child) {
-              return Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.white,
-                        const Color(0xFFE8F5E9)
-                            .withValues(alpha: _logoController.value),
-                      ],
-                    ),
-                  ),
+          const _LoggedOutHero(),
+          Expanded(
+            child: Transform.translate(
+              offset: const Offset(0, -28),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(22, 0, 22, 20 + bottomInset),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.9),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.07),
+                            blurRadius: 28,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Browse without signing in',
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF0F172A),
+                              height: 1.25,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Your cart and preferences stay on this device. '
+                            'Sign in anytime to sync orders and checkout faster.',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              height: 1.55,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          const _TrustFeatureRow(),
+                        ],
+                      ),
+                    )
+                        .animate()
+                        .fadeIn(duration: 420.ms, delay: 180.ms)
+                        .slideY(
+                          begin: 0.08,
+                          end: 0,
+                          duration: 480.ms,
+                          delay: 180.ms,
+                          curve: Curves.easeOutCubic,
+                        ),
+                    const SizedBox(height: 22),
+                    SizedBox(
+                      height: 54,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [
+                              AppColors.primary,
+                              AppColors.primaryDark,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primaryDark.withValues(
+                                alpha: 0.32,
+                              ),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: ElevatedButton(
+                          onPressed: _isStarting ? null : _startShopping,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: _isStarting
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      'Start shopping',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Icon(
+                                      Icons.arrow_forward_rounded,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    )
+                        .animate()
+                        .fadeIn(duration: 420.ms, delay: 280.ms)
+                        .slideY(
+                          begin: 0.1,
+                          end: 0,
+                          duration: 480.ms,
+                          delay: 280.ms,
+                          curve: Curves.easeOutCubic,
+                        ),
+                    const SizedBox(height: 14),
+                    OutlinedButton(
+                      onPressed: _isStarting ? null : _openSignIn,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(50),
+                        foregroundColor: AppColors.primaryDark,
+                        side: BorderSide(
+                          color: AppColors.primary.withValues(alpha: 0.45),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: Text(
+                        'Sign in to my account',
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    )
+                        .animate()
+                        .fadeIn(duration: 420.ms, delay: 340.ms)
+                        .slideY(
+                          begin: 0.08,
+                          end: 0,
+                          duration: 460.ms,
+                          delay: 340.ms,
+                          curve: Curves.easeOutCubic,
+                        ),
+                  ],
                 ),
-              );
-            },
-          ),
-
-          // Main content
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 40),
-
-                  // Animated app logo
-                  AnimatedBuilder(
-                    animation: _logoController,
-                    builder: (context, child) {
-                      return Transform.scale(
-                        scale: _logoScale.value,
-                        child: Transform.rotate(
-                          angle: _logoRotation.value,
-                          child: Hero(
-                            tag: 'appLogo',
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(
-                                        alpha: 0.05 * _logoController.value),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 5),
-                                  ),
-                                ],
-                              ),
-                              child: Image.asset(
-                                'assets/images/png.png',
-                                height: 80,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  // Animated welcome text
-                  AnimatedBuilder(
-                    animation: _textController,
-                    builder: (context, child) {
-                      return Transform.translate(
-                        offset: Offset(0, _textSlide.value),
-                        child: Opacity(
-                          opacity: _textController.value,
-                          child: Column(
-                            children: [
-                              Text(
-                                'Welcome to Ernest Chemist',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineSmall
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black87,
-                                    ),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                'Start your shopping experience',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    fontSize: 16, color: Colors.grey[600]),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 40),
-
-                  // Animated start shopping button
-                  AnimatedBuilder(
-                    animation: _buttonController,
-                    builder: (context, child) {
-                      return Transform.translate(
-                        offset: Offset(0, _buttonSlide.value),
-                        child: Opacity(
-                          opacity: _buttonController.value,
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              await _ensureLoggedOut();
-                              if (context.mounted) {
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => HomePage(),
-                                  ),
-                                );
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              backgroundColor: const Color(0xFF43A047),
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              minimumSize: const Size(double.infinity, 55),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              elevation: 2,
-                            ),
-                            child: const Text(
-                              'Start Shopping',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Animated sign in link
-                  AnimatedBuilder(
-                    animation: _signInController,
-                    builder: (context, child) {
-                      return Opacity(
-                        opacity: _signInFade.value,
-                        child: Transform.translate(
-                          offset: Offset(0, 20 * (1 - _signInFade.value)),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Already a user? ',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                              GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          SignInScreen(returnTo: '/cart'),
-                                    ),
-                                  );
-                                },
-                                child: Text(
-                                  'Sign in',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: const Color(0xFF43A047),
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  // Animated features section
-                  Expanded(
-                    child: AnimatedBuilder(
-                      animation: _featuresController,
-                      builder: (context, child) {
-                        return Transform.translate(
-                          offset: Offset(0, _featuresSlide.value),
-                          child: Opacity(
-                            opacity: _featuresController.value,
-                            child: _buildFeaturesSection(context),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
               ),
             ),
           ),
@@ -334,119 +225,131 @@ class _LoggedOutScreenState extends State<LoggedOutScreen>
       ),
     );
   }
+}
 
-  Widget _buildFeaturesSection(BuildContext context) {
-    final features = [
-      // {
-      //   'icon': Icons.local_shipping_outlined,
-      //   'title': 'Free Delivery',
-      //   'subtitle': 'Orders Over GHS120',
-      //   'color': const Color(0xFF43A047),
-      // },
-      {
-        'icon': Icons.replay_outlined,
-        'title': 'Easy Returns',
-        'subtitle': 'Within 30 Days',
-        'color': const Color(0xFF1E88E5),
-      },
-      {
-        'icon': Icons.lock_outline,
-        'title': 'Secure Payment',
-        'subtitle': '100% Protected Checkout',
-        'color': const Color(0xFFE53935),
-      },
-      {
-        'icon': Icons.headset_mic_outlined,
-        'title': '24/7 Support',
-        'subtitle': 'Dedicated Customer Service',
-        'color': const Color(0xFFFFB300),
-      },
-    ];
+class _LoggedOutHero extends StatelessWidget {
+  const _LoggedOutHero();
 
-    return Column(
-      children: [
-        Expanded(
-          child: ListView.builder(
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: features.length,
-            itemBuilder: (context, index) {
-              return TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0.0, end: 1.0),
-                duration: Duration(milliseconds: 200 + (index * 50)),
-                curve: Curves.easeOut,
-                builder: (context, value, child) {
-                  return Transform.translate(
-                    offset: Offset(20 * (1 - value), 0),
-                    child: Opacity(opacity: value, child: child),
-                  );
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: _buildFeatureCard(
-                    features[index]['icon'] as IconData,
-                    features[index]['title'] as String,
-                    features[index]['subtitle'] as String,
-                    features[index]['color'] as Color,
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
+  @override
+  Widget build(BuildContext context) {
+    final topInset = MediaQuery.paddingOf(context).top;
 
-  Widget _buildFeatureCard(
-      IconData icon, String title, String subtitle, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
+    return SizedBox(
+      height: topInset + 248,
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 26,
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF041A0C),
+                    Color(0xFF0D3D18),
+                    Color(0xFF1B5E32),
+                    Color(0xFF2E7D32),
+                  ],
+                  stops: [0.0, 0.35, 0.72, 1.0],
+                ),
+              ),
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0.1, -0.35),
+                  radius: 1.05,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.14),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: -1,
+            child: CustomPaint(
+              size: const Size(double.infinity, 42),
+              painter: _HeroWavePainter(
+                fillColor: const Color(0xFFF4FAF6),
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(24, topInset + 18, 24, 36),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.22),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
+                  child: Image.asset(
+                    'assets/images/png.png',
+                    height: 56,
+                    fit: BoxFit.contain,
+                  ),
+                )
+                    .animate()
+                    .scale(
+                      begin: const Offset(0.82, 0.82),
+                      end: const Offset(1, 1),
+                      duration: 560.ms,
+                      curve: Curves.easeOutBack,
+                    )
+                    .fadeIn(duration: 420.ms),
+                const SizedBox(height: 18),
                 Text(
-                  subtitle,
-                  style: TextStyle(
+                  'Signed out successfully',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    height: 1.2,
+                    letterSpacing: -0.3,
+                  ),
+                )
+                    .animate()
+                    .fadeIn(duration: 450.ms, delay: 80.ms)
+                    .slideY(
+                      begin: 0.15,
+                      end: 0,
+                      duration: 500.ms,
+                      delay: 80.ms,
+                      curve: Curves.easeOutCubic,
+                    ),
+                const SizedBox(height: 8),
+                Text(
+                  'Thanks for visiting Ernest Chemists',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
                     fontSize: 14,
-                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w400,
+                    color: Colors.white.withValues(alpha: 0.88),
+                    height: 1.45,
                   ),
-                ),
+                )
+                    .animate()
+                    .fadeIn(duration: 450.ms, delay: 140.ms)
+                    .slideY(
+                      begin: 0.12,
+                      end: 0,
+                      duration: 480.ms,
+                      delay: 140.ms,
+                      curve: Curves.easeOutCubic,
+                    ),
               ],
             ),
           ),
@@ -454,4 +357,109 @@ class _LoggedOutScreenState extends State<LoggedOutScreen>
       ),
     );
   }
+}
+
+class _TrustFeatureRow extends StatelessWidget {
+  const _TrustFeatureRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: const [
+        Expanded(
+          child: _TrustFeatureTile(
+            icon: Icons.local_shipping_outlined,
+            label: 'Fast delivery',
+          ),
+        ),
+        SizedBox(width: 10),
+        Expanded(
+          child: _TrustFeatureTile(
+            icon: Icons.verified_user_outlined,
+            label: 'Secure checkout',
+          ),
+        ),
+        SizedBox(width: 10),
+        Expanded(
+          child: _TrustFeatureTile(
+            icon: Icons.medical_services_outlined,
+            label: 'Pharmacist care',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TrustFeatureTile extends StatelessWidget {
+  const _TrustFeatureTile({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FAF4),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 22, color: AppColors.primaryDark),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              height: 1.25,
+              color: const Color(0xFF1F2937),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroWavePainter extends CustomPainter {
+  const _HeroWavePainter({required this.fillColor});
+
+  final Color fillColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = fillColor;
+    final path = Path()
+      ..moveTo(0, size.height * 0.35)
+      ..quadraticBezierTo(
+        size.width * 0.25,
+        size.height * 0.02,
+        size.width * 0.5,
+        size.height * 0.22,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.78,
+        size.height * 0.42,
+        size.width,
+        size.height * 0.12,
+      )
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _HeroWavePainter oldDelegate) =>
+      oldDelegate.fillColor != fillColor;
 }

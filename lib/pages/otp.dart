@@ -12,13 +12,14 @@ import '../providers/cart_provider.dart';
 import '../main.dart' as main_app;
 import 'package:eclapp/widgets/error_display.dart';
 import 'package:sms_autofill/sms_autofill.dart';
-import 'package:eclapp/pages/homepage.dart';
+import 'package:eclapp/pages/main_tab_shell.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final String email;
   final String phoneNumber;
   final String? password;
   final String? name;
+  final bool resendOtpOnOpen;
 
   const OtpVerificationScreen({
     super.key,
@@ -26,6 +27,7 @@ class OtpVerificationScreen extends StatefulWidget {
     required this.phoneNumber,
     this.password,
     this.name,
+    this.resendOtpOnOpen = false,
   });
 
   @override
@@ -50,6 +52,7 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
       TextEditingController();
 
   bool isLoading = false;
+  bool isResending = false;
   String otp = '';
   String? _detectedSmsCode;
 
@@ -58,6 +61,41 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
     super.initState();
     _logAndroidSmsSetupHint();
     listenForCode(smsCodeRegexPattern: _otpSmsRegex);
+    if (widget.resendOtpOnOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _requestNewOtp());
+    }
+  }
+
+  Future<void> _requestNewOtp({bool showSuccess = true}) async {
+    if (isResending) return;
+    setState(() => isResending = true);
+    try {
+      final result = await AuthService.requestVerificationOtp(
+        email: widget.email,
+      );
+      if (!mounted) return;
+      if (result['success'] == true) {
+        if (showSuccess) {
+          _showSuccess(
+            result['message']?.toString() ??
+                'A new verification code has been sent.',
+          );
+        }
+      } else {
+        _showError(
+          result['message']?.toString() ??
+              'Could not send a new code. Please try again.',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _showError('Could not send a new code. Please try again.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => isResending = false);
+      }
+    }
   }
 
   Future<void> _logAndroidSmsSetupHint() async {
@@ -243,7 +281,9 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
               if (mounted) {
                 Navigator.pushAndRemoveUntil(
                   context,
-                  MaterialPageRoute(builder: (context) => const HomePage()),
+                  MaterialPageRoute(
+                    builder: (context) => const MainTabShell(),
+                  ),
                   (route) => false,
                 );
               }
@@ -583,7 +623,28 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: isResending ? null : () => _requestNewOtp(),
+                  child: isResending
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.green.shade700,
+                          ),
+                        )
+                      : Text(
+                          'Resend code',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green.shade700,
+                          ),
+                        ),
+                ),
+                const SizedBox(height: 8),
               ],
             ),
           ),

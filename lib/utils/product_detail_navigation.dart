@@ -117,14 +117,26 @@ class ProductDetailNavigation {
     };
   }
 
+  static String _resolveUrlName(
+    String urlName, {
+    dynamic product,
+    dynamic raw,
+  }) {
+    final trimmed = urlName.trim();
+    if (trimmed.isNotEmpty) return trimmed;
+    final preview = previewFor(urlName: '', product: product, raw: raw);
+    return preview?.urlName.trim() ?? '';
+  }
+
   static bool _prepareOpenFromCard({
     required String urlName,
     dynamic product,
     dynamic raw,
   }) {
-    final preview = previewFor(urlName: urlName, product: product, raw: raw);
+    final resolved = _resolveUrlName(urlName, product: product, raw: raw);
+    final preview = previewFor(urlName: resolved, product: product, raw: raw);
     final key = ProductTapGuard.openKey(
-      urlName: urlName,
+      urlName: resolved,
       productId: preview?.id.toString(),
     );
     if (!ProductTapGuard.canOpen(key)) return false;
@@ -164,10 +176,11 @@ class ProductDetailNavigation {
     bool? isPrescribed,
     bool fromProductCard = false,
   }) {
-    if (urlName.trim().isEmpty) return Future.value();
+    final resolved = _resolveUrlName(urlName, product: product, raw: raw);
+    if (resolved.isEmpty) return Future.value();
     if (fromProductCard &&
         !_prepareOpenFromCard(
-          urlName: urlName,
+          urlName: resolved,
           product: product,
           raw: raw,
         )) {
@@ -177,7 +190,7 @@ class ProductDetailNavigation {
       context,
       AppRoutes.itemDetail,
       arguments: routeArguments(
-        urlName: urlName,
+        urlName: resolved,
         product: product,
         raw: raw,
         isPrescribed: isPrescribed,
@@ -194,10 +207,11 @@ class ProductDetailNavigation {
     bool? isPrescribed,
     bool fromProductCard = false,
   }) {
-    if (urlName.trim().isEmpty) return Future.value();
+    final resolved = _resolveUrlName(urlName, product: product, raw: raw);
+    if (resolved.isEmpty) return Future.value();
     if (fromProductCard &&
         !_prepareOpenFromCard(
-          urlName: urlName,
+          urlName: resolved,
           product: product,
           raw: raw,
         )) {
@@ -207,7 +221,7 @@ class ProductDetailNavigation {
       context,
       MaterialPageRoute(
         builder: (_) => itemPage(
-          urlName: urlName,
+          urlName: resolved,
           product: product,
           raw: raw,
           isPrescribed: isPrescribed,

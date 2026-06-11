@@ -4,6 +4,8 @@ import '../models/product_model.dart';
 import '../models/category_fetch_result.dart';
 import '../models/refill_medicine.dart';
 import '../repositories/refill_repository.dart';
+import '../services/auth_service.dart';
+import '../services/cart_service.dart';
 import '../services/prescription_service.dart';
 import '../services/product_catalog_service.dart';
 import '../utils/refill_medicine_parser.dart';
@@ -13,14 +15,17 @@ class RefillCatalogService {
     RefillRepository? refillRepository,
     PrescriptionService? prescriptionService,
     ProductCatalogService? productCatalogService,
+    CartService? cartService,
   })  : _refillRepository = refillRepository ?? RefillRepositoryImpl(),
         _prescriptionService = prescriptionService ?? PrescriptionService(),
         _productCatalogService =
-            productCatalogService ?? ProductCatalogService();
+            productCatalogService ?? ProductCatalogService(),
+        _cartService = cartService ?? CartService();
 
   final RefillRepository _refillRepository;
   final PrescriptionService _prescriptionService;
   final ProductCatalogService _productCatalogService;
+  final CartService _cartService;
 
   Future<List<RefillMedicine>> loadRefillableMedicines({
     required String? authToken,
@@ -53,9 +58,10 @@ class RefillCatalogService {
           );
           if (medicinesData.isNotEmpty) {
             debugPrint('✅ Using /refill endpoint - contains medicine data');
-            return RefillMedicineParser.parseRefillEndpointMedicines(
+            final parsed = RefillMedicineParser.parseRefillEndpointMedicines(
               medicinesData,
             );
+            return _resolveCatalogProductIds(parsed);
           }
         } else {
           throw Exception('Refill endpoint does not contain medicine data');
@@ -80,29 +86,40 @@ class RefillCatalogService {
     required String authToken,
     required RefillMedicine medicine,
   }) async {
-    final requestBody = <String, dynamic>{
-      'productID': medicine.id,
-      'quantity': 1,
-      if (medicine.batchNo != null && medicine.batchNo!.isNotEmpty)
-        'batch_no': medicine.batchNo,
-    };
+    final isLoggedIn = await AuthService.isLoggedIn();
+    final headers = CartService.cartAuthHeaders(authToken, isLoggedIn);
+    final productIds = await _cartProductIdCandidates(medicine);
+
+    if (productIds.isEmpty) {
+      throw Exception(
+        'Could not resolve a catalog product for ${medicine.name}',
+      );
+    }
 
     debugPrint(
-      '[RefillCatalogService] Adding medicine ${medicine.id} (${medicine.name}) to cart',
+      '[RefillCatalogService] Adding medicine (${medicine.name}) '
+      'with product ids: $productIds',
     );
-    debugPrint('📦 Add to cart request body: $requestBody');
 
-    final result = await _refillRepository.addToCart(
-      authToken: authToken,
-      body: requestBody,
+    final result = await _cartService.checkAuthWithProductCandidates(
+      headers: headers,
+      productIds: productIds,
+      quantity: 1,
+      batchNo: medicine.batchNo,
+      onAttempt: ({
+        required String url,
+        required Map<String, String> headers,
+        required String requestBody,
+        required CategoryFetchResult result,
+      }) {
+        debugPrint('📦 Add to cart request body: $requestBody');
+        debugPrint('📦 Add to cart response status: ${result.statusCode}');
+        debugPrint('📦 Add to cart response body: ${result.rawBody}');
+      },
     );
     _rethrowTransportError(result);
 
-    debugPrint('📦 Add to cart response status: ${result.statusCode}');
-    debugPrint('📦 Add to cart response body: ${result.rawBody}');
-
-    final success = result.statusCode == 200 || result.statusCode == 201;
-    if (!success) {
+    if (!CartService.isSuccessStatus(result.statusCode)) {
       final message = RefillMedicineParser.errorMessageFromAddToCartBody(
             result.rawBody,
           ) ??
@@ -111,6 +128,44 @@ class RefillCatalogService {
     }
 
     return true;
+  }
+
+  Future<List<int>> _cartProductIdCandidates(RefillMedicine medicine) async {
+    List<Product> catalog = const [];
+    try {
+      catalog = await _productCatalogService.fetchCatalogProducts();
+    } catch (e) {
+      debugPrint('Catalog lookup for refill add-to-cart: $e');
+    }
+
+    return RefillMedicineParser.cartProductIdCandidates(
+      medicine: medicine,
+      catalogProducts: catalog,
+    );
+  }
+
+  Future<List<RefillMedicine>> _resolveCatalogProductIds(
+    List<RefillMedicine> medicines,
+  ) async {
+    List<Product> catalog = const [];
+    try {
+      catalog = await _productCatalogService.fetchCatalogProducts();
+    } catch (e) {
+      debugPrint('Catalog lookup for refill list: $e');
+      return medicines;
+    }
+
+    if (catalog.isEmpty) return medicines;
+
+    return medicines.map((medicine) {
+      final matched =
+          RefillMedicineParser.findProduct(catalog, medicine.id, medicine.name);
+      if (matched == null || matched.id == medicine.id) return medicine;
+      debugPrint(
+        '🔗 Refill "${medicine.name}": mapped id ${medicine.id} → catalog ${matched.id}',
+      );
+      return medicine.copyWith(id: matched.id);
+    }).toList();
   }
 
   Future<List<RefillMedicine>> _medicinesFromPrescriptions(
