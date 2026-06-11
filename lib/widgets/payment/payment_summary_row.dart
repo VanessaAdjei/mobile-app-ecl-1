@@ -25,27 +25,27 @@ class PaymentSummaryRow extends StatelessWidget {
     final t = context.appColors;
 
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: isHighlighted ? 5 : 4),
+      padding: EdgeInsets.symmetric(vertical: isHighlighted ? 2 : 3),
       child: Row(
         children: [
           if (icon != null) ...[
             Icon(
               icon,
-              size: isHighlighted ? 22 : 20,
+              size: isHighlighted ? 18 : 16,
               color: isDiscount
                   ? AppColors.primary
                   : isHighlighted
                       ? (t.isDark ? AppColors.primaryLight : AppColors.primaryDark)
                       : t.muted,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
           ],
           Expanded(
             child: Text(
               label,
               style: TextStyle(
                 fontWeight: isHighlighted ? FontWeight.w600 : FontWeight.w500,
-                fontSize: isHighlighted ? 15 : 13,
+                fontSize: isHighlighted ? 14 : 13,
                 color: isDiscount
                     ? AppColors.primary
                     : isHighlighted
@@ -60,7 +60,7 @@ class PaymentSummaryRow extends StatelessWidget {
                 : 'GHS ${value.toStringAsFixed(2)}',
             style: TextStyle(
               fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w600,
-              fontSize: isHighlighted ? 18 : 14,
+              fontSize: isHighlighted ? 17 : 13,
               color: isDiscount
                   ? AppColors.primary
                   : isHighlighted

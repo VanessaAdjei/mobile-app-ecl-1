@@ -24,125 +24,57 @@ class PaymentDeliveryDetailsCard extends StatelessWidget {
     final hasAddress = address.isNotEmpty;
     final hasContact = contact.isNotEmpty;
 
-    return Container(
-      margin: PaymentSectionStyle.marginOf(context),
-      decoration: PaymentSectionStyle.cardDecoration(context),
-      clipBehavior: Clip.antiAlias,
+    final hasDetails = hasAddress || hasContact;
+
+    return PaymentSectionCard(
+      accentStripe: const Color(0xFF1565C0),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _Header(hasDetails: hasAddress || hasContact),
-          Container(
-            color: t.surface,
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-            child: hasAddress || hasContact
-                ? Column(
-                    children: [
-                      if (hasAddress)
-                        _DetailTile(
-                          icon: Icons.place_rounded,
-                          iconColor: t.isDark
-                              ? Colors.blue.shade300
-                              : const Color(0xFF1565C0),
-                          iconBg: t.isDark
-                              ? Colors.blue.withValues(alpha: 0.18)
-                              : const Color(0xFFE3F2FD),
-                          label: 'Delivery address',
-                          value: address,
-                        ),
-                      if (hasAddress && hasContact) const SizedBox(height: 10),
-                      if (hasContact)
-                        _DetailTile(
-                          icon: Icons.call_rounded,
-                          iconColor: t.isDark
-                              ? AppColors.primaryLight
-                              : AppColors.primaryDark,
-                          iconBg: t.accentTint,
-                          label: 'Contact number',
-                          value: contact,
-                        ),
-                    ],
-                  )
-                : Text(
-                    'Delivery address not available',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      color: t.inputHint,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
+          PaymentSectionHeader(
+            icon: Icons.local_shipping_rounded,
+            title: 'Delivering to',
+            subtitle: hasDetails ? null : 'Add on delivery step',
+            accentColors: const [Color(0xFF42A5F5), Color(0xFF1565C0)],
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  final bool hasDetails;
-
-  const _Header({required this.hasDetails});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.primaryDark,
-            AppColors.primary,
-          ],
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.25),
-              ),
-            ),
-            child: const Icon(
-              Icons.local_shipping_rounded,
-              color: Colors.white,
-              size: 18,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Delivering to',
+          const SizedBox(height: 8),
+          hasDetails
+              ? Column(
+                  children: [
+                    if (hasAddress)
+                      _DetailTile(
+                        icon: Icons.place_rounded,
+                        iconColor: t.isDark
+                            ? Colors.blue.shade300
+                            : const Color(0xFF1565C0),
+                        iconBg: t.isDark
+                            ? Colors.blue.withValues(alpha: 0.18)
+                            : const Color(0xFFE3F2FD),
+                        label: 'Delivery address',
+                        value: address,
+                      ),
+                    if (hasAddress && hasContact) const SizedBox(height: 5),
+                    if (hasContact)
+                      _DetailTile(
+                        icon: Icons.call_rounded,
+                        iconColor: t.isDark
+                            ? AppColors.primaryLight
+                            : AppColors.primaryDark,
+                        iconBg: t.accentTint,
+                        label: 'Contact number',
+                        value: contact,
+                      ),
+                  ],
+                )
+              : Text(
+                  'Delivery address not available',
                   style: GoogleFonts.poppins(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    height: 1.15,
-                  ),
-                ),
-                Text(
-                  hasDetails
-                      ? 'Review before you pay'
-                      : 'Add details on the previous step',
-                  style: GoogleFonts.poppins(
-                    color: Colors.white.withValues(alpha: 0.88),
                     fontSize: 11,
-                    height: 1.3,
-                    fontWeight: FontWeight.w400,
+                    color: t.inputHint,
+                    fontStyle: FontStyle.italic,
                   ),
                 ),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -170,21 +102,21 @@ class _DetailTile extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: PaymentSectionStyle.innerPanelDecoration(context),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 30,
-            height: 30,
+            width: 26,
+            height: 26,
             decoration: BoxDecoration(
               color: iconBg,
-              borderRadius: BorderRadius.circular(9),
+              borderRadius: BorderRadius.circular(7),
             ),
-            child: Icon(icon, size: 16, color: iconColor),
+            child: Icon(icon, size: 14, color: iconColor),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -192,21 +124,23 @@ class _DetailTile extends StatelessWidget {
                 Text(
                   label.toUpperCase(),
                   style: GoogleFonts.poppins(
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight: FontWeight.w600,
-                    letterSpacing: 0.4,
+                    letterSpacing: 0.3,
                     color: t.muted,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 1),
                 Text(
                   value,
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w500,
                     color: t.ink,
-                    height: 1.4,
+                    height: 1.3,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),

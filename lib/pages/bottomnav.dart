@@ -1,6 +1,5 @@
 // pages/bottomnav.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -12,11 +11,8 @@ import 'homepage.dart' as home;
 import 'categories.dart';
 import 'cart.dart';
 import 'profile.dart';
-import 'pharmacists.dart';
-import 'storelocation.dart';
 import '../providers/notification_provider.dart';
 import '../services/order_notification_service.dart';
-import 'notifications.dart';
 import '../utils/app_error_utils.dart';
 import '../utils/app_theme_colors.dart';
 import 'main_tab_shell.dart';
@@ -54,7 +50,6 @@ class _CustomBottomNavState extends State<CustomBottomNav>
   bool _disposed = false;
   late AnimationController _centerButtonController;
   late Animation<double> _centerButtonScaleAnimation;
-  late Animation<double> _centerButtonRotationAnimation;
 
   // Animation controllers for each nav item
   late Map<int, AnimationController> _navItemControllers;
@@ -82,14 +77,6 @@ class _CustomBottomNavState extends State<CustomBottomNav>
     ).animate(CurvedAnimation(
       parent: _centerButtonController,
       curve: Curves.easeInOut,
-    ));
-
-    _centerButtonRotationAnimation = Tween<double>(
-      begin: 0.0,
-      end: 0.0,
-    ).animate(CurvedAnimation(
-      parent: _centerButtonController,
-      curve: Curves.easeOutCubic,
     ));
 
     // Initialize nav item animations (0: Home, 1: Cart, 3: Categories, 4: Profile)
@@ -240,19 +227,6 @@ class _CustomBottomNavState extends State<CustomBottomNav>
         );
       },
     );
-  }
-
-  // get the name of the current page (for debugging)
-  String _getCurrentPageName() {
-    try {
-      if (_isOnHomePage()) return 'HomePage';
-      if (_isOnPage<Cart>()) return 'Cart';
-      if (_isOnPage<CategoryPage>()) return 'CategoryPage';
-      if (_isOnPage<Profile>()) return 'Profile';
-      return 'Unknown';
-    } catch (e) {
-      return 'Error: $e';
-    }
   }
 
   Future<void> _checkForNewNotifications() async {

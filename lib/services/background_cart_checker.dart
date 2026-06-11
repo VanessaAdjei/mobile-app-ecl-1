@@ -95,9 +95,6 @@ class BackgroundCartChecker {
         return;
       }
 
-      // check for any pending cart operations
-      final cartItems = _cartProvider!.cartItems;
-
       await _cartProvider!.syncWithApi();
     } catch (e, st) {
       AppErrorUtils.log('BackgroundCartChecker._checkCartChanges', e, st);

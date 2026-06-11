@@ -15,7 +15,6 @@ import '../utils/app_error_utils.dart';
 import 'package:html/parser.dart' show parse;
 import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'homepage.dart';
 import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/cart_icon_button.dart';

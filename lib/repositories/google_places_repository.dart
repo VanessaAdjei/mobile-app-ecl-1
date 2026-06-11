@@ -23,6 +23,12 @@ abstract class GooglePlacesRepository {
     required String address,
     Duration timeout,
   });
+
+  Future<CategoryFetchResult> reverseGeocode({
+    required double latitude,
+    required double longitude,
+    Duration timeout,
+  });
 }
 
 class GooglePlacesRepositoryImpl implements GooglePlacesRepository {
@@ -64,4 +70,16 @@ class GooglePlacesRepositoryImpl implements GooglePlacesRepository {
     Duration timeout = const Duration(seconds: 8),
   }) =>
       _remote.geocode(address: address, timeout: timeout);
+
+  @override
+  Future<CategoryFetchResult> reverseGeocode({
+    required double latitude,
+    required double longitude,
+    Duration timeout = const Duration(seconds: 8),
+  }) =>
+      _remote.reverseGeocode(
+        latitude: latitude,
+        longitude: longitude,
+        timeout: timeout,
+      );
 }

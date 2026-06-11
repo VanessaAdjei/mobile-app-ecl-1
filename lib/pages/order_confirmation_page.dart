@@ -1,10 +1,8 @@
 // pages/order_confirmation_page.dart
 // Legacy confirmation UI (kept for reference; checkout uses post_checkout_order_page).
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io' show SocketException;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
@@ -18,7 +16,6 @@ import '../providers/cart_provider.dart';
 import '../services/auth_service.dart';
 import '../services/guest_recent_order_service.dart';
 import '../services/order_notification_service.dart';
-import '../utils/payment_redirect_url.dart';
 import 'app_back_button.dart';
 import 'order_tracking_page.dart';
 import '../widgets/checkout_progress_stepper.dart';

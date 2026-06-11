@@ -3,7 +3,6 @@ import 'dart:io' show Platform;
 
 import 'package:eclapp/services/auth_service.dart';
 import 'package:eclapp/providers/auth_provider.dart';
-import 'package:eclapp/pages/profile.dart';
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,7 +11,6 @@ import 'package:eclapp/cache/product_cache.dart';
 import 'package:eclapp/utils/catalog_timer.dart';
 import 'package:eclapp/pages/homepage.dart';
 import 'package:eclapp/pages/main_tab_shell.dart';
-import 'package:eclapp/pages/wallet_page.dart';
 import 'package:provider/provider.dart';
 import 'providers/cart_provider.dart';
 import 'providers/theme_provider.dart';
@@ -21,7 +19,6 @@ import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'pages/brand_launch_splash_page.dart';
 import 'pages/onboarding_splash_page.dart';
-import 'pages/prescription.dart';
 import 'pages/prescription_upload_standalone.dart';
 import 'pages/terms_acceptance_page.dart';
 import 'pages/clearance_admin_page.dart';
@@ -394,8 +391,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   late bool _hasSeenBrandSplash;
   bool _isLoggedIn = false;
   String? _pendingNotificationPayload;
-  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
-
   @override
   void initState() {
     super.initState();
@@ -418,23 +413,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       _isFirstLaunch = true;
     });
     debugPrint('🚀 Main: Onboarding reset manually for testing');
-  }
-
-  // check if the app was installed recently (within 24 hours)
-  Future<bool> _isRecentlyInstalled() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final appInstallDate = prefs.getString('app_install_date');
-
-      if (appInstallDate == null) return true;
-
-      final installDate = DateTime.parse(appInstallDate);
-      final hoursSinceInstall = DateTime.now().difference(installDate).inHours;
-
-      return hoursSinceInstall < 24;
-    } catch (e) {
-      return true; // If there's an error, treat as recently installed
-    }
   }
 
   // public method to reset onboarding (for testing, can call from ui)
@@ -466,62 +444,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('📱 Main: Error checking notification payload: $e');
     }
-  }
-
-  Future<Map<String, dynamic>> _getPrescriptionData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final hasPendingPrescription =
-        prefs.getBool('has_pending_prescription') ?? false;
-
-    debugPrint(
-        '🔍 Main: Checking for pending prescription: $hasPendingPrescription');
-
-    if (hasPendingPrescription) {
-      // get the prescription data we saved
-      final productName = prefs.getString('pending_prescription_product') ?? '';
-      final thumbnail = prefs.getString('pending_prescription_thumbnail') ?? '';
-      final productId = prefs.getString('pending_prescription_id') ?? '';
-      final price = prefs.getString('pending_prescription_price') ?? '';
-      final batchNo = prefs.getString('pending_prescription_batch_no') ?? '';
-
-      debugPrint('🔍 Main: Retrieved prescription data:');
-      debugPrint('🔍 Main: Product Name: $productName');
-      debugPrint('🔍 Main: Product ID: $productId');
-      debugPrint('🔍 Main: Price: $price');
-      debugPrint('🔍 Main: Batch No: $batchNo');
-
-      // clear the flag so we dont do this again
-      await prefs.setBool('has_pending_prescription', false);
-
-      return {
-        'token': await AuthService.getToken() ?? '',
-        'item': {
-          'product': {
-            'name': productName,
-            'thumbnail': thumbnail,
-            'id': productId,
-          },
-          'price': price,
-          'batch_no': batchNo,
-        },
-      };
-    }
-
-    debugPrint('🔍 Main: No pending prescription found, returning empty data');
-
-    // if theres no pending prescription, return empty data
-    return {
-      'token': '',
-      'item': {
-        'product': {
-          'name': '',
-          'thumbnail': '',
-          'id': '',
-        },
-        'price': '',
-        'batch_no': '',
-      },
-    };
   }
 
   void _refreshAuthState() async {

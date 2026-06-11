@@ -123,7 +123,7 @@ class HomeSearchBarState extends State<HomeSearchBar> {
       child: Container(
         height: fieldHeight,
         decoration: BoxDecoration(
-          color: theme.fieldBg,
+          color: theme.searchBarBg,
           borderRadius: BorderRadius.circular(radius),
           border: Border.all(color: AppColors.primary, width: 1.5),
         ),
@@ -134,10 +134,13 @@ class HomeSearchBarState extends State<HomeSearchBar> {
             return SafeTypeAheadField<Product>(
               controller: _controller,
               borderRadius: radius,
-              fillColor: theme.fieldBg,
+              fillColor: theme.searchBarBg,
+              textStyle: TextStyle(color: theme.searchBarText, fontSize: 15),
+              hintStyle: TextStyle(color: theme.searchBarHint, fontSize: 15),
+              prefixIcon: Icon(Icons.search, color: theme.searchBarHint),
               suffixIconBuilder: (controller) => controller.text.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear),
+                      icon: Icon(Icons.clear, color: theme.searchBarHint),
                       onPressed: controller.clear,
                     )
                   : null,

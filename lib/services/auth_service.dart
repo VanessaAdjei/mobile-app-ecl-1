@@ -1990,13 +1990,13 @@ class AuthService {
   /// Parses GET /orders JSON — handles [Map<dynamic,dynamic>] and nested `data`.
   static List<dynamic> _extractOrdersListFromOrdersResponse(dynamic decoded) {
     if (decoded is! Map) return [];
-    final map = Map<String, dynamic>.from(decoded as Map);
+    final map = Map<String, dynamic>.from(decoded);
     final first = map['data'];
     if (first is List) {
       return List<dynamic>.from(first);
     }
     if (first is Map) {
-      final inner = Map<String, dynamic>.from(first as Map);
+      final inner = Map<String, dynamic>.from(first);
       for (final key in <String>['data', 'orders', 'records', 'list', 'items']) {
         final v = inner[key];
         if (v is List) return List<dynamic>.from(v);

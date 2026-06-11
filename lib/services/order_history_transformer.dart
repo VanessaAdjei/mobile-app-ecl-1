@@ -108,7 +108,7 @@ class OrderHistoryTransformer {
             'transaction_id': transactionId,
           };
         }
-        final firstItem = Map<String, dynamic>.from(first as Map);
+        final firstItem = Map<String, dynamic>.from(first);
         return {
           ...base,
           'product_name': firstItem['product_name'] ?? 'Unknown Product',

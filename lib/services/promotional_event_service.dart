@@ -225,11 +225,8 @@ class PromotionalEventService {
   static Future<bool> isErnestFridayActive() async {
     try {
       // Check if today is Friday (Friday = 5 in DateTime.weekday)
-      final now = DateTime.now();
-      final isFriday = now.weekday == DateTime.friday;
-
       // Ernest Friday is active every Friday
-      // return isFriday; // COMMENTED OUT - Will activate when ready
+      // return DateTime.now().weekday == DateTime.friday;
       return false; // Temporarily disabled
     } catch (e) {
       return false;

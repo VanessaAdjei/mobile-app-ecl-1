@@ -13,8 +13,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:eclapp/pages/map_picker_page.dart';
 import '../utils/app_error_utils.dart';
 import '../utils/checkout_order_totals.dart';
@@ -3080,6 +3078,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               ? null
               : () async {
                   await _ensureInitialDeliveryDataLoaded();
+                  if (!mounted) return;
                   bool isValid = true;
 
                   // Validate name

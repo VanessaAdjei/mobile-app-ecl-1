@@ -159,10 +159,11 @@ class OrderTrackingProvider extends ChangeNotifier {
     } catch (e, st) {
       NonUiErrorReporter.report('OrderTrackingProvider.refreshTracking', e, st);
     } finally {
-      if (_isDisposed) return;
-      _isLoading = false;
-      _isRefreshing = false;
-      _notifyListenersSafely();
+      if (!_isDisposed) {
+        _isLoading = false;
+        _isRefreshing = false;
+        _notifyListenersSafely();
+      }
     }
   }
 
@@ -199,10 +200,11 @@ class OrderTrackingProvider extends ChangeNotifier {
         st,
       );
     } finally {
-      if (_isDisposed) return;
-      _isLoading = false;
-      _isRefreshing = false;
-      _notifyListenersSafely();
+      if (!_isDisposed) {
+        _isLoading = false;
+        _isRefreshing = false;
+        _notifyListenersSafely();
+      }
     }
   }
 

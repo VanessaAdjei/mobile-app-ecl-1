@@ -27,6 +27,13 @@ class AppThemeColors {
       ? Colors.white.withValues(alpha: 0.06)
       : const Color(0xFFF3F4F6);
 
+  /// Product search fields — white in both themes for contrast on the green header.
+  Color get searchBarBg => Colors.white;
+
+  Color get searchBarText => const Color(0xFF1F2937);
+
+  Color get searchBarHint => const Color(0xFF9CA3AF);
+
   Color get searchBorder =>
       isDark ? Colors.white.withValues(alpha: 0.12) : const Color(0xFFE2E8F0);
 

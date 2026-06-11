@@ -1,5 +1,4 @@
 // services/stock_utility_service.dart
-import 'dart:developer';
 import 'package:flutter/foundation.dart';
 
 class StockUtilityService {

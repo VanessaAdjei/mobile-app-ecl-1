@@ -1,7 +1,6 @@
 // pages/notification_permission_page.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../config/app_colors.dart';
 import '../services/native_notification_service.dart';
 

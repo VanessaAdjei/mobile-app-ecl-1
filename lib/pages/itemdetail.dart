@@ -121,7 +121,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
   // Debouncing for quantity buttons to prevent spam clicking
   DateTime? _lastQuantityUpdateTime;
-  static const Duration _quantityUpdateCooldown = Duration(milliseconds: 500);
+  static const Duration _quantityUpdateCooldown = Duration(milliseconds: 200);
 
   final UniversalPageOptimizationService _optimizationService =
       UniversalPageOptimizationService();
@@ -601,15 +601,16 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         quantity = 1;
       });
 
-      cartProvider.addToCart(cartItem);
-
       if (context.mounted) {
-        await _flyToCartAnimation(context);
-        if (context.mounted && mounted) {
-          _scaleController.forward().then((_) {
-            if (mounted) _scaleController.reverse();
-          });
-        }
+        unawaited(_flyToCartAnimation(context));
+      }
+
+      await cartProvider.addToCart(cartItem);
+
+      if (context.mounted && mounted) {
+        _scaleController.forward().then((_) {
+          if (mounted) _scaleController.reverse();
+        });
       }
     } catch (e) {
       if (context.mounted) {
@@ -1887,7 +1888,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                     children: [
                       OptimizedRemoveButton(
                         onPressed: (cartQuantity > 1 &&
-                                !cartProvider.isItemUpdating(line.id))
+                                !cartProvider.isItemUpdating(
+                                    line.id, itemIndex))
                             ? () {
                                 final now = DateTime.now();
                                 if (_lastQuantityUpdateTime != null &&
@@ -1896,17 +1898,15 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                   return;
                                 }
                                 _lastQuantityUpdateTime = now;
-                                if (line.id.isNotEmpty) {
-                                  cartProvider.updateQuantityById(
-                                      line.id, cartQuantity - 1);
-                                } else if (itemIndex >= 0) {
-                                  cartProvider.updateQuantity(
-                                      itemIndex, cartQuantity - 1);
-                                }
+                                cartProvider.updateQuantityById(
+                                  line.id,
+                                  cartQuantity - 1,
+                                  rowIndex: itemIndex,
+                                );
                               }
                             : null,
                         isEnabled: cartQuantity > 1 &&
-                            !cartProvider.isItemUpdating(line.id),
+                            !cartProvider.isItemUpdating(line.id, itemIndex),
                         size: 32,
                       ),
                       Padding(
@@ -1921,7 +1921,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                       ),
                       OptimizedAddButton(
                         onPressed: (cartQuantity < maxQuantity &&
-                                !cartProvider.isItemUpdating(line.id))
+                                !cartProvider.isItemUpdating(
+                                    line.id, itemIndex))
                             ? () async {
                                 final now = DateTime.now();
                                 if (_lastQuantityUpdateTime != null &&
@@ -1931,38 +1932,22 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                 }
                                 _lastQuantityUpdateTime = now;
                                 HapticFeedback.mediumImpact();
-                                if (line.id.isNotEmpty) {
-                                  await cartProvider.incrementCartLine(line.id);
-                                } else {
-                                  final incrementItem = CartItem(
-                                    id: line.id,
-                                    productId: product.id.toString(),
-                                    originalProductId: product.id.toString(),
-                                    serverProductId: line.serverProductId,
-                                    name: line.name,
-                                    price: line.price,
-                                    quantity: 1,
-                                    image: line.image,
-                                    batchNo: product.batch_no.isNotEmpty
-                                        ? product.batch_no
-                                        : line.batchNo,
-                                    urlName: line.urlName,
-                                    totalPrice: line.price,
-                                  );
-                                  await cartProvider.addToCart(incrementItem);
-                                }
                                 if (context.mounted) {
-                                  await _flyToCartAnimation(context);
-                                  if (context.mounted && mounted) {
-                                    _scaleController.forward().then((_) {
-                                      if (mounted) _scaleController.reverse();
-                                    });
-                                  }
+                                  unawaited(_flyToCartAnimation(context));
+                                }
+                                await cartProvider.incrementCartLine(
+                                  line.id,
+                                  rowIndex: itemIndex,
+                                );
+                                if (context.mounted && mounted) {
+                                  _scaleController.forward().then((_) {
+                                    if (mounted) _scaleController.reverse();
+                                  });
                                 }
                               }
                             : null,
                         isEnabled: cartQuantity < maxQuantity &&
-                            !cartProvider.isItemUpdating(line.id),
+                            !cartProvider.isItemUpdating(line.id, itemIndex),
                         size: 32,
                       ),
                     ],

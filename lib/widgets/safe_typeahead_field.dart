@@ -23,6 +23,7 @@ class SafeTypeAheadField<T> extends StatefulWidget {
     this.suggestionsController,
     this.hintText = 'Search medicines, products...',
     this.textStyle,
+    this.hintStyle,
     this.prefixIcon,
     this.suffixIconBuilder,
     this.borderRadius = 30,
@@ -46,6 +47,7 @@ class SafeTypeAheadField<T> extends StatefulWidget {
   final SuggestionsController<T>? suggestionsController;
   final String hintText;
   final TextStyle? textStyle;
+  final TextStyle? hintStyle;
   final Widget? prefixIcon;
   final Widget? Function(TextEditingController controller)? suffixIconBuilder;
   final double borderRadius;
@@ -114,7 +116,8 @@ class _SafeTypeAheadFieldState<T> extends State<SafeTypeAheadField<T>> {
                     TextStyle(color: theme.inputText, fontSize: 15),
                 decoration: InputDecoration(
                   hintText: widget.hintText,
-                  hintStyle: TextStyle(color: theme.inputHint, fontSize: 15),
+                  hintStyle: widget.hintStyle ??
+                      TextStyle(color: theme.inputHint, fontSize: 15),
                   prefixIcon: widget.prefixIcon ??
                       Icon(Icons.search, color: theme.inputHint),
                   filled: true,

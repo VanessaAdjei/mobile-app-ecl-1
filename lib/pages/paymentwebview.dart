@@ -135,6 +135,8 @@ class PaymentWebViewState extends State<PaymentWebView> {
   bool _isShowingDialog = false;
   String? _loadError;
   bool _checkoutNavigationStarted = false;
+  bool _webViewTornDown = false;
+  String? _portalHost;
   int _amountVerifyAttempts = 0;
   int _expressPayScanAttempts = 0;
   String? _lastExpressPayScanUrl;
@@ -147,7 +149,12 @@ class PaymentWebViewState extends State<PaymentWebView> {
       tryParsePayableAmount(widget.paymentParams['amount']);
 
   void _onExpressPayUrlChanged(String url, {required String source}) {
-    if (_checkoutNavigationStarted || !mounted) return;
+    if (_webViewTornDown || _checkoutNavigationStarted || !mounted) return;
+
+    final host = Uri.tryParse(url)?.host;
+    if (host != null && host.isNotEmpty && host != _portalHost) {
+      setState(() => _portalHost = host);
+    }
 
     final lower = url.toLowerCase();
     if (lower.contains('checkout.php') && _initialExpressPayCheckoutUrl == null) {
@@ -177,9 +184,49 @@ class PaymentWebViewState extends State<PaymentWebView> {
     return true;
   }
 
+  Future<void> _tearDownWebView({bool forReinit = false}) async {
+    if (_webViewTornDown && !forReinit) return;
+    _webViewTornDown = true;
+
+    final controller = _controller;
+    _controller = null;
+    if (mounted) setState(() {});
+
+    if (controller == null) return;
+
+    try {
+      await controller.runJavaScript(disposeExpressPayNavigationHookJs);
+    } catch (e) {
+      debugPrint('[EXPRESS PAY] Nav hook dispose skipped: $e');
+    }
+
+    try {
+      await controller.loadRequest(Uri.parse('about:blank'));
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+    } catch (e) {
+      debugPrint('[EXPRESS PAY] WebView blank load skipped: $e');
+    }
+
+    try {
+      await controller.clearCache();
+    } catch (e) {
+      debugPrint('[EXPRESS PAY] WebView cache clear skipped: $e');
+    }
+  }
+
+  Future<void> _exitWebView([dynamic result]) async {
+    await _tearDownWebView();
+    if (!mounted) return;
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context, result);
+    } else {
+      Navigator.of(context).maybePop(result);
+    }
+  }
+
   Future<void> _injectExpressPayNavigationHook() async {
     final controller = _controller;
-    if (controller == null || !mounted) return;
+    if (_webViewTornDown || controller == null || !mounted) return;
     try {
       await controller.runJavaScript(injectExpressPayNavigationHookJs);
     } catch (e) {
@@ -207,7 +254,11 @@ class PaymentWebViewState extends State<PaymentWebView> {
 
   /// Logs checkout amount for debugging only — does not block payment.
   Future<void> _logExpressPayAmount(String url) async {
-    if (_amountVerifyAttempts >= _maxAmountVerifyAttempts || !mounted) return;
+    if (_webViewTornDown ||
+        _amountVerifyAttempts >= _maxAmountVerifyAttempts ||
+        !mounted) {
+      return;
+    }
 
     final expected = _expectedPayableAmount;
     final controller = _controller;
@@ -255,7 +306,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
 
   /// Scans ExpressPay pages for success/pending/failure when redirect never fires.
   Future<void> _scanExpressPayPage(String url) async {
-    if (_checkoutNavigationStarted || !mounted) return;
+    if (_webViewTornDown || _checkoutNavigationStarted || !mounted) return;
     if (!_shouldScanExpressPayPage(url)) return;
 
     if (_lastExpressPayScanUrl != url) {
@@ -332,7 +383,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
         if (mounted) {
           AppErrorUtils.showSnack(
               context, 'Session expired. Please log in again.');
-          Navigator.pop(context, false);
+          unawaited(_exitWebView(false));
         }
       }
     } catch (e) {
@@ -347,6 +398,9 @@ class PaymentWebViewState extends State<PaymentWebView> {
     // check auth state before navigating
     await _checkAndRefreshAuth();
 
+    if (!mounted) return;
+
+    await _tearDownWebView();
     if (!mounted) return;
 
     // first close the webview
@@ -394,9 +448,9 @@ class PaymentWebViewState extends State<PaymentWebView> {
           content: Text(message, style: TextStyle(color: t.muted)),
           actions: [
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(dialogContext);
-                Navigator.pop(context);
+                await _exitWebView();
               },
               child: Text(
                 'OK',
@@ -412,7 +466,6 @@ class PaymentWebViewState extends State<PaymentWebView> {
   }
 
   Future<bool?> _showCancelPaymentDialog(BuildContext context) {
-    final t = context.appColors;
     return showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -420,26 +473,34 @@ class PaymentWebViewState extends State<PaymentWebView> {
         final dialogTheme = dialogContext.appColors;
         return Dialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             side: BorderSide(color: dialogTheme.border),
           ),
           backgroundColor: dialogTheme.surface,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.info_outline,
-                  color: dialogTheme.isDark
-                      ? Colors.orange.shade300
-                      : Colors.orange.shade700,
-                  size: 32,
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.payment_outlined,
+                    color: dialogTheme.isDark
+                        ? Colors.orange.shade300
+                        : Colors.orange.shade800,
+                    size: 26,
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 Text(
-                  'Cancel Payment?',
-                  style: TextStyle(
+                  'Leave checkout?',
+                  style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: dialogTheme.ink,
@@ -447,28 +508,29 @@ class PaymentWebViewState extends State<PaymentWebView> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Your payment will not be processed.',
+                  'Your payment will not be processed if you leave now.',
                   style: TextStyle(
                     fontSize: 13,
                     color: dialogTheme.muted,
+                    height: 1.35,
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => Navigator.pop(dialogContext, false),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: dialogTheme.muted,
+                          foregroundColor: dialogTheme.ink,
                           side: BorderSide(color: dialogTheme.border),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          padding: const EdgeInsets.symmetric(vertical: 11),
                         ),
-                        child: const Text('No'),
+                        child: const Text('Stay'),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -476,18 +538,15 @@ class PaymentWebViewState extends State<PaymentWebView> {
                       child: ElevatedButton(
                         onPressed: () => Navigator.pop(dialogContext, true),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: t.isDark
-                              ? dialogTheme.fieldBg
-                              : Colors.grey.shade800,
-                          foregroundColor:
-                              t.isDark ? dialogTheme.ink : Colors.white,
+                          backgroundColor: Colors.red.shade700,
+                          foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          padding: const EdgeInsets.symmetric(vertical: 11),
                           elevation: 0,
                         ),
-                        child: const Text('Cancel'),
+                        child: const Text('Leave'),
                       ),
                     ),
                   ],
@@ -534,7 +593,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
       }
 
       setState(() => _isResolvingPortal = false);
-      _initializeWebView(resolved);
+      await _initializeWebView(resolved);
     } catch (e, st) {
       debugPrint('Payment portal resolve failed: $e\n$st');
       if (!mounted) return;
@@ -565,15 +624,324 @@ class PaymentWebViewState extends State<PaymentWebView> {
     );
   }
 
+  Future<void> _onBackPressed() async {
+    final shouldPop = await _showCancelPaymentDialog(context);
+    if (shouldPop == true && mounted) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (mounted) await _exitWebView(false);
+    }
+  }
+
+  Widget _buildHeader(BuildContext context, AppThemeColors theme) {
+    final topPadding = MediaQuery.paddingOf(context).top;
+
+    return Container(
+      padding: EdgeInsets.only(top: topPadding),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primaryDark,
+            Color(0xFF1B5E20),
+            AppColors.primary,
+          ],
+        ),
+        borderRadius: const BorderRadius.vertical(
+          bottom: Radius.circular(16),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.28),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            right: -20,
+            top: -6,
+            child: Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.07),
+              ),
+            ),
+          ),
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 2, 12, 0),
+                child: Row(
+                  children: [
+                    Material(
+                      color: Colors.white.withValues(alpha: 0.14),
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: _onBackPressed,
+                        child: const Padding(
+                          padding: EdgeInsets.all(8),
+                          child: Icon(
+                            Icons.arrow_back_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Text(
+                            'Secure checkout',
+                            style: GoogleFonts.poppins(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          Text(
+                            'Complete payment on ExpressPay',
+                            style: GoogleFonts.poppins(
+                              color: Colors.white.withValues(alpha: 0.82),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.22),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.lock_rounded,
+                            color: Colors.white,
+                            size: 12,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'SSL',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(8, 4, 8, 6),
+                child: CheckoutProgressStepper(
+                  compact: true,
+                  steps: [
+                    'Cart',
+                    'Delivery',
+                    'Payment',
+                    'Confirmation',
+                  ],
+                  activeStep: 3,
+                  completedSteps: {1, 2},
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPortalContextBar(AppThemeColors theme) {
+    final host = _portalHost ?? 'expresspaygh.com';
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: theme.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.22),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.verified_user_outlined,
+            size: 14,
+            color: theme.isDark ? AppColors.primaryLight : AppColors.primaryDark,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              host,
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: theme.ink,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (_isLoading)
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.primary.withValues(alpha: 0.8),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPortalErrorCard(AppThemeColors theme) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: theme.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: theme.border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.orange.withValues(alpha: 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ColoredBox(
+                  color: Colors.orange.shade700,
+                  child: const SizedBox(width: 4),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.orange.shade400,
+                                Colors.orange.shade700,
+                              ],
+                            ),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.wifi_off_rounded,
+                            size: 24,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Could not open payment portal',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: theme.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _loadError!,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: theme.muted,
+                            height: 1.4,
+                          ),
+                        ),
+                        if (widget.resolveRedirectUrl != null) ...[
+                          const SizedBox(height: 14),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 42,
+                            child: FilledButton.icon(
+                              onPressed: _bootstrapWebView,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              icon: const Icon(Icons.refresh_rounded, size: 18),
+                              label: const Text(
+                                'Try again',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
-    // clean up webview resources so we dont leak memory
-    _controller?.clearCache();
+    unawaited(_tearDownWebView());
     super.dispose();
   }
 
   // set up webview with crash prevention
-  void _initializeWebView(String portalUrl) {
+  Future<void> _initializeWebView(String portalUrl) async {
+    if (_controller != null) {
+      await _tearDownWebView(forReinit: true);
+    }
+    _webViewTornDown = false;
     final resolved = parsePaymentRedirectUrl(portalUrl) ?? portalUrl.trim();
     final parsed = Uri.tryParse(resolved);
     if (parsed == null ||
@@ -591,8 +959,11 @@ class PaymentWebViewState extends State<PaymentWebView> {
       ..addJavaScriptChannel(
         'EclPaymentNav',
         onMessageReceived: (JavaScriptMessage message) {
+          if (_webViewTornDown || !mounted) return;
+          final payload = message.message.trim();
+          if (payload.isEmpty) return;
           _onExpressPayUrlChanged(
-            message.message,
+            payload,
             source: 'js-channel',
           );
         },
@@ -600,6 +971,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (String url) {
+            if (_webViewTornDown || !mounted) return;
             setState(() {
               _isLoading = true;
               _loadError = null;
@@ -607,21 +979,25 @@ class PaymentWebViewState extends State<PaymentWebView> {
             _onExpressPayUrlChanged(url, source: 'page-started');
           },
           onPageFinished: (String url) async {
+            if (_webViewTornDown || !mounted) return;
             setState(() => _isLoading = false);
 
-            if (!mounted) return;
+            if (!mounted || _webViewTornDown) return;
 
             await _injectExpressPayNavigationHook();
             unawaited(_logExpressPayAmount(url));
             _onExpressPayUrlChanged(url, source: 'page-finished');
           },
           onUrlChange: (UrlChange change) {
+            if (_webViewTornDown || !mounted) return;
             final url = change.url;
             if (url == null || url.isEmpty) return;
             _onExpressPayUrlChanged(url, source: 'url-change');
           },
           onNavigationRequest: (NavigationRequest request) {
-            if (!mounted) return NavigationDecision.navigate;
+            if (_webViewTornDown || !mounted) {
+              return NavigationDecision.prevent;
+            }
 
             _onExpressPayUrlChanged(request.url, source: 'navigation');
 
@@ -638,6 +1014,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
             return NavigationDecision.navigate;
           },
           onWebResourceError: (WebResourceError error) {
+            if (_webViewTornDown || !mounted) return;
             if (_checkoutNavigationStarted) {
               debugPrint(
                 '[EXPRESS PAY] Ignoring WebView error after checkout handoff: '
@@ -717,46 +1094,15 @@ class PaymentWebViewState extends State<PaymentWebView> {
           final shouldPop = await _showCancelPaymentDialog(context);
 
           if (shouldPop == true && mounted) {
-            // wait a tiny bit to prevent navigation conflicts
             await Future.delayed(const Duration(milliseconds: 100));
-
             if (context.mounted) {
-              try {
-                if (Navigator.canPop(context)) {
-                  Navigator.pop(context, false);
-                } else {
-                  Navigator.of(context).maybePop(false);
-                }
-              } catch (e) {
-                debugPrint('Error popping from dialog: $e');
-                // last fallback
-                try {
-                  Navigator.of(context).maybePop(false);
-                } catch (finalError) {
-                  debugPrint('Final dialog fallback failed: $finalError');
-                }
-              }
+              await _exitWebView(false);
             }
           }
         } catch (e) {
           debugPrint('Error showing cancel dialog: $e');
-          // if dialog fails, just go back with safety checks
           if (context.mounted) {
-            try {
-              if (Navigator.canPop(context)) {
-                Navigator.pop(context, false);
-              } else {
-                Navigator.of(context).maybePop(false);
-              }
-            } catch (e) {
-              debugPrint('Error popping after dialog error: $e');
-              // last fallback, just try to go back
-              try {
-                Navigator.of(context).maybePop(false);
-              } catch (finalError) {
-                debugPrint('Final navigation fallback failed: $finalError');
-              }
-            }
+            await _exitWebView(false);
           }
         } finally {
           _isShowingDialog = false;
@@ -764,224 +1110,63 @@ class PaymentWebViewState extends State<PaymentWebView> {
       },
       child: Scaffold(
         backgroundColor: theme.pageBg,
-        body: Stack(
-          children: [
-            Column(
-              children: [
-                // nice header
-                Builder(
-                  builder: (context) {
-                    final topPadding = MediaQuery.of(context).padding.top;
-                    return Container(
-                      padding: EdgeInsets.only(top: topPadding),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            AppThemeColors.headerBackground,
-                            AppColors.primaryDark,
-                            AppColors.primary,
-                          ],
-                          stops: const [0.0, 0.5, 1.0],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
-                            blurRadius: 8,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 4,
-                            ),
-                            child: Row(
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.arrow_back,
-                                      color: Colors.white, size: 20),
-                                  onPressed: () async {
-                                    debugPrint(
-                                        '🔍 Back button pressed manually');
-                                    final shouldPop =
-                                        await _showCancelPaymentDialog(context);
-                                    if (shouldPop == true && mounted) {
-                                      // wait a tiny bit to prevent navigation conflicts
-                                      await Future.delayed(
-                                          const Duration(milliseconds: 100));
-
-                                      if (context.mounted &&
-                                          Navigator.canPop(context)) {
-                                        try {
-                                          Navigator.pop(context, false);
-                                        } catch (e) {
-                                          debugPrint(
-                                              'Error popping from back button: $e');
-                                          Navigator.of(context).maybePop(false);
-                                        }
-                                      }
-                                    }
-                                  },
-                                ),
-                                Expanded(
-                                  child: Center(
-                                    child: Text(
-                                      'Payment',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 0.2,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 40),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-                            child: const CheckoutProgressStepper(
-                              compact: true,
-                              steps: [
-                                'Cart',
-                                'Delivery',
-                                'Payment',
-                                'Confirmation',
-                              ],
-                              activeStep: 3,
-                              completedSteps: {1, 2},
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-                Expanded(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      ColoredBox(color: theme.pageBg),
-                      if (_loadError != null)
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: theme.surface,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: theme.border),
-                                boxShadow: theme.isDark
-                                    ? [
-                                        BoxShadow(
-                                          color: Colors.black
-                                              .withValues(alpha: 0.22),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ]
-                                    : const [
-                                        BoxShadow(
-                                          color: Color(0x0A000000),
-                                          blurRadius: 6,
-                                          offset: Offset(0, 1),
-                                        ),
-                                      ],
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: 52,
-                                    height: 52,
-                                    decoration: BoxDecoration(
-                                      color: theme.isDark
-                                          ? Colors.orange
-                                              .withValues(alpha: 0.14)
-                                          : Colors.orange.shade50,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(
-                                      Icons.wifi_off_rounded,
-                                      size: 28,
-                                      color: theme.isDark
-                                          ? Colors.orange.shade300
-                                          : Colors.orange.shade800,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 14),
-                                  Text(
-                                    'Could not open payment portal',
-                                    textAlign: TextAlign.center,
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                      color: theme.ink,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    _loadError!,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: theme.muted,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                  if (widget.resolveRedirectUrl != null) ...[
-                                    const SizedBox(height: 16),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      height: 44,
-                                      child: FilledButton.icon(
-                                        onPressed: _bootstrapWebView,
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor: AppColors.primary,
-                                          foregroundColor: Colors.white,
-                                          elevation: 0,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                          ),
-                                        ),
-                                        icon: const Icon(
-                                          Icons.refresh_rounded,
-                                          size: 18,
-                                        ),
-                                        label: const Text(
-                                          'Try again',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ),
-                        )
-                      else if (_controller != null)
-                        WebViewWidget(controller: _controller!),
-                      if (_isLoading && _loadError == null)
-                        _buildLoadingOverlay(),
+        body: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: theme.isDark
+                  ? [theme.pageBg, theme.pageBg]
+                  : [
+                      AppColors.primary.withValues(alpha: 0.04),
+                      theme.pageBg,
                     ],
-                  ),
-                ),
-              ],
+              stops: const [0.0, 0.28],
             ),
-          ],
+          ),
+          child: Column(
+            children: [
+              _buildHeader(context, theme),
+              if (_controller != null && _loadError == null)
+                _buildPortalContextBar(theme),
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (_loadError != null)
+                      _buildPortalErrorCard(theme)
+                    else if (_controller != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppColors.primary.withValues(alpha: 0.2),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(
+                                  alpha: theme.isDark ? 0.25 : 0.06,
+                                ),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(11),
+                            child: WebViewWidget(controller: _controller!),
+                          ),
+                        ),
+                      ),
+                    if (_isLoading && _loadError == null)
+                      _buildLoadingOverlay(),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1031,150 +1216,170 @@ class _PaymentPortalLoadingViewState extends State<_PaymentPortalLoadingView>
         : 'Loading the payment page — almost there';
 
     return ColoredBox(
-      color: theme.pageBg,
+      color: theme.pageBg.withValues(alpha: 0.92),
       child: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(18, 20, 18, 16),
             decoration: BoxDecoration(
               color: theme.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: theme.border),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.22),
+              ),
               boxShadow: [
                 BoxShadow(
                   color: AppColors.primary.withValues(
-                    alpha: theme.isDark ? 0.12 : 0.08,
+                    alpha: theme.isDark ? 0.14 : 0.1,
                   ),
-                  blurRadius: 16,
+                  blurRadius: 14,
                   offset: const Offset(0, 4),
                 ),
               ],
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedBuilder(
-                  animation: _pulseController,
-                  builder: (context, child) {
-                    final glow = 0.12 + (_pulseController.value * 0.1);
-                    return Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: theme.accentTint,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: glow),
-                            blurRadius: 18,
-                            spreadRadius: 1,
+            clipBehavior: Clip.antiAlias,
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const ColoredBox(
+                    color: AppColors.primary,
+                    child: SizedBox(width: 4),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 18, 16, 14),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnimatedBuilder(
+                            animation: _pulseController,
+                            builder: (context, child) {
+                              final glow =
+                                  0.12 + (_pulseController.value * 0.1);
+                              return Container(
+                                width: 72,
+                                height: 72,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: theme.accentTint,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.primary
+                                          .withValues(alpha: glow),
+                                      blurRadius: 18,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                                child: child,
+                              );
+                            },
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(14),
+                                  child: Image.asset(
+                                    'assets/images/png.png',
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => Icon(
+                                      Icons.local_pharmacy_rounded,
+                                      color: AppColors.primary,
+                                      size: 32,
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  right: 4,
+                                  bottom: 4,
+                                  child: Container(
+                                    width: 22,
+                                    height: 22,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: theme.surface,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.lock_rounded,
+                                      size: 11,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            title,
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: theme.ink,
+                              height: 1.25,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            subtitle,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: theme.muted,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          _PortalLoadingSteps(activeStep: _activeStep),
+                          const SizedBox(height: 16),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              minHeight: 4,
+                              backgroundColor: theme.accentTint,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppColors.primary.withValues(alpha: 0.85),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.verified_user_outlined,
+                                size: 14,
+                                color: theme.isDark
+                                    ? AppColors.primaryLight
+                                    : AppColors.primaryDark,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Secure payment via ExpressPay',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: theme.isDark
+                                      ? AppColors.primaryLight
+                                      : AppColors.primaryDark,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      child: child,
-                    );
-                  },
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Image.asset(
-                          'assets/images/png.png',
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => Icon(
-                            Icons.local_pharmacy_rounded,
-                            color: AppColors.primary,
-                            size: 32,
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        right: 4,
-                        bottom: 4,
-                        child: Container(
-                          width: 22,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            color: AppColors.primary,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: theme.surface,
-                              width: 2,
-                            ),
-                          ),
-                          child: const Icon(
-                            Icons.lock_rounded,
-                            size: 11,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: theme.ink,
-                    height: 1.25,
-                    letterSpacing: -0.2,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  subtitle,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: theme.muted,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                _PortalLoadingSteps(activeStep: _activeStep),
-                const SizedBox(height: 16),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    minHeight: 4,
-                    backgroundColor: theme.accentTint,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.primary.withValues(alpha: 0.85),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.verified_user_outlined,
-                      size: 14,
-                      color: theme.isDark
-                          ? AppColors.primaryLight
-                          : AppColors.primaryDark,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Secure payment via ExpressPay',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: theme.isDark
-                            ? AppColors.primaryLight
-                            : AppColors.primaryDark,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

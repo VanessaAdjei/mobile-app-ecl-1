@@ -24,6 +24,12 @@ abstract class GooglePlacesRemoteDataSource {
     required String address,
     Duration timeout = const Duration(seconds: 8),
   });
+
+  Future<CategoryFetchResult> reverseGeocode({
+    required double latitude,
+    required double longitude,
+    Duration timeout = const Duration(seconds: 8),
+  });
 }
 
 class GooglePlacesRemoteDataSourceImpl implements GooglePlacesRemoteDataSource {
@@ -115,6 +121,23 @@ class GooglePlacesRemoteDataSourceImpl implements GooglePlacesRemoteDataSource {
         'key': ApiConfig.googleMapsApiKey,
         'components': 'country:GH',
         'language': 'en',
+      },
+    );
+    return _get(uri, timeout);
+  }
+
+  @override
+  Future<CategoryFetchResult> reverseGeocode({
+    required double latitude,
+    required double longitude,
+    Duration timeout = const Duration(seconds: 8),
+  }) {
+    final uri = Uri.parse(ApiConfig.googleMapsGeocodingUrl).replace(
+      queryParameters: {
+        'latlng': '$latitude,$longitude',
+        'key': ApiConfig.googleMapsApiKey,
+        'language': 'en',
+        'result_type': 'street_address|route|neighborhood|locality',
       },
     );
     return _get(uri, timeout);

@@ -794,6 +794,7 @@ class CategoryPageState extends State<CategoryPage> {
 
   Future<void> _initializeCategoryService() async {
     await _categoryService.initialize();
+    if (!context.mounted) return;
 
     // load cached data right away if we have it
     if (_categoryService.hasCachedCategories &&
@@ -808,7 +809,7 @@ class CategoryPageState extends State<CategoryPage> {
         _errorMessage = '';
       });
 
-      // load images in the background
+      if (!context.mounted) return;
       _categoryService.preloadCategoryImages(
           context, _categoryService.cachedCategories);
     }
@@ -851,7 +852,7 @@ class CategoryPageState extends State<CategoryPage> {
         });
       }
 
-      // load images in the background
+      if (!context.mounted) return;
       _categoryService.preloadCategoryImages(context, categories);
     } catch (e) {
       debugPrint('Category loading error: $e');
@@ -1264,7 +1265,7 @@ class CategoryPageState extends State<CategoryPage> {
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: theme.surface,
+                        color: theme.searchBarBg,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: theme.searchBorder),
                         boxShadow: [
@@ -1313,12 +1314,12 @@ class CategoryPageState extends State<CategoryPage> {
                               },
                               style: TextStyle(
                                 fontSize: 14.5,
-                                color: theme.inputText,
+                                color: theme.searchBarText,
                               ),
                               decoration: InputDecoration(
                                 hintText: "Search category products...",
                                 hintStyle: TextStyle(
-                                  color: theme.inputHint,
+                                  color: theme.searchBarHint,
                                   fontSize: 15,
                                 ),
                                 border: InputBorder.none,

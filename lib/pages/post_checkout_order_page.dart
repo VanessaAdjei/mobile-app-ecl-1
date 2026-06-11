@@ -98,7 +98,6 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
   bool _hasNavigatedAway = false;
   bool _hasShownOrderPlacedBanner = false;
   bool _hasShownOrderConfirmedOnScreen = false;
-  bool _showOrderConfirmedBanner = false;
   bool _isGuestSession = false;
   /// Shown only after user leaves this page; system notifications always fire separately.
   String? _deferredPlacedSnackMessage;
@@ -151,11 +150,6 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
         occurredAt: step.occurredAt,
       );
     }).toList(growable: false);
-  }
-
-  double? _parseCoordinate(dynamic value) {
-    if (value is num) return value.toDouble();
-    return double.tryParse(value?.toString() ?? '');
   }
 
   Widget _staggerReveal(
@@ -367,16 +361,6 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
     Navigator.pushNamedAndRemoveUntil(
       context,
       AppRoutes.home,
-      (route) => false,
-    );
-  }
-
-  void _goToCart() {
-    if (_hasNavigatedAway || !mounted) return;
-    _hasNavigatedAway = true;
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      AppRoutes.cart,
       (route) => false,
     );
   }
@@ -1749,7 +1733,6 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
           final order = provider.order;
           final accent = PostCheckoutDesign.accent;
           final theme = context.appColors;
-          final isPickup = _isPickupOrderFor(order);
 
           final isFailed = order.stage == OrderTrackingStage.failed;
           final headerTitle = provider.isAwaitingPaymentConfirmation
@@ -1934,7 +1917,6 @@ class _DelayedFadeInUpState extends State<_DelayedFadeInUp>
 
 class _BreathingGlow extends StatefulWidget {
   const _BreathingGlow({
-    super.key,
     required this.child,
     this.glowColor = Colors.white,
   });
@@ -2861,81 +2843,6 @@ class _CompactPendingItemRow extends StatelessWidget {
               fontWeight: FontWeight.w700,
               color: accentDark,
               height: 1,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SheetBanner extends StatelessWidget {
-  const _SheetBanner({
-    required this.icon,
-    required this.message,
-    required this.actionLabel,
-    required this.onAction,
-    required this.accent,
-  });
-
-  final IconData icon;
-  final String message;
-  final String actionLabel;
-  final VoidCallback onAction;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: accent.withValues(alpha: 0.15)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: accent, size: 22),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  message,
-                  style: TextStyle(
-                    color: const Color(0xFF2D2D2D),
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                    height: 1.4,
-                    letterSpacing: 0.15,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 4,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: onAction,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: accent,
-                side: BorderSide(color: accent.withValues(alpha: 0.5)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text(
-                actionLabel,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.2,
-                ),
-              ),
             ),
           ),
         ],

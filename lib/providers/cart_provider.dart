@@ -583,6 +583,16 @@ class CartProvider with ChangeNotifier {
 
     _currentUserId ??= await AuthService.getCurrentUserID();
 
+    final unitsToAdd = item.quantity > 0 ? item.quantity : 1;
+    final existingIndex =
+        _cartItems.indexWhere((cartItem) => _sameCartProduct(cartItem, item));
+    final targetQty = existingIndex != -1
+        ? _cartItems[existingIndex].quantity + unitsToAdd
+        : unitsToAdd;
+
+    // Update UI immediately; reconcile with check-auth response below.
+    await _addToLocalCart(item);
+
     final isLoggedIn = await AuthService.isLoggedIn();
     if (!isLoggedIn) {
       _shouldLoadGuestCart = true;
@@ -590,10 +600,9 @@ class CartProvider with ChangeNotifier {
       String? guestId = prefs.getString('guest_id');
       if (guestId == null || guestId.isEmpty) {
         try {
-          guestId = await AuthService.generateGuestId();
+          await AuthService.generateGuestId();
         } catch (e) {
           debugPrint('[CartProvider] guest_id unavailable: $e');
-          await _addToLocalCart(item);
           return;
         }
       }
@@ -603,25 +612,26 @@ class CartProvider with ChangeNotifier {
       final token = await AuthService.getToken();
       if (token == null) {
         debugPrint('No auth token — local cart only');
-        await _addToLocalCart(item);
         return;
       }
 
-      final unitsToAdd = item.quantity > 0 ? item.quantity : 1;
-      final existingIndex =
-          _cartItems.indexWhere((cartItem) => _sameCartProduct(cartItem, item));
-      final targetQty = existingIndex != -1
-          ? _cartItems[existingIndex].quantity + unitsToAdd
-          : unitsToAdd;
-      final synced = await _syncAddToServer(item, quantity: targetQty);
-      if (!synced) {
-        _showSyncError(
-          'Could not add to cart on server. The product may be unavailable.',
-        );
+      _inhibitRemoteCartSync = true;
+      _holdRemoteCartSync(const Duration(seconds: 5));
+      try {
+        final synced = await _syncAddToServer(item, quantity: targetQty);
+        if (!synced) {
+          _showSyncError(
+            'Could not add to cart on server. The product may be unavailable.',
+          );
+          if (!_remoteSyncPaused) {
+            await syncWithApi();
+          }
+        }
+      } finally {
+        _inhibitRemoteCartSync = false;
       }
     } catch (e) {
       debugPrint('Error adding to cart: $e');
-      await _addToLocalCart(item);
     }
   }
 
@@ -965,10 +975,6 @@ class CartProvider with ChangeNotifier {
   Map<String, String> _cartAuthHeaders(String token, bool isLoggedIn) =>
       CartService.cartAuthHeaders(token, isLoggedIn);
 
-  int _localLineCountForProduct(CartItem item) {
-    return _cartItems.where((c) => _sameCartProduct(c, item)).length;
-  }
-
   /// POST /check-auth for +/- stepper — `quantity` is the new line total (not a delta).
   Future<bool> _adjustQuantityViaCheckAuth(
     CartItem item,
@@ -1050,117 +1056,6 @@ class CartProvider with ChangeNotifier {
       return data?['status']?.toString() == 'success';
     } catch (_) {
       return true;
-    }
-  }
-
-  // Remove all instances of a product from cart (server).
-  Future<void> _removeAllProductInstances(
-    CartItem item,
-    String token,
-    bool isLoggedIn, {
-    bool allServerLines = false,
-  }) async {
-    try {
-      if (!allServerLines &&
-          _localLineCountForProduct(item) <= 1 &&
-          hasServerCartLineId(item.id)) {
-        await _removeCartLineById(
-          item.id,
-          token,
-          isLoggedIn,
-          reason: 'single line cleanup',
-        );
-        return;
-      }
-
-      final headers = _cartAuthHeaders(token, isLoggedIn);
-      final fetchHeaders = Map<String, String>.from(headers);
-      fetchHeaders.remove('Content-Type');
-
-      CategoryFetchResult cartResponse;
-      String fetchUrl;
-      String? fetchBody;
-
-      if (isLoggedIn) {
-        final hashedLink = await AuthService.getHashedLink();
-        if (hashedLink == null) {
-          debugPrint('Cannot remove instances - missing hashed link');
-          return;
-        }
-        fetchUrl = 'checkout/$hashedLink';
-        cartResponse = await _cartService.fetchLoggedInCart(
-          hashedLink: hashedLink,
-          headers: fetchHeaders,
-        );
-      } else {
-        fetchUrl = 'check-auth';
-        fetchBody = jsonEncode({'productID': 0, 'quantity': 0});
-        cartResponse = await _cartService.fetchGuestCart(
-          headers: {
-            ...fetchHeaders,
-            'Content-Type': 'application/json',
-          },
-        );
-      }
-
-      _logCartApiResponse(
-        label: 'FETCH CART (before remove all) API RESPONSE',
-        url: fetchUrl,
-        headers: isLoggedIn
-            ? fetchHeaders
-            : {
-                ...fetchHeaders,
-                'Content-Type': 'application/json',
-              },
-        requestBody: fetchBody,
-        result: cartResponse,
-      );
-
-      if (cartResponse.statusCode == 200) {
-        final cartData = CartService.decodeBody(cartResponse);
-        if (cartData == null) return;
-        final cartItems = isLoggedIn
-            ? (cartData['cart_items'] as List? ?? [])
-            : (cartData['items'] as List? ?? []);
-
-        final itemsToRemove = cartItems.where((serverItem) {
-          final serverProductName =
-              serverItem['product_name']?.toString() ?? '';
-          final serverBatchNo = serverItem['batch_no']?.toString() ?? '';
-          if (!_productNamesLooselyMatch(serverProductName, item.name)) {
-            return false;
-          }
-          if (item.batchNo.isNotEmpty &&
-              serverBatchNo.isNotEmpty &&
-              serverBatchNo != item.batchNo) {
-            return false;
-          }
-          return true;
-        }).toList();
-
-        debugPrint(
-            'Removing ${itemsToRemove.length} server line(s) for ${item.name}');
-
-        final removeFutures = <Future<bool>>[];
-        for (final serverItem in itemsToRemove) {
-          final itemId = serverItem['id']?.toString();
-          if (itemId != null) {
-            removeFutures.add(
-              _removeCartLineById(
-                itemId,
-                token,
-                isLoggedIn,
-                reason: allServerLines
-                    ? 'delete all instances'
-                    : 'duplicate cleanup',
-              ),
-            );
-          }
-        }
-        await Future.wait(removeFutures);
-      }
-    } catch (e) {
-      debugPrint('⚠️ Error removing product instances: $e');
     }
   }
 

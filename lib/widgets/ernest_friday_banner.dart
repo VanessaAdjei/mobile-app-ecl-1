@@ -4,11 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'dart:async';
-import 'package:provider/provider.dart';
 import '../models/promotional_event.dart';
-import '../providers/promotional_event_provider.dart';
-import '../providers/theme_provider.dart';
-
 class ErnestFridayBanner extends StatefulWidget {
   final PromotionalEvent event;
   final VoidCallback? onTap;
@@ -82,14 +78,6 @@ class _ErnestFridayBannerState extends State<ErnestFridayBanner>
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    final isDark = themeProvider.isDarkMode;
-
-    // Define colors based on theme
-    final primaryColor = Colors.orange.shade600;
-    final cardColor = isDark ? Colors.grey.shade900 : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
-
     return GestureDetector(
       onTap: widget.onTap,
       child: Container(

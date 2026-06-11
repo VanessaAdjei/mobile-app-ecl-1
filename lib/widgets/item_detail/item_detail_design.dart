@@ -131,8 +131,8 @@ abstract final class ItemDetailDesign {
     if (t.isDark) {
       return BoxDecoration(
         borderRadius: BorderRadius.circular(radiusLg),
-        color: card(context),
-        border: Border.all(color: cardBorder(context)),
+        color: t.searchBarBg,
+        border: Border.all(color: t.searchBorder),
         boxShadow: cardShadow(context),
       );
     }

@@ -65,53 +65,23 @@ class PaymentBillSummarySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.appColors;
-    final sectionPadding = compact
-        ? EdgeInsets.symmetric(
-            horizontal: context.rs(12),
-            vertical: context.rs(12),
-          )
-        : EdgeInsets.symmetric(
-            horizontal: context.rs(18),
-            vertical: context.rs(18),
-          );
-    final blockGap = compact ? context.rs(7) : context.rs(12);
-    final titleFontSize = compact ? context.sp(13) : context.sp(16);
-    final accentBarHeight = compact ? context.rs(15) : context.rs(20);
-    final innerPanelPadding = compact ? context.rs(9) : context.rs(16);
-    final rowGap = compact ? 6.0 : context.rs(10);
+    final blockGap = compact ? context.rs(8) : context.rs(10);
+    final innerPanelPadding = compact ? context.rs(10) : context.rs(12);
+    final rowGap = compact ? 5.0 : 8.0;
 
-    return Container(
-      margin: PaymentSectionStyle.marginOf(context),
-      padding: sectionPadding,
-      decoration: PaymentSectionStyle.cardDecoration(context),
+    return PaymentSectionCard(
+      accentStripe: const Color(0xFF2E7D32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 3,
-                height: accentBarHeight,
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'Bill',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: titleFontSize,
-                  color:
-                      t.isDark ? AppColors.primaryLight : AppColors.primaryDark,
-                ),
-              ),
-            ],
+          const PaymentSectionHeader(
+            icon: Icons.payments_outlined,
+            title: 'Bill summary',
+            subtitle: 'Promo & fees',
+            accentColors: [Color(0xFF66BB6A), AppColors.primaryDark],
           ),
-          SizedBox(height: compact ? 7 : 12),
+          SizedBox(height: compact ? 8 : 11),
           OrderThresholdPromoBanner(compact: true, subtotal: subtotal),
           SizedBox(height: blockGap),
           _PromoCodeBlock(
@@ -160,14 +130,19 @@ class PaymentBillSummarySection extends StatelessWidget {
                     icon: Icons.flash_on,
                   ),
                 ],
-                Divider(height: compact ? 18 : 24, thickness: 1, color: t.border),
-                PaymentSummaryRow(
-                  label: 'Total',
-                  value: _total,
-                  isHighlighted: true,
-                  icon: Icons.payment,
-                ),
               ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: PaymentSectionStyle.totalPanelDecoration(context),
+            child: PaymentSummaryRow(
+              label: 'Total due',
+              value: _total,
+              isHighlighted: true,
+              icon: Icons.account_balance_wallet_outlined,
             ),
           ),
         ],
@@ -205,7 +180,7 @@ class _PromoCodeBlock extends StatelessWidget {
     final lockedLabel = appliedPromoCode ?? 'Server pricing';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: PaymentSectionStyle.accentPanelDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,7 +262,7 @@ class _PromoCodeBlock extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               SizedBox(
-                height: 30,
+                height: 28,
                 child: TextButton(
                   onPressed: lockPromoEditing
                       ? null

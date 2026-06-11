@@ -259,31 +259,27 @@ class SignInScreenState extends State<SignInScreen> {
 
         // Force update AuthService state
         await AuthService.forceUpdateAuthState();
+        if (!context.mounted) return;
 
-        // Try to update AuthProvider first
         try {
+          await context.read<AuthProvider>().refreshAuthState();
           if (!context.mounted) return;
-          final authProvider =
-              Provider.of<AuthProvider>(context, listen: false);
-          await authProvider.refreshAuthState();
         } catch (e, st) {
           debugPrint('SignIn: authProvider.refreshAuthState failed: $e\n$st');
         }
 
-        // get the current auth state
         if (!context.mounted) return;
         final authState = AuthState.of(context);
         if (authState != null) {
           await authState.refreshAuthState();
-        } else {}
-
-        // sync cart for the logged in user
-        final userId = await AuthService.getCurrentUserID();
-        if (userId != null) {
           if (!context.mounted) return;
-          await Provider.of<CartProvider>(context, listen: false)
-              .handleUserLogin(userId);
-        } else {}
+        }
+
+        final userId = await AuthService.getCurrentUserID();
+        if (!context.mounted) return;
+        if (userId != null) {
+          await context.read<CartProvider>().handleUserLogin(userId);
+        }
 
         if (widget.onSuccess != null) {
           widget.onSuccess!();
@@ -297,12 +293,12 @@ class SignInScreenState extends State<SignInScreen> {
           return;
         }
         // clear error message after login works
-        if (mounted) {
-          setState(() {
-            _errorMessage = null;
-          });
-        }
-        if (mounted) {
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = null;
+        });
+        if (!context.mounted) return;
+        {
           debugPrint('🔍 SignIn: Handling post-login navigation');
           debugPrint(
               '🔍 SignIn: onSuccess callback exists: ${widget.onSuccess != null}');
@@ -328,8 +324,8 @@ class SignInScreenState extends State<SignInScreen> {
             Navigator.pushNamedAndRemoveUntil(
                 context, widget.returnTo!, (route) => false);
           } else {
-            // check if theres prescription data waiting
             final prefs = await SharedPreferences.getInstance();
+            if (!context.mounted) return;
             final hasPendingPrescription =
                 prefs.getBool('has_pending_prescription') ?? false;
 

@@ -189,78 +189,107 @@ class _MapPickerPageState extends State<MapPickerPage> {
     });
   }
 
+  bool _isPlatformGeocoderNetworkError(Object error) {
+    final message = error.toString();
+    return message.contains('IO_ERROR') ||
+        message.contains('kCLErrorDomain') ||
+        message.contains('Code=2');
+  }
+
+  String _coordinatesFallbackLabel(double lat, double lng) {
+    return 'Dropped pin (${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)})';
+  }
+
+  Future<String?> _reverseGeocodePlatform(double lat, double lng) async {
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final placemarks = await placemarkFromCoordinates(lat, lng);
+        if (placemarks.isEmpty) return null;
+        final built = _buildReadableAddress(placemarks.first);
+        return built == 'Unknown location' ? null : built;
+      } catch (e) {
+        if (_isPlatformGeocoderNetworkError(e) && attempt == 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+          continue;
+        }
+        rethrow;
+      }
+    }
+    return null;
+  }
+
+  String _mergePlaceNameWithAddress(String placeName, String streetAddress) {
+    if (streetAddress.isEmpty) return placeName;
+    if (streetAddress.toLowerCase().contains(placeName.toLowerCase())) {
+      return streetAddress;
+    }
+    return '$placeName, $streetAddress';
+  }
+
+  Future<String> _resolveAddressLabel(
+    double lat,
+    double lng, {
+    String? originalQuery,
+  }) async {
+    String? platformAddress;
+    try {
+      platformAddress = await _reverseGeocodePlatform(lat, lng);
+    } catch (e) {
+      debugPrint('🗺️ [MAP] Platform reverse geocode failed: $e');
+    }
+
+    if (originalQuery != null && _isValidPlaceName(originalQuery)) {
+      if (platformAddress != null && platformAddress.isNotEmpty) {
+        return _mergePlaceNameWithAddress(originalQuery, platformAddress);
+      }
+      return originalQuery;
+    }
+
+    if (platformAddress != null && platformAddress.isNotEmpty) {
+      return platformAddress;
+    }
+
+    try {
+      final googleAddress =
+          await _placesService.reverseGeocodeCoordinates(lat, lng);
+      if (googleAddress != null && googleAddress.isNotEmpty) {
+        debugPrint('🗺️ [MAP] Using Google reverse geocode fallback');
+        return googleAddress;
+      }
+    } catch (e) {
+      debugPrint('🗺️ [MAP] Google reverse geocode failed: $e');
+    }
+
+    return _coordinatesFallbackLabel(lat, lng);
+  }
+
   Future<void> _getAddressFromCoordinates(double lat, double lng,
       {String? originalQuery}) async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingAddress = true;
+      _selectedAddress = 'Getting address...';
+    });
+
     try {
+      final address = await _resolveAddressLabel(
+        lat,
+        lng,
+        originalQuery: originalQuery,
+      );
+
       if (!mounted) return;
       setState(() {
-        _isLoadingAddress = true;
-        _selectedAddress = 'Getting address...';
+        _selectedAddress = address;
+        _isLoadingAddress = false;
       });
-
-      List<Placemark> placemarks = await placemarkFromCoordinates(lat, lng);
-
-      if (!mounted) return;
-
-      if (placemarks.isNotEmpty) {
-        Placemark place = placemarks[0];
-
-        // If we have an originalQuery from Places API, ALWAYS prioritize it as the place name
-        // The Places API name is more authoritative than reverse geocoded name
-        String address;
-        if (originalQuery != null && _isValidPlaceName(originalQuery)) {
-          // Build address using originalQuery as place name and reverse geocoded street address
-          List<String> addressParts = [];
-
-          // Add street components from reverse geocoding
-          if (place.subThoroughfare != null &&
-              place.subThoroughfare!.isNotEmpty) {
-            addressParts.add(place.subThoroughfare!);
-          }
-          if (place.thoroughfare != null && place.thoroughfare!.isNotEmpty) {
-            addressParts.add(place.thoroughfare!);
-          }
-
-          // Use originalQuery (from Places API) as place name, then street address
-          if (addressParts.isNotEmpty) {
-            address = '$originalQuery, ${addressParts.join(' ')}';
-          } else {
-            // If no street address, use just the place name
-            address = originalQuery;
-          }
-        } else {
-          // No originalQuery, use reverse geocoded address
-          address = _buildReadableAddress(place);
-        }
-
-        if (!mounted) return;
-
-        if (address.isNotEmpty) {
-          setState(() {
-            _selectedAddress = address;
-            _isLoadingAddress = false;
-          });
-          await _updateMarkers();
-        } else {
-          setState(() {
-            _selectedAddress = 'Unknown location';
-            _isLoadingAddress = false;
-          });
-          await _updateMarkers();
-        }
-      } else {
-        if (!mounted) return;
-        setState(() {
-          _selectedAddress = originalQuery ?? 'Address not found';
-          _isLoadingAddress = false;
-        });
-        await _updateMarkers();
-      }
+      await _updateMarkers();
     } catch (e) {
       debugPrint('🗺️ [MAP] Error getting address: $e');
       if (!mounted) return;
       setState(() {
-        _selectedAddress = originalQuery ?? 'Error loading address';
+        _selectedAddress =
+            originalQuery ?? _coordinatesFallbackLabel(lat, lng);
         _isLoadingAddress = false;
       });
       await _updateMarkers();
@@ -988,9 +1017,8 @@ class _MapPickerPageState extends State<MapPickerPage> {
                                   // Pop after a brief delay to ensure callback completes
                                   Future.delayed(
                                       const Duration(milliseconds: 100), () {
-                                    if (mounted) {
-                                      Navigator.pop(context);
-                                    }
+                                    if (!context.mounted) return;
+                                    Navigator.pop(context);
                                   });
                                 },
                           style: ElevatedButton.styleFrom(
@@ -1056,13 +1084,12 @@ class _MapPickerPageState extends State<MapPickerPage> {
                   if (permission == LocationPermission.denied) {
                     permission = await Geolocator.requestPermission();
                     if (permission == LocationPermission.denied) {
-                      if (mounted) {
-                        AppErrorUtils.showSnack(
-                          context,
-                          'Location permission is required to use your position.',
-                          isError: true,
-                        );
-                      }
+                      if (!context.mounted) return;
+                      AppErrorUtils.showSnack(
+                        context,
+                        'Location permission is required to use your position.',
+                        isError: true,
+                      );
                       return;
                     }
                   }
@@ -1089,13 +1116,12 @@ class _MapPickerPageState extends State<MapPickerPage> {
                   );
                 } catch (e) {
                   debugPrint('🗺️ [MAP] Error getting current location: $e');
-                  if (mounted) {
-                    AppErrorUtils.showSnack(
-                      context,
-                      'Could not get your location. Try again or pick on the map.',
-                      isError: true,
-                    );
-                  }
+                  if (!context.mounted) return;
+                  AppErrorUtils.showSnack(
+                    context,
+                    'Could not get your location. Try again or pick on the map.',
+                    isError: true,
+                  );
                   await _animateMapTo(_initialLocation, zoom: 18.0);
                 } finally {
                   if (mounted) setState(() => _isUpdatingLocation = false);

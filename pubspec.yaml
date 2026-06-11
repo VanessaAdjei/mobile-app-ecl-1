@@ -34,6 +34,8 @@ dependencies:
   # Core dependencies
   intl: ^0.20.2
   image_picker: ^1.1.2
+  image_picker_android: ^0.8.12+21
+  image_picker_platform_interface: ^2.10.1
   file_picker: ^8.1.4
   permission_handler: ^11.3.1
   google_fonts: ^6.2.1

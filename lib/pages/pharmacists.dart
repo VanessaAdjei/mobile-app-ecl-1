@@ -627,6 +627,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       setState(() =>
           _bookings.removeWhere((e) => e['id'] == id || identical(e, booking)));
       await _saveBookings();
+      if (!context.mounted) return false;
       AppErrorUtils.showSnack(context, 'Booking cancelled', isError: false);
       return true;
     } else {
@@ -909,17 +910,21 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
+        if (!context.mounted) return;
         AppErrorUtils.showSnack(context, 'Could not open the link',
             isError: true);
       }
     } catch (e) {
+      if (!context.mounted) return;
       AppErrorUtils.showSnack(context, 'Error opening link: $e', isError: true);
     }
   }
 
   void _showBookingForm() async {
     await _prepareAvailabilityForBooking();
+    if (!context.mounted) return;
     await _prefillUserData();
+    if (!context.mounted) return;
     final loadingSessionsHolder = [false];
     showDialog(
       context: context,
@@ -2158,8 +2163,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
 
   void _submitBookingWithValidation() async {
     final isLoggedIn = await AuthService.isLoggedIn();
+    if (!context.mounted) return;
     if (!isLoggedIn) {
-      if (!mounted) return;
       _showLoginRequiredDialog();
       return;
     }
@@ -2175,6 +2180,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       } else if (_symptomsController.text.isEmpty) {
         _scrollToField(_symptomsFieldKey);
       }
+      if (!context.mounted) return;
       AppErrorUtils.showSnack(context, 'Please complete all required fields.',
           isError: true, duration: Duration(seconds: 4));
       return;
@@ -2212,6 +2218,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
       'time': _selectedTime.format(context),
     };
+    if (!context.mounted) return;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -2219,7 +2226,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     );
     try {
       final result = await BookingService.book(apiBody);
-      if (!mounted) return;
+      if (!context.mounted) return;
       Navigator.pop(context);
       if (result['success'] == true) {
         final bookingData = result['booking'];

@@ -251,6 +251,34 @@ class GooglePlacesService {
     return Map<String, dynamic>.from(body['result'] as Map);
   }
 
+  /// Reverse geocode coordinates to a formatted address (Google Geocoding API).
+  Future<String?> reverseGeocodeCoordinates(
+    double lat,
+    double lng, {
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    if (!ApiConfig.hasGoogleMapsApiKey) return null;
+
+    final result = await _repository.reverseGeocode(
+      latitude: lat,
+      longitude: lng,
+      timeout: timeout,
+    );
+    if (!result.isHttpOk || result.body == null) return null;
+
+    final body = result.body!;
+    _logMapsApiStatus('ReverseGeocode', body);
+    if (body['status'] != 'OK' || body['results'] is! List) return null;
+
+    final results = body['results'] as List;
+    if (results.isEmpty || results.first is! Map) return null;
+
+    final first = Map<String, dynamic>.from(results.first as Map);
+    final formatted = first['formatted_address']?.toString();
+    if (formatted == null || formatted.trim().isEmpty) return null;
+    return formatted.trim();
+  }
+
   /// Resolves a query or suggestion to coordinates for the map picker.
   Future<({double lat, double lng, String label})?> resolveToCoordinates({
     required String query,

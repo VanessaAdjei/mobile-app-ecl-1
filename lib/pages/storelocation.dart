@@ -245,56 +245,55 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     debugPrint(
         '📍 Sorting ${storesWithCoords.length} stores with valid coordinates');
 
-    return List<dynamic>.from(storesWithCoords)
-      ..sort((a, b) {
-        // get the coordinates from the api (we already checked theyre valid)
-        final aLat = double.parse(a['lat'].toString());
-        final aLon = double.parse(a['lng'].toString());
-        final bLat = double.parse(b['lat'].toString());
-        final bLon = double.parse(b['lng'].toString());
+    final sorted = List<dynamic>.from(storesWithCoords);
+    sorted.sort((a, b) {
+      // get the coordinates from the api (we already checked theyre valid)
+      final aLat = double.parse(a['lat'].toString());
+      final aLon = double.parse(a['lng'].toString());
+      final bLat = double.parse(b['lat'].toString());
+      final bLon = double.parse(b['lng'].toString());
 
-        debugPrint(
-            'Store A (${a['description']}): API coords = ($aLat, $aLon)');
-        debugPrint(
-            'Store B (${b['description']}): API coords = ($bLat, $bLon)');
+      debugPrint(
+          'Store A (${a['description']}): API coords = ($aLat, $aLon)');
+      debugPrint(
+          'Store B (${b['description']}): API coords = ($bLat, $bLon)');
 
-        // Calculate distances
-        final aDistance = locationService.calculateDistance(
-          userLocation!.latitude,
-          userLocation!.longitude,
-          aLat,
-          aLon,
-        );
-        final bDistance = locationService.calculateDistance(
-          userLocation!.latitude,
-          userLocation!.longitude,
-          bLat,
-          bLon,
-        );
+      // Calculate distances
+      final aDistance = locationService.calculateDistance(
+        userLocation!.latitude,
+        userLocation!.longitude,
+        aLat,
+        aLon,
+      );
+      final bDistance = locationService.calculateDistance(
+        userLocation!.latitude,
+        userLocation!.longitude,
+        bLat,
+        bLon,
+      );
 
-        debugPrint(
-            'Store A distance: ${locationService.formatDistance(aDistance)}');
-        debugPrint(
-            'Store B distance: ${locationService.formatDistance(bDistance)}');
+      debugPrint(
+          'Store A distance: ${locationService.formatDistance(aDistance)}');
+      debugPrint(
+          'Store B distance: ${locationService.formatDistance(bDistance)}');
 
-        // add the distance to the store data so we can show it
-        a['distance'] = aDistance;
-        b['distance'] = bDistance;
+      // add the distance to the store data so we can show it
+      a['distance'] = aDistance;
+      b['distance'] = bDistance;
 
-        return aDistance.compareTo(bDistance);
-      });
+      return aDistance.compareTo(bDistance);
+    });
 
-    // Debug: Show final sorted order
     debugPrint('📍 FINAL SORTED ORDER ===');
-    for (int i = 0; i < storesWithCoords.length; i++) {
-      final store = storesWithCoords[i];
+    for (int i = 0; i < sorted.length; i++) {
+      final store = sorted[i];
       final distance = store['distance'] ?? 'N/A';
       debugPrint(
           '${i + 1}. ${store['description']} - ${locationService.formatDistance(distance)}');
     }
     debugPrint('========================');
 
-    return storesWithCoords;
+    return sorted;
   }
 
   // Check if location is within Ghana bounds
@@ -356,169 +355,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
           '${location['name']}: ${locationService.formatDistance(distance)}');
     }
     debugPrint('====================================');
-  }
-
-  // Get estimated coordinates based on region and city
-  Map<String, double> _getEstimatedCoordinates(dynamic store) {
-    // Default coordinates for Ghana (center of the country)
-    double lat = 7.9465;
-    double lon = -1.0232;
-
-    final regionName = store['region_name']?.toString().toLowerCase() ?? '';
-    final cityName = store['city_name']?.toString().toLowerCase() ?? '';
-    final storeName = store['description']?.toString().toLowerCase() ?? '';
-
-    debugPrint('📍 ESTIMATING COORDS for: $regionName, $cityName, $storeName');
-
-    // More precise coordinates for major Ghanaian cities and regions
-    if (regionName.contains('accra') || cityName.contains('accra')) {
-      // accra region - use more specific coordinates
-      if (storeName.contains('circle')) {
-        lat = 5.5500;
-        lon = -0.1833;
-        debugPrint('📍 Using Circle Accra coordinates: $lat, $lon');
-      } else if (storeName.contains('nester') || storeName.contains('square')) {
-        lat = 5.6037;
-        lon = -0.1870;
-        debugPrint('📍 Using Nester Square coordinates: $lat, $lon');
-      } else if (storeName.contains('volta') || storeName.contains('place')) {
-        lat = 5.6037;
-        lon = -0.1870;
-        debugPrint('📍 Using Volta Place coordinates: $lat, $lon');
-      } else {
-        // General Accra coordinates
-        lat = 5.6037;
-        lon = -0.1870;
-        debugPrint('📍 Using general Accra coordinates: $lat, $lon');
-      }
-    } else if (regionName.contains('kumasi') || cityName.contains('kumasi')) {
-      lat = 6.6885;
-      lon = -1.6244;
-      debugPrint('📍 Using Kumasi coordinates: $lat, $lon');
-    } else if (regionName.contains('tamale') || cityName.contains('tamale')) {
-      lat = 9.4035;
-      lon = -0.8423;
-      debugPrint('📍 Using Tamale coordinates: $lat, $lon');
-    } else if (regionName.contains('sekondi') ||
-        cityName.contains('sekondi') ||
-        regionName.contains('takoradi') ||
-        cityName.contains('takoradi')) {
-      lat = 4.9340;
-      lon = -1.7300;
-      debugPrint('📍 Using Sekondi-Takoradi coordinates: $lat, $lon');
-    } else if (regionName.contains('sunyani') || cityName.contains('sunyani')) {
-      lat = 7.3399;
-      lon = -2.3268;
-      debugPrint('📍 Using Sunyani coordinates: $lat, $lon');
-    } else if (regionName.contains('ho') || cityName.contains('ho')) {
-      lat = 6.6000;
-      lon = 0.4700;
-      debugPrint('📍 Using Ho coordinates: $lat, $lon');
-    } else if (regionName.contains('koforidua') ||
-        cityName.contains('koforidua')) {
-      lat = 6.0833;
-      lon = -0.2500;
-      debugPrint('📍 Using Koforidua coordinates: $lat, $lon');
-    } else if (regionName.contains('cape coast') ||
-        cityName.contains('cape coast')) {
-      lat = 5.1053;
-      lon = -1.2466;
-      debugPrint('📍 Using Cape Coast coordinates: $lat, $lon');
-    } else if (regionName.contains('tema') || cityName.contains('tema')) {
-      // Tema region - more specific coordinates
-      lat = 5.6795;
-      lon = -0.0167;
-      debugPrint('📍 Using Tema coordinates: $lat, $lon');
-    } else if (regionName.contains('ashaiman') ||
-        cityName.contains('ashaiman')) {
-      lat = 5.6167;
-      lon = -0.0667;
-      debugPrint('📍 Using Ashaiman coordinates: $lat, $lon');
-    } else if (regionName.contains('madina') || cityName.contains('madina')) {
-      lat = 5.6833;
-      lon = -0.1667;
-      debugPrint('📍 Using Madina coordinates: $lat, $lon');
-    } else if (regionName.contains('adenta') || cityName.contains('adenta')) {
-      lat = 5.7000;
-      lon = -0.1667;
-      debugPrint('📍 Using Adenta coordinates: $lat, $lon');
-    } else if (regionName.contains('spintex') || cityName.contains('spintex')) {
-      lat = 5.6167;
-      lon = -0.1833;
-      debugPrint('📍 Using Spintex coordinates: $lat, $lon');
-    } else if (regionName.contains('east legon') ||
-        cityName.contains('east legon')) {
-      lat = 5.6500;
-      lon = -0.1833;
-      debugPrint('📍 Using East Legon coordinates: $lat, $lon');
-    } else if (regionName.contains('west legon') ||
-        cityName.contains('west legon')) {
-      lat = 5.6500;
-      lon = -0.2000;
-      debugPrint('📍 Using West Legon coordinates: $lat, $lon');
-    } else if (regionName.contains('airport') || cityName.contains('airport')) {
-      lat = 5.6053;
-      lon = -0.1674;
-      debugPrint('📍 Using Airport coordinates: $lat, $lon');
-    } else if (regionName.contains('oshie') || cityName.contains('oshie')) {
-      lat = 5.6167;
-      lon = -0.1833;
-      debugPrint('📍 Using Oshie coordinates: $lat, $lon');
-    } else if (regionName.contains('dansoman') ||
-        cityName.contains('dansoman')) {
-      lat = 5.5500;
-      lon = -0.2333;
-      debugPrint('📍 Using Dansoman coordinates: $lat, $lon');
-    } else if (regionName.contains('kanda') || cityName.contains('kanda')) {
-      lat = 5.6167;
-      lon = -0.1833;
-      debugPrint('📍 Using Kanda coordinates: $lat, $lon');
-    } else if (regionName.contains('nima') || cityName.contains('nima')) {
-      lat = 5.6167;
-      lon = -0.1833;
-      debugPrint('📍 Using Nima coordinates: $lat, $lon');
-    } else if (regionName.contains('mamprobi') ||
-        cityName.contains('mamprobi')) {
-      lat = 5.5500;
-      lon = -0.2333;
-      debugPrint('📍 Using Mamprobi coordinates: $lat, $lon');
-    } else if (regionName.contains('korle bu') ||
-        cityName.contains('korle bu')) {
-      lat = 5.5500;
-      lon = -0.2333;
-      debugPrint('📍 Using Korle Bu coordinates: $lat, $lon');
-    } else if (regionName.contains('jamestown') ||
-        cityName.contains('jamestown')) {
-      lat = 5.5500;
-      lon = -0.2333;
-      debugPrint('📍 Using Jamestown coordinates: $lat, $lon');
-    } else if (regionName.contains('osu') || cityName.contains('osu')) {
-      lat = 5.5500;
-      lon = -0.1833;
-      debugPrint('📍 Using Osu coordinates: $lat, $lon');
-    } else if (regionName.contains('cantonments') ||
-        cityName.contains('cantonments')) {
-      lat = 5.6167;
-      lon = -0.1833;
-      debugPrint('📍 Using Cantonments coordinates: $lat, $lon');
-    } else if (regionName.contains('labone') || cityName.contains('labone')) {
-      lat = 5.6167;
-      lon = -0.1833;
-      debugPrint('📍 Using Labone coordinates: $lat, $lon');
-    } else if (regionName.contains('ring road') ||
-        cityName.contains('ring road')) {
-      lat = 5.6167;
-      lon = -0.1833;
-      debugPrint('📍 Using Ring Road coordinates: $lat, $lon');
-    } else if (regionName.contains('circle') || cityName.contains('circle')) {
-      lat = 5.5500;
-      lon = -0.1833;
-      debugPrint('📍 Using Circle coordinates: $lat, $lon');
-    } else {
-      debugPrint('📍 Using default Ghana coordinates: $lat, $lon');
-    }
-
-    return {'lat': lat, 'lon': lon};
   }
 
   // Sort stores by name
@@ -615,87 +451,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     }
   }
 
-  // Load cities for selected region
-  Future<void> _loadCities(dynamic region) async {
-    if (region == null || region['id'] == null) {
-      setState(() {
-        cities = [];
-        selectedCity = null;
-      });
-      return;
-    }
-
-    setState(() {
-      isLoadingCities = true;
-      citiesError = null;
-      selectedCity = null;
-    });
-
-    try {
-      final regionId = int.tryParse(region['id'].toString()) ?? 0;
-      final result = await DeliveryService.getCitiesByRegion(regionId);
-      if (result['success']) {
-        setState(() {
-          cities = result['data'] ?? [];
-          isLoadingCities = false;
-        });
-      } else {
-        setState(() {
-          citiesError = result['message'] ?? 'Failed to load cities';
-          isLoadingCities = false;
-        });
-      }
-    } catch (e) {
-      setState(() {
-        citiesError = 'Network error: ${e.toString()}';
-        isLoadingCities = false;
-      });
-    }
-  }
-
-  // Load stores for selected city
-  Future<void> _loadStores(dynamic city) async {
-    if (city == null || city['id'] == null) {
-      setState(() {
-        stores = [];
-      });
-      return;
-    }
-
-    setState(() {
-      isLoadingStores = true;
-      storesError = null;
-    });
-
-    try {
-      final cityId = int.tryParse(city['id'].toString()) ?? 0;
-      final result = await DeliveryService.getStoresByCity(cityId);
-      if (result['success']) {
-        final rawList = result['data'] as List? ?? [];
-        final normalized = rawList
-            .whereType<Map>()
-            .map((s) => DeliveryService.normalizeStoreMap(
-                  Map<String, dynamic>.from(s),
-                ))
-            .toList();
-        setState(() {
-          stores = normalized;
-          isLoadingStores = false;
-        });
-      } else {
-        setState(() {
-          storesError = result['message'] ?? 'Failed to load stores';
-          isLoadingStores = false;
-        });
-      }
-    } catch (e) {
-      setState(() {
-        storesError = 'Network error: ${e.toString()}';
-        isLoadingStores = false;
-      });
-    }
-  }
-
   // Load ALL stores with parallel processing for speed
   Future<void> _loadAllStores() async {
     debugPrint('=== STORE LOCATION: Loading ALL stores ===');
@@ -779,12 +534,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
 
       // Wait for all store requests to complete
       final storeResults = await Future.wait(storeFutures);
-      var totalStoresFetched = 0;
-      for (final r in storeResults) {
-        if (r['success'] == true && r['data'] is List) {
-          totalStoresFetched += (r['data'] as List).length;
-        }
-      }
       // Process all store results
       for (var storeResult in storeResults) {
         if (storeResult['success']) {
@@ -1883,28 +1632,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     );
   }
 
-  // Check if store is currently open (8:00 AM - 8:00 PM)
-  bool _isStoreOpen() {
-    final now = DateTime.now();
-    final currentTime = TimeOfDay.fromDateTime(now);
-
-    // Store hours: 8:00 AM - 8:00 PM
-    final openTime = TimeOfDay(hour: 8, minute: 0);
-    final closeTime = TimeOfDay(hour: 20, minute: 0); // 8:00 PM
-
-    // Check if current time is between open and close time
-    if (currentTime.hour > openTime.hour ||
-        (currentTime.hour == openTime.hour &&
-            currentTime.minute >= openTime.minute)) {
-      if (currentTime.hour < closeTime.hour ||
-          (currentTime.hour == closeTime.hour &&
-              currentTime.minute < closeTime.minute)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   // Format distance for display
   String _formatDistance(dynamic distance) {
     if (distance == null) return 'N/A';
@@ -1920,75 +1647,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     } else {
       return '${distanceValue.round()}km';
     }
-  }
-
-  // Get stores with valid coordinates for distance sorting
-  List<dynamic> _getStoresWithValidCoords() {
-    return allStores.where((store) {
-      final lat = store['lat'];
-      final lon = store['lng'];
-
-      if (lat == null || lon == null) return false;
-
-      final latValue = double.tryParse(lat.toString());
-      final lonValue = double.tryParse(lon.toString());
-
-      return latValue != null &&
-          lonValue != null &&
-          latValue != 0.0 &&
-          lonValue != 0.0;
-    }).toList();
-  }
-
-  Widget _buildCityCard(dynamic city) {
-    final cityName = city['description'] ?? 'Unknown City';
-    final isSelected = selectedCity != null && selectedCity['id'] == city['id'];
-
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Card(
-        elevation: 1,
-        color: isSelected ? Colors.green.shade50 : Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(
-            color: isSelected ? Colors.green.shade600 : Colors.grey.shade300,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: ListTile(
-          leading: Icon(
-            Icons.location_on,
-            color: isSelected ? Colors.green.shade600 : Colors.grey.shade600,
-          ),
-          title: Text(
-            cityName,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: isSelected ? Colors.green.shade800 : Colors.grey.shade800,
-            ),
-          ),
-          subtitle: Text(
-            'Tap to view stores',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade600,
-            ),
-          ),
-          trailing: isSelected
-              ? Icon(Icons.check_circle, color: Colors.green.shade600)
-              : Icon(Icons.arrow_forward_ios,
-                  color: Colors.grey.shade400, size: 16),
-          onTap: () {
-            setState(() {
-              selectedCity = city;
-            });
-            _loadStores(city);
-          },
-        ),
-      ),
-    );
   }
 
   // Load cities for filtering dropdown

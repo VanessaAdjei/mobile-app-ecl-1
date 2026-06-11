@@ -11,14 +11,11 @@ import '../config/app_routes.dart';
 import '../models/product_model.dart';
 import '../services/auth_service.dart';
 import 'bottomnav.dart';
-import 'itemdetail.dart';
 import 'package:shimmer/shimmer.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:eclapp/widgets/home/home_search_bar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'search_results_page.dart';
-import 'dart:convert';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/product_card.dart';
 import '../widgets/home_page_tour.dart';
@@ -37,7 +34,6 @@ import '../widgets/home/home_popular_products_strip.dart';
 import '../utils/product_tap_guard.dart';
 import '../services/category_optimization_service.dart';
 import '../services/product_catalog_service.dart';
-import '../utils/product_detail_navigation.dart';
 import '../utils/app_theme_colors.dart';
 import '../utils/app_error_utils.dart';
 import 'categories.dart';
@@ -198,7 +194,7 @@ class _HomeSearchSkeleton extends StatelessWidget {
       ),
       child: Container(
         decoration: BoxDecoration(
-          color: theme.skeleton,
+          color: theme.searchBarBg,
           borderRadius: BorderRadius.circular(radius),
           border: Border.all(
             color: AppColors.primary.withValues(alpha: 0.35),
@@ -1214,7 +1210,9 @@ class HomePageState extends State<HomePage>
       await Future<void>.delayed(const Duration(milliseconds: 900));
       if (!mounted) return;
 
+      if (!mounted) return;
       if (!await NativeNotificationService.isLocationWhenInUseGranted()) {
+        if (!mounted) return;
         await NativeNotificationService.requestLocationWhenInUseDirect(
           context: context,
         );
@@ -1736,14 +1734,17 @@ class HomePageState extends State<HomePage>
       final fileEntry = await cache.getFileFromCache(diskKey);
       if (!mounted) return;
       if (fileEntry != null) {
+        if (!mounted) return;
         try {
           await precacheImage(FileImage(fileEntry.file), context);
           ImagePreloader.markPreloaded(url);
         } catch (e) {
           debugPrint('HomePage: disk precache failed for $url ($e)');
+          if (!mounted) return;
           ImagePreloader.preloadImage(url, context);
         }
       } else {
+        if (!mounted) return;
         ImagePreloader.preloadImage(url, context);
       }
     }
@@ -1810,11 +1811,11 @@ class HomePageState extends State<HomePage>
         'whatsapp://send?phone=$phoneNumber&text=${Uri.encodeComponent(message)}';
     if (await canLaunchUrl(Uri.parse(url))) {
       await launchUrl(Uri.parse(url));
-    } else {
-      if (!context.mounted) return;
-      showTopSnackBar(
-          context, 'Could not open WhatsApp. Please ensure it is installed.');
+      return;
     }
+    if (!mounted) return;
+    showTopSnackBar(
+        context, 'Could not open WhatsApp. Please ensure it is installed.');
   }
 
   void _launchEmail(String email, String subject) async {

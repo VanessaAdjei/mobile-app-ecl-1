@@ -106,11 +106,6 @@ class WalletService {
     );
   }
 
-  // make an empty transactions list (no fake data)
-  static List<WalletTransaction> _createEmptyTransactions(String userId) {
-    return [];
-  }
-
   // make a new wallet for the user (using mock data for now)
   static Future<Wallet> createWallet() async {
     try {
@@ -216,7 +211,7 @@ class WalletService {
       return List<dynamic>.from(data);
     }
     if (data is Map) {
-      final m = Map<String, dynamic>.from(data as Map);
+      final m = Map<String, dynamic>.from(data);
       for (final key in <String>['orders', 'data', 'list', 'items']) {
         final v = m[key];
         if (v is List) return List<dynamic>.from(v);
@@ -233,7 +228,7 @@ class WalletService {
     for (final o in raw) {
       if (o is! Map) continue;
       try {
-        out.add(Map<String, dynamic>.from(o as Map));
+        out.add(Map<String, dynamic>.from(o));
       } catch (_) {}
     }
     out.sort((a, b) {

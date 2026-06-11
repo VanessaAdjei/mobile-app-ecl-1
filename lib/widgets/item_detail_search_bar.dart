@@ -229,9 +229,9 @@ class _ItemDetailSearchBarState extends State<ItemDetailSearchBar> {
 
   Widget _buildTypeAhead() {
     final inHeader = widget.inHeader;
-    final ink = context.appColors.ink;
-    final muted = context.appColors.muted;
-    final fieldBg = context.appColors.fieldBg;
+    final theme = context.appColors;
+    final muted = theme.muted;
+    final fieldBg = inHeader ? null : theme.searchBarBg;
     const boxStyle = TypeAheadBoxStyle(
       borderRadius: BorderRadius.all(Radius.circular(14)),
       elevation: 8,
@@ -255,7 +255,7 @@ class _ItemDetailSearchBarState extends State<ItemDetailSearchBar> {
             autofocus: widget.autofocus,
             style: GoogleFonts.poppins(
               fontSize: inHeader ? 14 : 15,
-              color: inHeader ? Colors.white : ink,
+              color: inHeader ? Colors.white : theme.searchBarText,
               fontWeight: FontWeight.w500,
             ),
             decoration: InputDecoration(
@@ -265,7 +265,7 @@ class _ItemDetailSearchBarState extends State<ItemDetailSearchBar> {
                 fontSize: inHeader ? 13 : 14,
                 color: inHeader
                     ? Colors.white.withValues(alpha: 0.65)
-                    : muted,
+                    : theme.searchBarHint,
                 fontWeight: FontWeight.w400,
               ),
               filled: true,
@@ -310,7 +310,7 @@ class _ItemDetailSearchBarState extends State<ItemDetailSearchBar> {
                         size: 20,
                         color: inHeader
                             ? Colors.white.withValues(alpha: 0.9)
-                            : muted.withValues(alpha: 0.9),
+                            : theme.searchBarHint,
                       ),
                       onPressed: () {
                         _controller.clear();

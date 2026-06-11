@@ -108,7 +108,14 @@ class CartItem {
   factory CartItem.fromServerJson(Map<String, dynamic> json) {
     final price = _parseDouble(json['price']);
     final totalPrice = _parseDouble(json['total_price']);
-    final quantity = _parseInt(json['qty'] ?? json['quantity']);
+    var quantity = _parseInt(json['qty'] ?? json['quantity']);
+    if (price > 0 && totalPrice > 0) {
+      final inferredQty = (totalPrice / price).round();
+      if (inferredQty > 0 && inferredQty != quantity) {
+        quantity = inferredQty;
+      }
+    }
+    final resolvedQty = quantity > 0 ? quantity : 1;
     return CartItem(
       id: json['id']?.toString() ?? '',
       productId: json['product_id']?.toString() ?? '',
@@ -118,11 +125,11 @@ class CartItem {
       originalProductId: json['product_id']?.toString(),
       name: json['product_name']?.toString() ?? 'Unknown Item',
       price: price,
-      quantity: quantity > 0 ? quantity : 1,
+      quantity: resolvedQty,
       image: coerceProductImageSource(json['product_img'] ?? json['image']),
       batchNo: json['batch_no']?.toString() ?? '',
       urlName: json['url_name']?.toString() ?? '',
-      totalPrice: totalPrice > 0 ? totalPrice : price * quantity,
+      totalPrice: totalPrice > 0 ? totalPrice : price * resolvedQty,
       isSelected: json['is_selected'] ?? true,
     );
   }

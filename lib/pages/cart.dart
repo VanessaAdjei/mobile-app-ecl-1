@@ -389,51 +389,43 @@ class CartState extends State<Cart> {
                                       arguments: {'returnTo': AppRoutes.cart},
                                     );
 
-                                    // After returning from login, check if user is now logged in
-                                    if (mounted) {
-                                      final isNowLoggedIn =
-                                          await AuthService.isLoggedIn();
-                                      setState(() {
-                                        _isLoggedIn = isNowLoggedIn;
-                                      });
+                                    if (!context.mounted) return;
+                                    final isNowLoggedIn =
+                                        await AuthService.isLoggedIn();
+                                    if (!context.mounted) return;
+                                    setState(() {
+                                      _isLoggedIn = isNowLoggedIn;
+                                    });
 
-                                      // Sync AuthProvider so app-wide auth state is correct
-                                      try {
-                                        await Provider.of<AuthProvider>(context,
-                                                listen: false)
-                                            .refreshAuthState();
-                                      } catch (_) {}
+                                    try {
+                                      await context
+                                          .read<AuthProvider>()
+                                          .refreshAuthState();
+                                    } catch (_) {}
+                                    if (!context.mounted) return;
 
-                                      // If user successfully logged in, merge guest cart
-                                      if (isNowLoggedIn) {
-                                        final userId = await AuthService
-                                            .getCurrentUserID();
-                                        if (userId != null) {
-                                          final cart =
-                                              Provider.of<CartProvider>(context,
-                                                  listen: false);
+                                    if (isNowLoggedIn) {
+                                      final userId =
+                                          await AuthService.getCurrentUserID();
+                                      if (!context.mounted) return;
+                                      if (userId != null) {
+                                        final cart = context.read<CartProvider>();
 
-                                          // Show quick merging message
-                                          showTopSnackBar(
-                                            context,
-                                            'Merging cart items...',
-                                            duration: Duration(seconds: 1),
-                                          );
+                                        showTopSnackBar(
+                                          context,
+                                          'Merging cart items...',
+                                          duration: Duration(seconds: 1),
+                                        );
 
-                                          // Fast merge (now non-blocking)
-                                          await cart
-                                              .mergeGuestCartOnLogin(userId);
+                                        await cart.mergeGuestCartOnLogin(userId);
+                                        if (!context.mounted) return;
 
-                                          // Show success message
-                                          showTopSnackBar(
-                                            context,
-                                            'Welcome back!',
-                                            duration: Duration(seconds: 3),
-                                          );
-
-                                          // Refresh the cart display
-                                          setState(() {});
-                                        }
+                                        showTopSnackBar(
+                                          context,
+                                          'Welcome back!',
+                                          duration: Duration(seconds: 3),
+                                        );
+                                        setState(() {});
                                       }
                                     }
                                   },
@@ -484,19 +476,21 @@ class CartState extends State<Cart> {
                     onPressed: vm.checkoutDisabled
                         ? null
                         : () async {
-                              // Fresh check from AuthService to avoid stale state issues
                               final actuallyLoggedIn =
                                   await AuthService.isLoggedIn();
+                              if (!context.mounted) return;
 
                               if (!actuallyLoggedIn) {
                                 final prefs =
                                     await SharedPreferences.getInstance();
+                                if (!context.mounted) return;
                                 final guestId = prefs.getString('guest_id');
                                 final guestInfoCollected =
                                     prefs.getBool('guest_info_collected') ??
                                         false;
                                 if ((guestId == null || guestId.isEmpty) ||
                                     !guestInfoCollected) {
+                                  if (!context.mounted) return;
                                   final result = await showDialog<String>(
                                     context: context,
                                     barrierDismissible: true,
@@ -643,13 +637,15 @@ class CartState extends State<Cart> {
                                                               'guest_id');
                                                       if (guestId == null ||
                                                           guestId.isEmpty) {
-                                                        // generate guest id
                                                         await AuthService
                                                             .generateGuestId();
                                                       }
                                                       await prefs.setBool(
                                                           'guest_info_collected',
                                                           true);
+                                                      if (!context.mounted) {
+                                                        return;
+                                                      }
                                                       Navigator.of(context)
                                                           .pop('guest');
                                                     },
@@ -662,6 +658,7 @@ class CartState extends State<Cart> {
                                       ),
                                     ),
                                   );
+                                  if (!context.mounted) return;
                                   if (result == 'login') {
                                     await Navigator.push(
                                       context,
@@ -669,36 +666,32 @@ class CartState extends State<Cart> {
                                         builder: (context) => SignInScreen(),
                                       ),
                                     );
-                                    // After returning, re-check auth status
+                                    if (!context.mounted) return;
                                     final isNowLoggedIn =
                                         await AuthService.isLoggedIn();
+                                    if (!context.mounted) return;
                                     setState(() {
                                       _isLoggedIn = isNowLoggedIn;
                                     });
-                                    // Sync AuthProvider so delivery/payment pages see correct auth
                                     try {
-                                      await Provider.of<AuthProvider>(context,
-                                              listen: false)
+                                      await context
+                                          .read<AuthProvider>()
                                           .refreshAuthState();
                                     } catch (_) {}
-                                    // Sync cart with backend after login
+                                    if (!context.mounted) return;
                                     if (isNowLoggedIn) {
                                       final userId =
                                           await AuthService.getCurrentUserID();
+                                      if (!context.mounted) return;
                                       if (userId != null) {
-                                        await Provider.of<CartProvider>(context,
-                                                listen: false)
+                                        await context
+                                            .read<CartProvider>()
                                             .mergeGuestCartOnLogin(userId);
                                       }
-                                      // Don't sync immediately after login - let the protection mechanism handle it
-                                      // await Provider.of<CartProvider>(
-                                      //         context,
-                                      //         listen: false)
-                                      //     .syncWithApi();
                                     }
                                     return;
                                   } else if (result == 'guest') {
-                                    // Proceed as guest
+                                    if (!context.mounted) return;
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
@@ -708,11 +701,10 @@ class CartState extends State<Cart> {
                                     );
                                     return;
                                   } else {
-                                    // Dialog dismissed, do nothing
                                     return;
                                   }
                                 } else {
-                                  // guest_id exists and guest info collected, proceed directly
+                                  if (!context.mounted) return;
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
@@ -723,6 +715,7 @@ class CartState extends State<Cart> {
                                   return;
                                 }
                               }
+                              if (!context.mounted) return;
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(

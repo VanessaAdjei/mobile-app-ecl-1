@@ -280,6 +280,7 @@ class NativeNotificationService {
     BuildContext? context,
     bool requestIfNeeded = true,
   }) async {
+    final requestContext = context;
     if (await canPostSystemNotifications()) return true;
     if (!requestIfNeeded) {
       debugPrint(
@@ -288,7 +289,10 @@ class NativeNotificationService {
       return false;
     }
     debugPrint('📱 Native: Requesting notification permission…');
-    return requestNotificationPermissionDirect(context: context);
+    final safeContext = requestContext != null && requestContext.mounted
+        ? requestContext
+        : null;
+    return requestNotificationPermissionDirect(context: safeContext);
   }
 
   /// Show a system notification
@@ -543,14 +547,12 @@ class NativeNotificationService {
   /// Notifications then location — used after onboarding / from settings.
   static Future<({bool notifications, bool location})>
       requestOnboardingPermissions({BuildContext? context}) async {
-    final dialogContext = context ?? globalNavigatorKey.currentContext;
     final notifications = await requestNotificationPermissionDirect(
-      context: dialogContext,
+      context: context ?? globalNavigatorKey.currentContext,
     );
-    // Brief gap so the notification dialog can dismiss before location.
     await Future<void>.delayed(const Duration(milliseconds: 600));
     final location = await requestLocationWhenInUseDirect(
-      context: dialogContext,
+      context: globalNavigatorKey.currentContext,
     );
     return (notifications: notifications, location: location);
   }

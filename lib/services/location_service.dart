@@ -7,6 +7,9 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:flutter/foundation.dart';
 
+import '../config/api_config.dart';
+import 'google_places_service.dart';
+
 class LocationService {
   static final LocationService _instance = LocationService._internal();
   factory LocationService() => _instance;
@@ -116,11 +119,21 @@ class LocationService {
         Placemark place = placemarks[0];
         return '${place.street}, ${place.locality}, ${place.administrativeArea}';
       }
-      return null;
     } catch (e) {
-      debugPrint('❌ Error getting address: $e');
-      return null;
+      debugPrint('❌ Platform reverse geocode failed: $e');
     }
+
+    if (ApiConfig.hasGoogleMapsApiKey) {
+      try {
+        final google =
+            await GooglePlacesService().reverseGeocodeCoordinates(lat, lon);
+        if (google != null && google.isNotEmpty) return google;
+      } catch (e) {
+        debugPrint('❌ Google reverse geocode failed: $e');
+      }
+    }
+
+    return null;
   }
 
   // get coordinates from address (reverse geocoding)

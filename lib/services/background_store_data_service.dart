@@ -1,8 +1,6 @@
 // services/background_store_data_service.dart
 import 'dart:async';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'delivery_service.dart';
 

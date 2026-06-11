@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 import '../pages/aboutus.dart';
-import '../pages/cart.dart';
 import '../pages/categories.dart';
-import '../pages/homepage.dart';
 import '../pages/main_tab_shell.dart';
 import '../pages/itemdetail.dart';
 import '../pages/notifications.dart';
 import '../pages/pharmacists.dart';
 import '../pages/prescription_history.dart';
 import '../pages/prescription_upload_standalone.dart';
-import '../pages/profile.dart';
 import '../pages/profilescreen.dart';
 import '../pages/purchases.dart';
 import '../pages/refill_page.dart';

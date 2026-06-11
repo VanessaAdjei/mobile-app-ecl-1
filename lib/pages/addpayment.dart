@@ -561,7 +561,7 @@ class AddPaymentPageState extends State<AddPaymentPage> {
           borderSide: BorderSide(color: Colors.green.shade700, width: 2),
         ),
       ),
-      value: value,
+      initialValue: value,
       items: items
           .map((item) => DropdownMenuItem(value: item, child: Text(item)))
           .toList(),

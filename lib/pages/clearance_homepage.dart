@@ -10,8 +10,6 @@ import 'package:provider/provider.dart';
 import '../providers/clearance_sale_provider.dart';
 import '../services/clearance_sale_api_service.dart';
 import '../widgets/cart_icon_button.dart';
-import '../config/api_config.dart';
-import '../config/app_routes.dart';
 import '../utils/app_error_utils.dart';
 import '../providers/cart_provider.dart';
 import '../models/cart_item.dart';

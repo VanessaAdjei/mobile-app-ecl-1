@@ -103,7 +103,16 @@ const injectExpressPayNavigationHookJs = r'''
 (function() {
   if (window.__eclExpressPayNavHook) return;
   window.__eclExpressPayNavHook = true;
+  var disposed = false;
+  window.__eclDisposeExpressPayNav = function() {
+    disposed = true;
+    if (window.__eclExpressPayNavInterval != null) {
+      clearInterval(window.__eclExpressPayNavInterval);
+      window.__eclExpressPayNavInterval = null;
+    }
+  };
   var post = function() {
+    if (disposed) return;
     try { EclPaymentNav.postMessage(location.href); } catch (e) {}
   };
   post();
@@ -120,7 +129,15 @@ const injectExpressPayNavigationHookJs = r'''
     post();
   };
   window.addEventListener('popstate', post);
-  setInterval(post, 2500);
+})();
+''';
+
+/// Stops JS navigation hooks before the native WebView is torn down (iOS).
+const disposeExpressPayNavigationHookJs = r'''
+(function() {
+  if (typeof window.__eclDisposeExpressPayNav === 'function') {
+    window.__eclDisposeExpressPayNav();
+  }
 })();
 ''';
 

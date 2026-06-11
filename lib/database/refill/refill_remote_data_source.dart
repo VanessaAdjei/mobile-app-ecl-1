@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import '../../config/api_config.dart';
 import '../../models/category_fetch_result.dart';
-import '../../services/auth_service.dart';
 import '../../services/http_client_service.dart';
 
 abstract class RefillRemoteDataSource {
