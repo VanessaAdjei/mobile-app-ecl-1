@@ -1,7 +1,3 @@
-// config/api_config.dart
-// all the api urls and endpoints in one place
-// makes it easier to change stuff later
-
 import 'package:flutter/foundation.dart';
 
 import '../services/maps_api_key_service.dart';
@@ -130,6 +126,8 @@ class ApiConfig {
   static const String saveBillingAddress = '/save-billing-add';
   static const String getBillingAddress = '/get-billing-add';
   static const String calculateDeliveryFee = '/calculate-delivery-fee';
+  static const String deliveryGeofence = '/delivery-geofence';
+  static const String validateGeofence = '/validate-geofence';
   static const String regions = '/regions';
   static const String regionCities =
       '/regions'; // add regionId like /regions/{regionId}/cities

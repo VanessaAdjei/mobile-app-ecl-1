@@ -9,7 +9,6 @@ import '../providers/auth_provider.dart';
 import 'delivery_page.dart';
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'app_back_button.dart';
 import 'homepage.dart';
 import '../config/api_config.dart';
 import '../config/app_routes.dart';
@@ -19,7 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/cart/cart_checkout_bottom_bar.dart';
 import '../widgets/cart/remove_from_cart_dialog.dart';
 import '../widgets/cart_quantity_stepper.dart';
-import '../widgets/checkout_progress_stepper.dart';
+import '../widgets/checkout_flow_header.dart';
 import '../services/delivery_service.dart';
 import '../config/app_colors.dart';
 import '../utils/app_error_utils.dart';
@@ -223,7 +222,6 @@ class CartState extends State<Cart> {
 
   @override
   Widget build(BuildContext context) {
-    final topPadding = MediaQuery.of(context).padding.top;
     final theme = context.appColors;
 
     return Scaffold(
@@ -232,72 +230,10 @@ class CartState extends State<Cart> {
             children: [
               Column(
                 children: [
-                  // Header + progress steps
-                  Container(
-                    padding: EdgeInsets.only(top: topPadding),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Colors.green.shade600,
-                          Colors.green.shade700,
-                          Colors.green.shade800,
-                        ],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.12),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        // Header with back button and title
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 4),
-                          child: Row(
-                            children: [
-                              BackButtonUtils.simple(
-                                backgroundColor:
-                                    Colors.white.withValues(alpha: 0.2),
-                              ),
-                              Expanded(
-                                child: Center(
-                                  child: Text(
-                                    'Shopping Cart',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.2,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 40),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-                          child: const CheckoutProgressStepper(
-                            compact: true,
-                            steps: [
-                              'Cart',
-                              'Delivery',
-                              'Payment',
-                              'Confirmation'
-                            ],
-                            activeStep: 1,
-                            completedSteps: {1},
-                          ),
-                        ),
-                      ],
-                    ),
+                  const CheckoutFlowHeader(
+                    title: 'Shopping Cart',
+                    activeStep: 1,
+                    completedSteps: {1},
                   ),
                   // Guest reminder info bar
                   Selector<AuthProvider, bool>(

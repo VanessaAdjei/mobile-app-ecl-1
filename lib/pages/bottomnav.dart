@@ -11,6 +11,7 @@ import 'homepage.dart' as home;
 import 'categories.dart';
 import 'cart.dart';
 import 'profile.dart';
+import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 import '../services/order_notification_service.dart';
 import '../utils/app_error_utils.dart';
@@ -1095,8 +1096,11 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                       label: 'Shop',
                     ),
                     BottomNavigationBarItem(
-                      icon: Consumer<NotificationProvider>(
-                        builder: (context, notificationProvider, child) {
+                      icon: Consumer2<NotificationProvider, AuthProvider>(
+                        builder: (context, notificationProvider, authProvider,
+                            child) {
+                          final showBadge = authProvider.isLoggedIn &&
+                              notificationProvider.unreadCount > 0;
                           return _buildIconWithGlow(
                             icon: Icons.person_rounded,
                             isSelected: _activeIndex == 4,
@@ -1106,7 +1110,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                               clipBehavior: Clip.none,
                               children: [
                                 Icon(Icons.person_rounded),
-                                if (notificationProvider.unreadCount > 0)
+                                if (showBadge)
                                   Positioned(
                                     right: -6,
                                     top: -4,

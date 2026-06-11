@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../config/app_colors.dart';
-import '../../utils/checkout_order_totals.dart';
 import '../../utils/app_theme_colors.dart';
-import '../../utils/responsive_extension.dart';
 import 'payment_section_style.dart';
 import 'payment_summary_row.dart';
 import '../order_threshold_promo_banner.dart';
 
-/// Bill breakdown + promo code on the payment information screen.
+/// Bill breakdown + promo code on the payment screen.
 class PaymentBillSummarySection extends StatelessWidget {
   final double subtotal;
   final double deliveryFee;
@@ -25,7 +24,7 @@ class PaymentBillSummarySection extends StatelessWidget {
   final TextEditingController promoCodeController;
   final VoidCallback onApplyPromo;
   final VoidCallback onRemovePromo;
-  final bool compact;
+  final bool embedded;
 
   const PaymentBillSummarySection({
     super.key,
@@ -44,7 +43,7 @@ class PaymentBillSummarySection extends StatelessWidget {
     required this.promoCodeController,
     required this.onApplyPromo,
     required this.onRemovePromo,
-    this.compact = false,
+    this.embedded = false,
   });
 
   double get _displayDeliveryFee {
@@ -53,37 +52,28 @@ class PaymentBillSummarySection extends StatelessWidget {
     return OrderThresholdPromoBanner.displayDeliveryFee(subtotal, deliveryFee);
   }
 
-  double get _total => CheckoutOrderTotals(
-        merchandiseSubtotal: subtotal,
-        discount: discountAmount,
-        deliveryFee: deliveryFee,
-        emergencyOrderFee: emergencyOrderFee,
-        runningSubtotal: runningSubtotal,
-        shippingFree: forceFreeDelivery,
-        isDelivery: showDeliveryFee,
-      ).total;
+  bool get _isDeliveryFree =>
+      showDeliveryFee &&
+      (forceFreeDelivery || _displayDeliveryFee <= 0);
 
   @override
   Widget build(BuildContext context) {
-    final blockGap = compact ? context.rs(8) : context.rs(10);
-    final innerPanelPadding = compact ? context.rs(10) : context.rs(12);
-    final rowGap = compact ? 5.0 : 8.0;
+    final accent = PaymentSectionAccent.bill(context);
 
-    return PaymentSectionCard(
-      accentStripe: const Color(0xFF2E7D32),
-      child: Column(
+    final content = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          const PaymentSectionHeader(
-            icon: Icons.payments_outlined,
+          PaymentSectionHeader(
+            eyebrow: 'Payment',
             title: 'Bill summary',
-            subtitle: 'Promo & fees',
-            accentColors: [Color(0xFF66BB6A), AppColors.primaryDark],
+            icon: Icons.receipt_long_rounded,
+            accent: accent,
+            compact: embedded,
           ),
-          SizedBox(height: compact ? 8 : 11),
+          SizedBox(height: embedded ? 10 : 12),
           OrderThresholdPromoBanner(compact: true, subtotal: subtotal),
-          SizedBox(height: blockGap),
+          const SizedBox(height: 12),
           _PromoCodeBlock(
             lockPromoEditing: lockPromoEditing,
             appliedPromoCode: appliedPromoCode,
@@ -94,10 +84,18 @@ class PaymentBillSummarySection extends StatelessWidget {
             onApplyPromo: onApplyPromo,
             onRemovePromo: onRemovePromo,
           ),
-          SizedBox(height: blockGap),
+          SizedBox(height: embedded ? 12 : 14),
           Container(
-            padding: EdgeInsets.all(innerPanelPadding),
-            decoration: PaymentSectionStyle.innerPanelDecoration(context),
+            padding: EdgeInsets.symmetric(
+              horizontal: embedded ? 0 : 12,
+              vertical: embedded ? 4 : 10,
+            ),
+            decoration: embedded
+                ? null
+                : PaymentSectionStyle.innerPanelDecoration(
+                    context,
+                    accent: accent,
+                  ),
             child: Column(
               children: [
                 PaymentSummaryRow(
@@ -106,47 +104,42 @@ class PaymentBillSummarySection extends StatelessWidget {
                   icon: Icons.shopping_cart_outlined,
                 ),
                 if (discountAmount > 0) ...[
-                  SizedBox(height: rowGap),
+                  const SizedBox(height: 6),
                   PaymentSummaryRow(
                     label: 'Discount',
                     value: -discountAmount,
-                    icon: Icons.local_offer,
                     isDiscount: true,
+                    icon: Icons.local_offer_outlined,
                   ),
                 ],
-                if (showDeliveryFee && _displayDeliveryFee > 0) ...[
-                  SizedBox(height: rowGap),
+                if (showDeliveryFee) ...[
+                  const SizedBox(height: 6),
                   PaymentSummaryRow(
-                    label: 'Delivery fee',
+                    label: _isDeliveryFree ? 'Delivery' : 'Delivery fee',
                     value: _displayDeliveryFee,
+                    isFree: _isDeliveryFree,
                     icon: Icons.local_shipping_outlined,
                   ),
                 ],
                 if (emergencyOrderFee > 0) ...[
-                  SizedBox(height: rowGap),
+                  const SizedBox(height: 6),
                   PaymentSummaryRow(
                     label: 'xPress order fee',
                     value: emergencyOrderFee,
-                    icon: Icons.flash_on,
+                    icon: Icons.bolt_rounded,
                   ),
                 ],
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: PaymentSectionStyle.totalPanelDecoration(context),
-            child: PaymentSummaryRow(
-              label: 'Total due',
-              value: _total,
-              isHighlighted: true,
-              icon: Icons.account_balance_wallet_outlined,
-            ),
-          ),
         ],
-      ),
+      );
+
+    if (embedded) return content;
+
+    return PaymentSectionCard(
+      accent: accent,
+      child: content,
     );
   }
 }
@@ -180,89 +173,63 @@ class _PromoCodeBlock extends StatelessWidget {
     final lockedLabel = appliedPromoCode ?? 'Server pricing';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: PaymentSectionStyle.accentPanelDecoration(context),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: PaymentSectionStyle.innerPanelDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Icon(
-                Icons.local_offer_outlined,
-                color:
-                    t.isDark ? AppColors.primaryLight : AppColors.primaryDark,
-                size: 16,
-              ),
-              const SizedBox(width: 8),
               Expanded(
                 child: hasApplied
                     ? Row(
                         children: [
+                          Icon(
+                            Icons.check_circle_outline,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               lockPromoEditing
                                   ? lockedLabel
                                   : appliedPromoCode!,
-                              style: TextStyle(
-                                fontSize: 12,
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: t.isDark
-                                    ? AppColors.primaryLight
-                                    : AppColors.primaryDark,
+                                color: t.ink,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                          Icon(
-                            Icons.check_circle,
-                            color: AppColors.primary,
-                            size: 16,
                           ),
                         ],
                       )
                     : TextField(
                         enabled: !lockPromoEditing,
                         controller: promoCodeController,
-                        style: TextStyle(
-                          fontSize: 12,
-                          height: 1.2,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
                           color: t.inputText,
                         ),
-                        cursorColor: t.inputText,
+                        cursorColor: AppColors.primary,
                         decoration: InputDecoration(
                           isDense: true,
                           hintText: 'Promo code',
-                          hintStyle: TextStyle(
+                          hintStyle: GoogleFonts.poppins(
                             color: t.inputHint,
-                            fontSize: 12,
+                            fontSize: 13,
                           ),
-                          filled: true,
-                          fillColor: t.surface,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(6),
-                            borderSide: BorderSide(color: t.accentBorder),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(6),
-                            borderSide: BorderSide(color: t.accentBorder),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(6),
-                            borderSide: BorderSide(color: AppColors.primary),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
                         ),
                       ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               SizedBox(
-                height: 28,
+                height: 32,
                 child: TextButton(
                   onPressed: lockPromoEditing
                       ? null
@@ -274,7 +241,7 @@ class _PromoCodeBlock extends StatelessWidget {
                         ? t.fieldBg
                         : hasApplied
                             ? (t.isDark
-                                ? Colors.red.withValues(alpha: 0.18)
+                                ? Colors.red.withValues(alpha: 0.15)
                                 : Colors.red.shade50)
                             : AppColors.primary,
                     foregroundColor: lockPromoEditing
@@ -284,17 +251,17 @@ class _PromoCodeBlock extends StatelessWidget {
                                 ? Colors.red.shade300
                                 : Colors.red.shade700)
                             : Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                   child: isApplyingPromo
                       ? const SizedBox(
-                          width: 11,
-                          height: 11,
+                          width: 14,
+                          height: 14,
                           child: CircularProgressIndicator(
                             color: Colors.white,
                             strokeWidth: 2,
@@ -306,8 +273,8 @@ class _PromoCodeBlock extends StatelessWidget {
                               : hasApplied
                                   ? 'Remove'
                                   : 'Apply',
-                          style: const TextStyle(
-                            fontSize: 11,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -316,32 +283,29 @@ class _PromoCodeBlock extends StatelessWidget {
             ],
           ),
           if (lockPromoEditing) ...[
-            const SizedBox(height: 2),
+            const SizedBox(height: 6),
             Text(
-              'Pricing is set from delivery quote.',
-              style: TextStyle(
+              'Pricing is set from your delivery quote.',
+              style: GoogleFonts.poppins(
                 color: t.muted,
                 fontSize: 11,
-                fontWeight: FontWeight.w500,
               ),
             ),
           ] else if (promoError != null) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               promoError!,
-              style: TextStyle(
+              style: GoogleFonts.poppins(
                 color: t.isDark ? Colors.red.shade300 : Colors.red.shade600,
                 fontSize: 11,
-                height: 1.2,
               ),
             ),
           ] else if (hasApplied && discountAmount > 0) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
-              'Saved GHS ${discountAmount.toStringAsFixed(2)}',
-              style: TextStyle(
-                color:
-                    t.isDark ? AppColors.primaryLight : AppColors.primaryDark,
+              'You save GHS ${discountAmount.toStringAsFixed(2)}',
+              style: GoogleFonts.poppins(
+                color: AppColors.primary,
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
               ),

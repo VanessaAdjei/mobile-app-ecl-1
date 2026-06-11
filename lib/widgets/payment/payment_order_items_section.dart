@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../config/api_config.dart';
 import '../../config/app_colors.dart';
@@ -8,16 +9,17 @@ import '../../utils/app_theme_colors.dart';
 import '../../utils/responsive_extension.dart';
 import 'payment_section_style.dart';
 
-/// Order line items on the payment information screen.
+/// Order line items on the payment screen.
 class PaymentOrderItemsSection extends StatefulWidget {
   final List<CartItem> selectedItems;
-  final bool compact;
 
   const PaymentOrderItemsSection({
     super.key,
     required this.selectedItems,
-    this.compact = false,
+    this.embedded = false,
   });
+
+  final bool embedded;
 
   @override
   State<PaymentOrderItemsSection> createState() =>
@@ -35,218 +37,237 @@ class _PaymentOrderItemsSectionState extends State<PaymentOrderItemsSection> {
   @override
   Widget build(BuildContext context) {
     final t = context.appColors;
+    final accent = PaymentSectionAccent.order(context);
     final selectedItems = widget.selectedItems;
+    final thumbSize = context.rs(44);
 
-    final itemPadding = EdgeInsets.symmetric(
-      horizontal: context.rs(8),
-      vertical: context.rs(6),
-    );
-    final itemGap = context.rs(5);
-    final thumbSize = context.rs(36);
-    final nameFontSize = context.sp(12);
-    final metaFontSize = context.sp(10);
-    final lineTotalFontSize = context.sp(12);
-
-    return PaymentSectionCard(
-      accentStripe: AppColors.primary,
-      child: Column(
+    final content = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           PaymentSectionHeader(
-            icon: Icons.receipt_long_rounded,
-            title: 'Order summary',
-            subtitle: selectedItems.isEmpty
-                ? 'No items selected'
+            eyebrow: 'Your order',
+            title: 'Items',
+            icon: Icons.shopping_bag_outlined,
+            accent: accent,
+            compact: widget.embedded,
+            trailing: selectedItems.isEmpty
+                ? null
                 : '${selectedItems.length} item${selectedItems.length == 1 ? '' : 's'}',
-            accentColors: const [Color(0xFF43A047), AppColors.primary],
           ),
-          if (selectedItems.isNotEmpty) ...[
-            const SizedBox(height: 9),
-            ...selectedItems.take(_showAllItems ? selectedItems.length : 3).map(
-                  (item) => Container(
-                    margin: EdgeInsets.only(bottom: itemGap),
-                    padding: itemPadding,
-                    decoration: PaymentSectionStyle.innerPanelDecoration(context),
-                    child: Row(
-                      children: [
-                        Container(
+          if (selectedItems.isEmpty) ...[
+            SizedBox(height: widget.embedded ? 8 : 10),
+            Text(
+              'No items selected',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: t.muted,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ] else ...[
+            SizedBox(height: widget.embedded ? 10 : 12),
+            ...selectedItems
+                .take(_showAllItems ? selectedItems.length : 3)
+                .toList()
+                .asMap()
+                .entries
+                .map((entry) {
+              final index = entry.key;
+              final item = entry.value;
+              final isLast = index ==
+                  (selectedItems.length > 3 && !_showAllItems
+                      ? 2
+                      : selectedItems.length - 1);
+
+              final itemRow = Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: accent.border?.withValues(alpha: 0.45) ??
+                                t.border,
+                          ),
+                        ),
+                        child: ClipRRect(
+                        borderRadius: BorderRadius.circular(9),
+                        child: Container(
                           width: thumbSize,
                           height: thumbSize,
-                          decoration: BoxDecoration(
-                            color: t.accentTint,
-                            borderRadius: BorderRadius.circular(7),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(7),
-                            child: CachedNetworkImage(
-                              imageUrl: _imageUrl(item.image),
-                              fit: BoxFit.contain,
-                              placeholder: (context, url) => Container(
-                                color: t.accentTint,
-                                child: Center(
-                                  child: SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        AppColors.primary
-                                            .withValues(alpha: 0.5),
-                                      ),
-                                    ),
-                                  ),
+                          color: accent.tint,
+                          child: CachedNetworkImage(
+                            imageUrl: _imageUrl(item.image),
+                            fit: BoxFit.contain,
+                            placeholder: (context, url) => Center(
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.primary
+                                      .withValues(alpha: 0.4),
                                 ),
                               ),
-                              errorWidget: (context, url, error) => Icon(
-                                Icons.medical_services_outlined,
-                                color: AppColors.primary.withValues(alpha: 0.4),
-                                size: thumbSize * 0.4,
-                              ),
+                            ),
+                            errorWidget: (context, url, error) => Icon(
+                              Icons.medical_services_outlined,
+                              color: AppColors.primary.withValues(alpha: 0.35),
+                              size: thumbSize * 0.42,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 7),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                item.name,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: nameFontSize,
-                                  height: 1.25,
-                                  color: t.ink,
+                      ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.name,
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                                height: 1.25,
+                                color: t.ink,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: accent.tint,
+                                    borderRadius: BorderRadius.circular(5),
+                                    border: Border.all(
+                                      color: accent.border
+                                              ?.withValues(alpha: 0.4) ??
+                                          t.border,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '×${item.quantity}',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: accent.gradient.last,
+                                    ),
+                                  ),
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 4,
-                                      vertical: 1,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primary
-                                          .withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      '×${item.quantity}',
-                                      style: TextStyle(
-                                        fontSize: metaFontSize,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.primary,
-                                      ),
-                                    ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'GHS ${item.price.toStringAsFixed(2)}',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    color: t.muted,
                                   ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'GHS ${item.price.toStringAsFixed(2)}',
-                                    style: TextStyle(
-                                      color: t.muted,
-                                      fontSize: metaFontSize,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                        Text(
-                          'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: lineTotalFontSize,
-                            color: AppColors.primary,
-                          ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: AppColors.primary,
                         ),
-                      ],
+                      ),
+                    ],
+                  );
+
+              if (widget.embedded) {
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: itemRow,
                     ),
+                    if (!isLast) PaymentSectionStyle.sectionDivider(context),
+                  ],
+                );
+              }
+
+              return Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: PaymentSectionStyle.innerPanelDecoration(
+                      context,
+                      accent: accent,
+                    ),
+                    child: itemRow,
                   ),
+                  if (!isLast) const SizedBox(height: 8),
+                ],
+              );
+            }),
+            if (selectedItems.length > 3)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: _ExpandToggle(
+                  label: _showAllItems
+                      ? 'Show less'
+                      : 'View ${selectedItems.length - 3} more',
+                  icon: _showAllItems ? Icons.expand_less : Icons.expand_more,
+                  onTap: () => setState(() => _showAllItems = !_showAllItems),
                 ),
-            if (selectedItems.length > 3 && !_showAllItems)
-              _ExpandToggle(
-                label: 'Show ${selectedItems.length - 3} more item(s)',
-                icon: Icons.expand_more,
-                accent: true,
-                onTap: () => setState(() => _showAllItems = true),
-              ),
-            if (selectedItems.length > 3 && _showAllItems)
-              _ExpandToggle(
-                label: 'Show less',
-                icon: Icons.expand_less,
-                accent: false,
-                onTap: () => setState(() => _showAllItems = false),
               ),
           ],
         ],
-      ),
+      );
+
+    if (widget.embedded) return content;
+
+    return PaymentSectionCard(
+      accent: accent,
+      child: content,
     );
   }
 }
 
 class _ExpandToggle extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool accent;
-  final VoidCallback onTap;
-
   const _ExpandToggle({
     required this.label,
     required this.icon,
-    required this.accent,
     required this.onTap,
   });
 
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) {
-    final t = context.appColors;
-
-    final bg = accent
-        ? (t.isDark
-            ? AppColors.primary.withValues(alpha: 0.14)
-            : Colors.blue.shade50)
-        : t.fieldBg;
-    final border = accent
-        ? (t.isDark
-            ? AppColors.primary.withValues(alpha: 0.35)
-            : Colors.blue.shade200)
-        : t.border;
-    final ink = accent
-        ? (t.isDark ? AppColors.primaryLight : Colors.blue.shade700)
-        : t.muted;
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 2),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
+    return Align(
+      alignment: Alignment.center,
+      child: TextButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 16, color: AppColors.primary),
+        label: Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: AppColors.primary,
+          ),
+        ),
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primary,
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: border),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: ink, size: 14),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  color: ink,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
       ),
     );

@@ -8,16 +8,17 @@ abstract final class PaymentSlideDesign {
 
   static Color trackBg(BuildContext context) {
     final t = _theme(context);
-    return t.isDark ? const Color(0xFF141C2B) : t.fieldBg;
+    return t.isDark ? const Color(0xFF111827) : const Color(0xFFEEF9F3);
   }
 
   static Color trackBorder(BuildContext context) {
     final t = _theme(context);
-    return t.isDark ? t.accentBorder : AppColors.primary;
+    return t.isDark
+        ? AppColors.primary.withValues(alpha: 0.35)
+        : AppColors.primary.withValues(alpha: 0.4);
   }
 
-  static double trackBorderWidth(BuildContext context) =>
-      _theme(context).isDark ? 1.0 : 1.5;
+  static double trackBorderWidth(BuildContext context) => 1;
 
   static List<Color> progressColors(BuildContext context) {
     final t = _theme(context);
@@ -25,10 +26,9 @@ abstract final class PaymentSlideDesign {
       return const [
         AppColors.primaryDark,
         AppColors.primary,
-        AppColors.primaryLight,
       ];
     }
-    return const [AppColors.primary, AppColors.primary];
+    return const [AppColors.primaryDark, AppColors.primary];
   }
 
   static Color accent(BuildContext context) =>
@@ -36,7 +36,7 @@ abstract final class PaymentSlideDesign {
 
   static Color labelColor(BuildContext context, {required bool onProgress}) {
     if (onProgress) return Colors.white;
-    return _theme(context).ink;
+    return _theme(context).muted;
   }
 
   static Color labelIconColor(BuildContext context, {required bool onProgress}) {
@@ -51,17 +51,20 @@ abstract final class PaymentSlideDesign {
 
   static Border? handleBorder(BuildContext context) {
     final t = _theme(context);
-    if (!t.isDark) return null;
-    return Border.all(color: t.accentBorder, width: 1);
+    return Border.all(
+      color: t.isDark
+          ? Colors.white.withValues(alpha: 0.1)
+          : AppColors.primary.withValues(alpha: 0.15),
+    );
   }
 
   static List<BoxShadow> handleShadow(BuildContext context) {
     final t = _theme(context);
     return [
       BoxShadow(
-        color: Colors.black.withValues(alpha: t.isDark ? 0.45 : 0.12),
-        blurRadius: t.isDark ? 8 : 4,
-        offset: Offset(0, t.isDark ? 2 : 1),
+        color: Colors.black.withValues(alpha: t.isDark ? 0.35 : 0.1),
+        blurRadius: 10,
+        offset: const Offset(0, 2),
       ),
     ];
   }
@@ -69,10 +72,10 @@ abstract final class PaymentSlideDesign {
   static Color processingOverlay(BuildContext context) {
     final t = _theme(context);
     return t.isDark
-        ? Colors.black.withValues(alpha: 0.55)
-        : Colors.black.withValues(alpha: 0.2);
+        ? Colors.black.withValues(alpha: 0.6)
+        : Colors.black.withValues(alpha: 0.25);
   }
 
   static double disabledOpacity(BuildContext context) =>
-      _theme(context).isDark ? 0.55 : 0.65;
+      _theme(context).isDark ? 0.5 : 0.6;
 }

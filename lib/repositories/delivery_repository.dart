@@ -24,6 +24,15 @@ abstract class DeliveryRepository {
     required Map<String, String> headers,
     Duration timeout,
   });
+  Future<CategoryFetchResult> fetchDeliveryGeofence({
+    required Map<String, String> headers,
+    Duration timeout,
+  });
+  Future<CategoryFetchResult> validateGeofence({
+    required Map<String, String> headers,
+    required String body,
+    Duration timeout,
+  });
 }
 
 class DeliveryRepositoryImpl implements DeliveryRepository {
@@ -91,4 +100,23 @@ class DeliveryRepositoryImpl implements DeliveryRepository {
     Duration timeout = const Duration(seconds: 5),
   }) =>
       _remote.addXpressFee(headers: headers, timeout: timeout);
+
+  @override
+  Future<CategoryFetchResult> fetchDeliveryGeofence({
+    required Map<String, String> headers,
+    Duration timeout = const Duration(seconds: 8),
+  }) =>
+      _remote.fetchDeliveryGeofence(headers: headers, timeout: timeout);
+
+  @override
+  Future<CategoryFetchResult> validateGeofence({
+    required Map<String, String> headers,
+    required String body,
+    Duration timeout = const Duration(seconds: 8),
+  }) =>
+      _remote.validateGeofence(
+        headers: headers,
+        body: body,
+        timeout: timeout,
+      );
 }

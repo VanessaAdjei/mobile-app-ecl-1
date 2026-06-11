@@ -1,5 +1,6 @@
 // pages/notification_provider.dart
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 import '../services/order_notification_service.dart';
 
 class NotificationProvider extends ChangeNotifier {
@@ -39,8 +40,31 @@ class NotificationProvider extends ChangeNotifier {
         '📱 NotificationProvider: Initialized with $_unreadCount unread notifications, $_newOrderCount new orders');
   }
 
+  Future<bool> _inboxAvailable() => AuthService.isLoggedIn();
+
+  Future<void> _clearCountsIfSignedOut() async {
+    if (await _inboxAvailable()) return;
+    if (_unreadCount == 0 && _newOrderCount == 0) return;
+    _unreadCount = 0;
+    _newOrderCount = 0;
+    resetOnNotificationsRead();
+    notifyListeners();
+  }
+
+  /// Clears badge state when the user signs out (inbox is account-only).
+  Future<void> clearForSignedOutUser() async {
+    _unreadCount = 0;
+    _newOrderCount = 0;
+    resetOnNotificationsRead();
+    notifyListeners();
+  }
+
   Future<void> _loadUnreadCount() async {
     try {
+      if (!await _inboxAvailable()) {
+        await _clearCountsIfSignedOut();
+        return;
+      }
       _unreadCount = await OrderNotificationService.getCurrentUnreadCount();
       debugPrint(
           '📱 NotificationProvider: Loaded $_unreadCount unread notifications');
@@ -53,6 +77,10 @@ class NotificationProvider extends ChangeNotifier {
   /// Load the count of new order notifications specifically
   Future<void> _loadNewOrderCount() async {
     try {
+      if (!await _inboxAvailable()) {
+        await _clearCountsIfSignedOut();
+        return;
+      }
       final notifications = await OrderNotificationService.getNotifications();
       _newOrderCount = notifications
           .where((notification) =>
@@ -120,28 +148,37 @@ class NotificationProvider extends ChangeNotifier {
     debugPrint(
         '📱 NotificationProvider: New notification created, updating count immediately...');
 
-    // Update count immediately for fast badge updates
-    _unreadCount++;
-    notifyListeners();
-
-    _loadUnreadCount();
-    _loadNewOrderCount();
+    _inboxAvailable().then((available) {
+      if (!available) return;
+      _unreadCount++;
+      notifyListeners();
+      _loadUnreadCount();
+      _loadNewOrderCount();
+    });
   }
 
   void notifyNewOrderNotification() {
-    _unreadCount++;
-    _newOrderCount++;
-    notifyListeners();
-
-    _loadUnreadCount();
-    _loadNewOrderCount();
+    _inboxAvailable().then((available) {
+      if (!available) return;
+      _unreadCount++;
+      _newOrderCount++;
+      notifyListeners();
+      _loadUnreadCount();
+      _loadNewOrderCount();
+    });
   }
 
   void updateBadgeCount(int newCount) {
-    if (_unreadCount != newCount) {
-      _unreadCount = newCount;
-      notifyListeners();
-    }
+    _inboxAvailable().then((available) {
+      if (!available) {
+        clearForSignedOutUser();
+        return;
+      }
+      if (_unreadCount != newCount) {
+        _unreadCount = newCount;
+        notifyListeners();
+      }
+    });
   }
 
   Future<void> forceRefresh() async {

@@ -77,12 +77,27 @@ class AppErrorUtils {
         msg.isNotEmpty &&
         msg.toLowerCase() != 'validation failed' &&
         msg.toLowerCase() != 'validation error') {
+      if (isTechnicalBackendMessage(msg)) {
+        return fallback;
+      }
       return msg;
     }
     final err = map?['error']?.toString();
     if (err != null && err.isNotEmpty) return err;
     if (msg != null && msg.isNotEmpty) return msg;
     return fallback;
+  }
+
+  /// Hides raw PHP/Laravel stack traces from user-facing copy.
+  static bool isTechnicalBackendMessage(String message) {
+    final lower = message.toLowerCase();
+    return lower.contains('undefined function') ||
+        lower.contains('undefined method') ||
+        lower.contains('fatal error') ||
+        lower.contains('syntax error') ||
+        lower.contains('stack trace') ||
+        lower.contains('symfony\\') ||
+        lower.contains('laravel/framework');
   }
 
   // ── User-facing copy ───────────────────────────────────────────────────────

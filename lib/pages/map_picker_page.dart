@@ -2,6 +2,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
@@ -9,10 +10,18 @@ import 'package:eclapp/widgets/safe_typeahead_host.dart';
 import 'package:eclapp/widgets/typeahead_box_style.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import '../config/api_config.dart';
+import '../config/app_colors.dart';
+import '../models/delivery_geofence.dart';
 import '../models/map_place_suggestion.dart';
+import '../services/delivery_service.dart';
+import '../utils/app_theme_colors.dart';
+import '../utils/point_in_polygon.dart';
 import '../services/google_places_service.dart';
 import '../widgets/animated_map_pin.dart';
+import '../widgets/map/map_dark_style.dart';
+import '../widgets/map/outside_delivery_area_dialog.dart';
 import '../utils/app_error_utils.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 typedef LocationSelectedCallback = void Function(
     double lat, double lng, String? address);
@@ -25,11 +34,16 @@ class MapPickerPage extends StatefulWidget {
   final double initialLongitude;
   final LocationSelectedCallback onLocationSelected;
 
+  /// Called when the picked point is outside the delivery geofence so the
+  /// parent can switch to pickup without saving the delivery location.
+  final VoidCallback? onOfferPickup;
+
   const MapPickerPage({
     super.key,
     required this.initialLatitude,
     required this.initialLongitude,
     required this.onLocationSelected,
+    this.onOfferPickup,
   });
 
   @override
@@ -51,6 +65,12 @@ class _MapPickerPageState extends State<MapPickerPage> {
 
   /// True while searching/updating location (Places or Geocoding); disable Confirm until done.
   bool _isUpdatingLocation = false;
+
+  /// True while `/validate-geofence` is in flight.
+  bool _isValidatingLocation = false;
+
+  Set<Polygon> _deliveryPolygons = {};
+  DeliveryGeofence? _deliveryGeofence;
 
   // search box for finding places
   final TextEditingController _searchController = TextEditingController();
@@ -77,6 +97,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
     _selectedLocation = _initialLocation;
     _initializeMarkers();
     _getAddressFromCoordinates(widget.initialLatitude, widget.initialLongitude);
+    unawaited(_loadDeliveryGeofence());
 
     print('🗺️ [MAP] MapPickerPage initialized');
     print(
@@ -86,6 +107,111 @@ class _MapPickerPageState extends State<MapPickerPage> {
     print(
         '   📍 [iOS DEBUG] Data types: ${widget.initialLatitude.runtimeType}, ${widget.initialLongitude.runtimeType}');
     print('   📍 [iOS DEBUG] _initialLocation created: $_initialLocation');
+  }
+
+  Future<void> _loadDeliveryGeofence() async {
+    try {
+      final geofence = await DeliveryService.fetchDeliveryGeofence();
+      if (!mounted || geofence == null || !geofence.hasPolygons) return;
+
+      _deliveryGeofence = geofence;
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      final polygons = <Polygon>{};
+      for (var i = 0; i < geofence.polygons.length; i++) {
+        polygons.add(
+          Polygon(
+            polygonId: PolygonId('delivery_zone_$i'),
+            points: geofence.polygons[i],
+            fillColor: AppColors.primary.withValues(alpha: isDark ? 0.22 : 0.12),
+            strokeColor: isDark ? AppColors.primaryLight : AppColors.primaryDark,
+            strokeWidth: 2,
+          ),
+        );
+      }
+
+      if (!mounted) return;
+      setState(() => _deliveryPolygons = polygons);
+    } catch (e) {
+      debugPrint('🗺️ [MAP] delivery-geofence load failed: $e');
+    }
+  }
+
+  Future<GeofenceValidationResult> _resolveGeofenceValidation() async {
+    final validation = await DeliveryService.validateGeofence(
+      lat: _selectedLocation.latitude,
+      lng: _selectedLocation.longitude,
+    );
+
+    if (validation.checkedRemotely) {
+      return validation;
+    }
+
+    if (_deliveryGeofence != null && _deliveryGeofence!.hasPolygons) {
+      final inside = PointInPolygon.isInside(
+        _selectedLocation,
+        _deliveryGeofence!.polygons,
+      );
+      return GeofenceValidationResult(
+        isValid: inside,
+        message: inside ? null : DeliveryGeofenceCopy.outsideArea,
+        checkedRemotely: false,
+      );
+    }
+
+    return const GeofenceValidationResult(
+      isValid: false,
+      message: DeliveryGeofenceCopy.cannotVerify,
+      checkedRemotely: false,
+    );
+  }
+
+  Future<void> _showOutsideDeliveryAreaDialog(String message) async {
+    final switchToPickup = await showOutsideDeliveryAreaDialog(
+      context,
+      message: message,
+      offerPickup: widget.onOfferPickup != null,
+    );
+
+    if (!mounted || switchToPickup != true) return;
+
+    widget.onOfferPickup!.call();
+    Navigator.pop(context);
+  }
+
+  Future<void> _confirmLocation() async {
+    if (_isUpdatingLocation || _isValidatingLocation) return;
+
+    setState(() => _isValidatingLocation = true);
+    try {
+      final validation = await _resolveGeofenceValidation();
+
+      if (!mounted) return;
+
+      if (!validation.isValid) {
+        final message = validation.message ?? DeliveryGeofenceCopy.outsideArea;
+        if (widget.onOfferPickup != null) {
+          await _showOutsideDeliveryAreaDialog(message);
+        } else {
+          AppErrorUtils.showSnack(context, message);
+        }
+        return;
+      }
+
+      widget.onLocationSelected(
+        _selectedLocation.latitude,
+        _selectedLocation.longitude,
+        _selectedAddress,
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        AppErrorUtils.showSnack(context, 'Error: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _isValidatingLocation = false);
+    }
   }
 
   Future<void> _initializeMarkers() async {
@@ -126,6 +252,9 @@ class _MapPickerPageState extends State<MapPickerPage> {
   void _onMapCreated(GoogleMapController controller) {
     _mapController = controller;
     _mapReady = true;
+    if (Theme.of(context).brightness == Brightness.dark) {
+      unawaited(controller.setMapStyle(kMapPickerDarkStyle));
+    }
     if (_pendingCameraTarget != null) {
       unawaited(_flushPendingCamera());
     } else {
@@ -288,8 +417,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
       debugPrint('🗺️ [MAP] Error getting address: $e');
       if (!mounted) return;
       setState(() {
-        _selectedAddress =
-            originalQuery ?? _coordinatesFallbackLabel(lat, lng);
+        _selectedAddress = originalQuery ?? _coordinatesFallbackLabel(lat, lng);
         _isLoadingAddress = false;
       });
       await _updateMarkers();
@@ -517,7 +645,8 @@ class _MapPickerPageState extends State<MapPickerPage> {
         lng: resolved.lng,
         label: resolved.label,
       );
-      debugPrint('🗺️ [MAP] ✅ Location set: (${resolved.lat}, ${resolved.lng})');
+      debugPrint(
+          '🗺️ [MAP] ✅ Location set: (${resolved.lat}, ${resolved.lng})');
     } catch (e) {
       debugPrint('🗺️ [MAP] _searchLocation error: $e');
       if (mounted) {
@@ -547,12 +676,35 @@ class _MapPickerPageState extends State<MapPickerPage> {
     return null;
   }
 
+  BoxDecoration _glassCardDecoration(AppThemeColors theme) {
+    return BoxDecoration(
+      color: theme.isDark
+          ? const Color(0xFF1E293B).withValues(alpha: 0.92)
+          : Colors.white.withValues(alpha: 0.94),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(
+        color: theme.isDark
+            ? Colors.white.withValues(alpha: 0.1)
+            : Colors.black.withValues(alpha: 0.06),
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: theme.isDark ? 0.35 : 0.12),
+          blurRadius: 16,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
+
     return Scaffold(
+      backgroundColor: theme.pageBg,
       body: Stack(
         children: [
-          // Google Map
           GoogleMap(
             key: _mapWidgetKey,
             onMapCreated: _onMapCreated,
@@ -562,6 +714,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
               zoom: 18.0, // Higher zoom for better accuracy
             ),
             markers: _markers,
+            polygons: _deliveryPolygons,
             myLocationEnabled: true,
             myLocationButtonEnabled: true,
             zoomControlsEnabled: true,
@@ -577,117 +730,134 @@ class _MapPickerPageState extends State<MapPickerPage> {
           ),
 
           if (_isUpdatingLocation)
-            const Positioned.fill(
+            Positioned.fill(
               child: IgnorePointer(
                 child: Center(
-                  child: Card(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          SizedBox(width: 12),
-                          Text('Updating map…'),
-                        ],
-                      ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 14,
                     ),
-                  ),
+                    decoration: _glassCardDecoration(theme),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Updating map…',
+                          style: GoogleFonts.poppins(
+                            color: theme.ink,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                      .animate()
+                      .fadeIn(duration: 220.ms, curve: Curves.easeOut)
+                      .scale(
+                        begin: const Offset(0.94, 0.94),
+                        duration: 220.ms,
+                        curve: Curves.easeOutCubic,
+                      ),
                 ),
               ),
             ),
 
-          // Top App Bar with Gradient
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: Container(
+            child: Animate(
+              effects: const [
+                FadeEffect(
+                  duration: Duration(milliseconds: 420),
+                  curve: Curves.easeOut,
+                ),
+                SlideEffect(
+                  duration: Duration(milliseconds: 420),
+                  begin: Offset(0, -0.08),
+                  end: Offset.zero,
+                  curve: Curves.easeOutCubic,
+                ),
+              ],
+              child: Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withOpacity(0.8),
-                    Colors.black.withOpacity(0.4),
-                    Colors.transparent,
-                  ],
+                  colors: theme.isDark
+                      ? [
+                          const Color(0xFF0F172A).withValues(alpha: 0.96),
+                          const Color(0xFF0F172A).withValues(alpha: 0.72),
+                          Colors.transparent,
+                        ]
+                      : [
+                          Colors.black.withValues(alpha: 0.72),
+                          Colors.black.withValues(alpha: 0.32),
+                          Colors.transparent,
+                        ],
                 ),
               ),
               child: SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      // Top row with back button and title
                       Row(
                         children: [
-                          // Back Button
                           Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.9),
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
+                            decoration: _glassCardDecoration(theme),
                             child: IconButton(
                               onPressed: () => Navigator.pop(context),
                               icon: Icon(
                                 Icons.arrow_back_ios_new,
-                                color: Colors.grey.shade800,
-                                size: 20,
+                                color: theme.ink,
+                                size: 18,
                               ),
                             ),
                           ),
-
-                          const SizedBox(width: 16),
-
-                          // Title
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
+                                horizontal: 16,
                                 vertical: 12,
                               ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.9),
-                                borderRadius: BorderRadius.circular(25),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
+                              decoration: _glassCardDecoration(theme),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.pin_drop_rounded,
+                                    color: AppColors.primary,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Pick your location',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: theme.ink,
+                                    ),
                                   ),
                                 ],
-                              ),
-                              child: Text(
-                                '📍 Pick Your Location',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey.shade800,
-                                ),
-                                textAlign: TextAlign.center,
                               ),
                             ),
                           ),
                         ],
                       ),
-
-                      const SizedBox(height: 16),
-
+                      const SizedBox(height: 14),
                       if (!ApiConfig.hasGoogleMapsApiKey)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 10),
@@ -695,29 +865,37 @@ class _MapPickerPageState extends State<MapPickerPage> {
                             width: double.infinity,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
-                              vertical: 8,
+                              vertical: 10,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.amber.shade50,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.amber.shade200),
+                              color: theme.isDark
+                                  ? const Color(0xFFF59E0B)
+                                      .withValues(alpha: 0.12)
+                                  : Colors.amber.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFF59E0B)
+                                    .withValues(alpha: 0.35),
+                              ),
                             ),
                             child: Row(
                               children: [
-                                Icon(
+                                const Icon(
                                   Icons.info_outline,
                                   size: 18,
-                                  color: Colors.amber.shade900,
+                                  color: Color(0xFFF59E0B),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     'Map search needs GOOGLE_MAPS_API_KEY. '
                                     'You can still tap the map or use current location.',
-                                    style: TextStyle(
+                                    style: GoogleFonts.poppins(
                                       fontSize: 11,
-                                      color: Colors.amber.shade900,
-                                      height: 1.3,
+                                      color: theme.isDark
+                                          ? const Color(0xFFFCD34D)
+                                          : Colors.amber.shade900,
+                                      height: 1.35,
                                     ),
                                   ),
                                 ),
@@ -725,41 +903,43 @@ class _MapPickerPageState extends State<MapPickerPage> {
                             ),
                           ),
                         ),
-
-                      // Search Bar
                       Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.95),
-                          borderRadius: BorderRadius.circular(25),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
+                        decoration: _glassCardDecoration(theme),
                         child: Row(
                           children: [
                             Expanded(
                               child: SafeTypeAheadHost<MapPlaceSuggestion>(
                                 builder: (context, suggestionsController) {
-                                  const boxStyle = TypeAheadBoxStyle(
-                                    borderRadius:
-                                        BorderRadius.all(Radius.circular(12)),
+                                  final boxStyle = TypeAheadBoxStyle(
+                                    borderRadius: const BorderRadius.all(
+                                      Radius.circular(12),
+                                    ),
                                     elevation: 12,
-                                    shadowColor: Color(0x26000000),
-                                    constraints:
-                                        BoxConstraints(maxHeight: 280),
+                                    shadowColor: theme.isDark
+                                        ? const Color(0x66000000)
+                                        : const Color(0x26000000),
+                                    constraints: const BoxConstraints(
+                                      maxHeight: 280,
+                                    ),
                                   );
 
                                   return TypeAheadField<MapPlaceSuggestion>(
                                     controller: _searchController,
-                                    suggestionsController: suggestionsController,
+                                    suggestionsController:
+                                        suggestionsController,
                                     offset: boxStyle.offset,
                                     constraints: boxStyle.constraints,
-                                    decorationBuilder:
-                                        boxStyle.decorationBuilder,
+                                    decorationBuilder: (context, child) {
+                                      return Material(
+                                        color: theme.sheetBg,
+                                        elevation: 12,
+                                        shadowColor: theme.isDark
+                                            ? Colors.black
+                                            : const Color(0x26000000),
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: child,
+                                      );
+                                    },
                                     animationDuration:
                                         const Duration(milliseconds: 200),
                                     builder: (context, controller, focusNode) {
@@ -774,26 +954,26 @@ class _MapPickerPageState extends State<MapPickerPage> {
                                           }
                                         },
                                         decoration: InputDecoration(
-                                          hintText: 'Search for a location...',
-                                          hintStyle: TextStyle(
-                                            color: Colors.grey[600],
+                                          hintText: 'Search for a place…',
+                                          hintStyle: GoogleFonts.poppins(
+                                            color: theme.inputHint,
                                             fontSize: 14,
                                           ),
                                           prefixIcon: Icon(
-                                            Icons.search,
-                                            color: Colors.grey[600],
+                                            Icons.search_rounded,
+                                            color: theme.muted,
                                             size: 20,
                                           ),
                                           border: InputBorder.none,
                                           contentPadding:
                                               const EdgeInsets.symmetric(
-                                            horizontal: 20,
-                                            vertical: 16,
+                                            horizontal: 16,
+                                            vertical: 14,
                                           ),
                                         ),
-                                        style: TextStyle(
+                                        style: GoogleFonts.poppins(
                                           fontSize: 14,
-                                          color: Colors.grey[800],
+                                          color: theme.inputText,
                                         ),
                                       );
                                     },
@@ -805,31 +985,31 @@ class _MapPickerPageState extends State<MapPickerPage> {
                                         leading: Container(
                                           padding: const EdgeInsets.all(8),
                                           decoration: BoxDecoration(
-                                            color: Colors.green.shade50,
+                                            color: theme.accentTint,
                                             borderRadius:
                                                 BorderRadius.circular(8),
                                           ),
                                           child: Icon(
                                             Icons.location_on_outlined,
-                                            color: Colors.green[600],
+                                            color: AppColors.primary,
                                             size: 18,
                                           ),
                                         ),
                                         title: Text(
                                           suggestion.description,
-                                          style: TextStyle(
+                                          style: GoogleFonts.poppins(
                                             fontSize: 14,
                                             fontWeight: FontWeight.w500,
-                                            color: Colors.grey[800],
+                                            color: theme.ink,
                                           ),
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                         subtitle: Text(
-                                          'Tap to show on map',
-                                          style: TextStyle(
+                                          'Show on map',
+                                          style: GoogleFonts.poppins(
                                             fontSize: 12,
-                                            color: Colors.grey[600],
+                                            color: theme.muted,
                                           ),
                                         ),
                                         dense: true,
@@ -855,8 +1035,8 @@ class _MapPickerPageState extends State<MapPickerPage> {
                                         padding: const EdgeInsets.all(16),
                                         child: Text(
                                           'No locations found',
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
+                                          style: GoogleFonts.poppins(
+                                            color: theme.muted,
                                             fontSize: 14,
                                           ),
                                         ),
@@ -873,9 +1053,9 @@ class _MapPickerPageState extends State<MapPickerPage> {
                             if (_searchController.text.isNotEmpty)
                               IconButton(
                                 icon: Icon(
-                                  Icons.clear,
-                                  color: Colors.grey[600],
-                                  size: 18,
+                                  Icons.close_rounded,
+                                  color: theme.muted,
+                                  size: 20,
                                 ),
                                 onPressed: () {
                                   _searchController.clear();
@@ -890,189 +1070,189 @@ class _MapPickerPageState extends State<MapPickerPage> {
                 ),
               ),
             ),
+            ),
           ),
 
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
-            child: Container(
+            child: Animate(
+              effects: const [
+                FadeEffect(
+                  duration: Duration(milliseconds: 480),
+                  delay: Duration(milliseconds: 120),
+                  curve: Curves.easeOut,
+                ),
+                SlideEffect(
+                  duration: Duration(milliseconds: 480),
+                  delay: Duration(milliseconds: 120),
+                  begin: Offset(0, 0.18),
+                  end: Offset.zero,
+                  curve: Curves.easeOutCubic,
+                ),
+              ],
+              child: Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: theme.sheetBg,
                 borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(20),
-                  topRight: Radius.circular(20),
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+                border: Border(
+                  top: BorderSide(color: theme.border),
+                  left: BorderSide(color: theme.border),
+                  right: BorderSide(color: theme.border),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 15,
-                    offset: const Offset(0, -3),
+                    color: Colors.black.withValues(
+                      alpha: theme.isDark ? 0.4 : 0.1,
+                    ),
+                    blurRadius: 20,
+                    offset: const Offset(0, -6),
                   ),
                 ],
               ),
               child: SafeArea(
+                top: false,
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Handle Bar
-                      Container(
-                        width: 32,
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      // Compact Location Info
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.location_on,
-                                color: Colors.green.shade600,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _isLoadingAddress
-                                      ? 'Loading address...'
-                                      : _selectedAddress,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey.shade800,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
+                          Icon(
+                            Icons.place_rounded,
+                            color: AppColors.primary,
+                            size: 18,
                           ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              // Coordinates
-                              Text(
-                                '${_selectedLocation.latitude.toStringAsFixed(6)}, ${_selectedLocation.longitude.toStringAsFixed(6)}',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey.shade500,
-                                  fontFamily: 'monospace',
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 280),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              transitionBuilder: (child, animation) {
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position: Tween<Offset>(
+                                      begin: const Offset(0, 0.12),
+                                      end: Offset.zero,
+                                    ).animate(animation),
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: Text(
+                                _isLoadingAddress
+                                    ? 'Loading address…'
+                                    : _selectedAddress,
+                                key: ValueKey<String>(
+                                  _isLoadingAddress
+                                      ? 'loading'
+                                      : _selectedAddress,
                                 ),
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: theme.ink,
+                                  height: 1.3,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ],
+                            ),
                           ),
                         ],
                       ),
-
-                      const SizedBox(height: 16),
-
-                      // Confirm Button (disabled while search/place update is in progress)
+                      const SizedBox(height: 10),
                       SizedBox(
                         width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton(
-                          onPressed: _isUpdatingLocation
-                              ? null
-                              : () {
-                                  print(
-                                      '🗺️ [MAP] ===== CONFIRMING LOCATION =====');
-                                  print(
-                                      '🗺️ [MAP] Selected location: $_selectedLocation');
-                                  print(
-                                      '🗺️ [MAP] Latitude: ${_selectedLocation.latitude}');
-                                  print(
-                                      '🗺️ [MAP] Longitude: ${_selectedLocation.longitude}');
-                                  print(
-                                      '🗺️ [MAP] Calling onLocationSelected callback');
-                                  print(
-                                      '🗺️ [MAP] Selected address: $_selectedAddress');
-
-                                  try {
-                                    widget.onLocationSelected(
-                                      _selectedLocation.latitude,
-                                      _selectedLocation.longitude,
-                                      _selectedAddress, // Pass the address along with coordinates
-                                    );
-
-                                    print(
-                                        '🗺️ [MAP] Location confirmed and callback called');
-                                  } catch (e) {
-                                    print(
-                                        '❌ [MAP] Error in onLocationSelected callback: $e');
-                                    AppErrorUtils.showSnack(
-                                        context, 'Error: $e');
-                                  }
-
-                                  // Pop after a brief delay to ensure callback completes
-                                  Future.delayed(
-                                      const Duration(milliseconds: 100), () {
-                                    if (!context.mounted) return;
-                                    Navigator.pop(context);
-                                  });
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green.shade600,
+                        height: 44,
+                        child: FilledButton(
+                          onPressed:
+                              (_isUpdatingLocation || _isValidatingLocation)
+                                  ? null
+                                  : _confirmLocation,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            disabledBackgroundColor: AppColors.primary
+                                .withValues(alpha: 0.35),
                             foregroundColor: Colors.white,
-                            elevation: 4,
+                            padding: EdgeInsets.zero,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.check_circle_outline,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Confirm Location',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 220),
+                            switchInCurve: Curves.easeOut,
+                            switchOutCurve: Curves.easeIn,
+                            child: Row(
+                              key: ValueKey<bool>(_isValidatingLocation),
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (_isValidatingLocation)
+                                  const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                else
+                                  const Icon(
+                                    Icons.check_rounded,
+                                    size: 18,
+                                  ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _isValidatingLocation
+                                      ? 'Checking…'
+                                      : 'Confirm location',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      // Compact Instructions
-                      Text(
-                        '💡 Search, tap the map, or use the location button',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade500,
-                          fontStyle: FontStyle.italic,
-                        ),
-                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
                 ),
               ),
             ),
+            ),
           ),
 
-          // Floating Action Button for Current Location
           Positioned(
-            bottom: 280,
+            bottom: 150,
             right: 20,
-            child: FloatingActionButton(
+            child: Animate(
+              effects: const [
+                FadeEffect(
+                  duration: Duration(milliseconds: 400),
+                  delay: Duration(milliseconds: 280),
+                  curve: Curves.easeOut,
+                ),
+                ScaleEffect(
+                  duration: Duration(milliseconds: 400),
+                  delay: Duration(milliseconds: 280),
+                  begin: Offset(0.82, 0.82),
+                  end: Offset(1, 1),
+                  curve: Curves.easeOutBack,
+                ),
+              ],
+              child: FloatingActionButton(
+              heroTag: 'map_picker_my_location',
               onPressed: () async {
                 if (!mounted || _isUpdatingLocation) return;
                 setState(() => _isUpdatingLocation = true);
@@ -1127,13 +1307,18 @@ class _MapPickerPageState extends State<MapPickerPage> {
                   if (mounted) setState(() => _isUpdatingLocation = false);
                 }
               },
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.green.shade600,
-              elevation: 8,
-              child: Icon(
-                Icons.my_location,
+              backgroundColor: theme.sheetBg,
+              foregroundColor: AppColors.primary,
+              elevation: theme.isDark ? 6 : 8,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: theme.border),
+              ),
+              child: const Icon(
+                Icons.my_location_rounded,
                 size: 24,
               ),
+            ),
             ),
           ),
         ],

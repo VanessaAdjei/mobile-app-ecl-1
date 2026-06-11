@@ -1,6 +1,5 @@
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/cupertino.dart';
-
 import '../services/auth_service.dart';
 
 class ProtectedRoute extends StatelessWidget {

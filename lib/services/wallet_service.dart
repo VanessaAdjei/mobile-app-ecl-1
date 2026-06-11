@@ -249,9 +249,7 @@ class WalletService {
         .toString();
     final amount = _toAmount(o['total_price'] ?? o['price']);
     final isMulti = o['is_multi_item'] == true;
-    final count = (o['item_count'] ?? 1) is num
-        ? (o['item_count'] as num).toInt()
-        : int.tryParse('${o['item_count'] ?? 1}') ?? 1;
+    final count = _toInt(o['item_count'], fallback: 1);
     final product = o['product_name']?.toString() ?? 'Purchase';
     final desc = isMulti && count > 1
         ? '$product (+${count - 1} more)'
@@ -280,6 +278,12 @@ class WalletService {
     if (v == null) return 0;
     if (v is num) return v.toDouble();
     return double.tryParse(v.toString()) ?? 0;
+  }
+
+  static int _toInt(dynamic v, {int fallback = 0}) {
+    if (v == null) return fallback;
+    if (v is num) return v.toInt();
+    return int.tryParse(v.toString()) ?? fallback;
   }
 
   static String _orderStatusToWalletStatus(String raw) {

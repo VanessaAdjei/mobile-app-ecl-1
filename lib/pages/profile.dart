@@ -1,14 +1,11 @@
 // pages/profile.dart
-
 import 'dart:async';
-
 import 'package:eclapp/pages/loggedout.dart';
 import 'package:eclapp/pages/privacypolicy.dart';
 import 'package:eclapp/providers/theme_provider.dart';
 import 'package:eclapp/services/wishlist_service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../utils/app_error_utils.dart';
@@ -17,6 +14,7 @@ import 'bottomnav.dart';
 import 'main_tab_shell.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
+import '../config/app_version.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import '../widgets/logout_confirm_dialog.dart';
@@ -42,7 +40,6 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
   late Animation<double> _contentAnimation;
   final ScrollController _scrollController = ScrollController();
   int? _wishlistCount;
-  String? _appVersion;
 
   @override
   void initState() {
@@ -58,8 +55,6 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
       parent: _contentAnimationController,
       curve: Curves.easeOutQuart,
     );
-
-    unawaited(_loadAppVersion());
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeUserData();
@@ -87,24 +82,13 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
       setState(() => _userLoggedIn = loggedIn);
       if (loggedIn) {
         await _loadUserData();
+      } else {
+        await context.read<NotificationProvider>().clearForSignedOutUser();
       }
     } catch (e) {
       if (!mounted) return;
-      AppErrorUtils.showSnack(
-          context, 'Error loading profile: ${e.toString()}',
+      AppErrorUtils.showSnack(context, 'Error loading profile: ${e.toString()}',
           isError: true);
-    }
-  }
-
-  Future<void> _loadAppVersion() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      if (!mounted) return;
-      setState(() {
-        _appVersion = '${info.version}+${info.buildNumber}';
-      });
-    } catch (e) {
-      debugPrint('Profile: could not load app version: $e');
     }
   }
 
@@ -182,48 +166,49 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         final cartProvider = Provider.of<CartProvider>(context, listen: false);
         final userProvider = Provider.of<UserProvider>(context, listen: false);
-                bool logoutSuccess = false;
-                String? errorMsg;
-                try {
-                  debugPrint(' Starting logout process');
-                  await AuthService.logout();
-                  debugPrint(' AuthService.logout() completed');
-                  try {
-                    await authProvider.logout();
-                    debugPrint('🔍 Profile: authProvider.logout() completed');
-                  } catch (e) {
-                    debugPrint('🔍 Profile: authProvider.logout() error: $e');
-                  }
-                  await cartProvider.handleUserLogout();
+        bool logoutSuccess = false;
+        String? errorMsg;
+        try {
+          debugPrint(' Starting logout process');
+          await AuthService.logout();
+          debugPrint(' AuthService.logout() completed');
+          try {
+            await authProvider.logout();
+            debugPrint('🔍 Profile: authProvider.logout() completed');
+          } catch (e) {
+            debugPrint('🔍 Profile: authProvider.logout() error: $e');
+          }
+          await cartProvider.handleUserLogout();
           debugPrint('🔍 Profile: cartProvider.handleUserLogout() completed');
-                  userProvider.clearUserData();
+          await context.read<NotificationProvider>().clearForSignedOutUser();
+          userProvider.clearUserData();
           debugPrint('🔍 Profile: userProvider.clearUserData() completed');
-                  logoutSuccess = true;
-                  debugPrint('🔍 Profile: Logout successful');
-                } catch (e) {
-                  debugPrint('🔍 Profile: Logout error: $e');
-                  errorMsg = 'Error during logout: ${e.toString()}';
-                }
-                if (!mounted) return;
+          logoutSuccess = true;
+          debugPrint('🔍 Profile: Logout successful');
+        } catch (e) {
+          debugPrint('🔍 Profile: Logout error: $e');
+          errorMsg = 'Error during logout: ${e.toString()}';
+        }
+        if (!mounted) return;
 
         if (Navigator.of(context, rootNavigator: true).canPop()) {
           Navigator.of(context, rootNavigator: true).pop();
-                }
+        }
 
         await Future.delayed(const Duration(milliseconds: 100));
-                if (!mounted) return;
+        if (!mounted) return;
 
-                if (logoutSuccess) {
+        if (logoutSuccess) {
           setState(() => _userLoggedIn = false);
           await Future.delayed(const Duration(milliseconds: 200));
           if (!mounted) return;
-                      Navigator.of(context).pushAndRemoveUntil(
+          Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const LoggedOutScreen()),
-                        (route) => false,
-                      );
+            (route) => false,
+          );
         } else if (errorMsg != null) {
-                  AppErrorUtils.showSnack(context, errorMsg, isError: true);
-                }
+          AppErrorUtils.showSnack(context, errorMsg, isError: true);
+        }
       },
     );
   }
@@ -399,304 +384,298 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
         color: AppColors.primary,
         onRefresh: _refreshProfile,
         child: CustomScrollView(
-        controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(
-          parent: BouncingScrollPhysics(),
-        ),
-        slivers: [
-          EclExpandableSliverAppBar(
-            toolbarTitle: 'Profile',
-            heroTitle: 'Profile',
-            heroSubtitle: 'Manage your account and preferences',
-            centerTitle: true,
-            expandedTitleAlignment: Alignment.bottomCenter,
-            onBack: () {
-              if (Navigator.canPop(context)) {
-                Navigator.pop(context);
-              } else {
-                MainTabShell.goToTab(context, 0);
-              }
-            },
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const CartIconButton(
-                    iconColor: Colors.white,
-                    iconSize: 22,
-                    backgroundColor: Colors.transparent,
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          slivers: [
+            EclExpandableSliverAppBar(
+              toolbarTitle: 'Profile',
+              heroTitle: 'Profile',
+              heroSubtitle: 'Manage your account and preferences',
+              centerTitle: true,
+              expandedTitleAlignment: Alignment.bottomCenter,
+              onBack: () {
+                if (Navigator.canPop(context)) {
+                  Navigator.pop(context);
+                } else {
+                  MainTabShell.goToTab(context, 0);
+                }
+              },
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const CartIconButton(
+                      iconColor: Colors.white,
+                      iconSize: 22,
+                      backgroundColor: Colors.transparent,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          SliverToBoxAdapter(
-            child: AnimatedBuilder(
-              animation: _contentAnimation,
-              builder: (context, child) {
-                return Transform.translate(
-                  offset: Offset(0, 24 * (1 - _contentAnimation.value)),
-                  child: Opacity(
-                    opacity: _contentAnimation.value,
-                    child: child,
-                  ),
-                );
-              },
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                    _ProfileHeaderCard(
-                      isDark: isDark,
-                      loggedIn: _userLoggedIn,
-                      name: _userName,
-                      email: _userEmail,
-                      initial: _avatarInitial,
-                      onSignIn: _handleLogin,
+              ],
+            ),
+            SliverToBoxAdapter(
+              child: AnimatedBuilder(
+                animation: _contentAnimation,
+                builder: (context, child) {
+                  return Transform.translate(
+                    offset: Offset(0, 24 * (1 - _contentAnimation.value)),
+                    child: Opacity(
+                      opacity: _contentAnimation.value,
+                      child: child,
                     ),
-                    const SizedBox(height: 24),
-                    _ProfileSection(
-                      title: 'Preferences',
-                      muted: muted,
-                      child: _ProfileMenuGroup(
-                        surface: surface,
-                        border: border,
-                        children: [
-                          Consumer<ThemeProvider>(
-                            builder: (context, themeProvider, _) {
-                              return _ProfileSwitchTile(
-                                icon: Icons.dark_mode_outlined,
-                                iconColor: Colors.indigo.shade400,
-                                title: 'Dark mode',
-                                subtitle: themeProvider.isDarkMode
-                                    ? 'On'
-                                    : 'Off',
-                                ink: ink,
-                                muted: muted,
-                                value: themeProvider.isDarkMode,
-                                onChanged: (_) =>
-                                    themeProvider.toggleTheme(),
-                              );
-                            },
-                          ),
-                        ],
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _ProfileHeaderCard(
+                        isDark: isDark,
+                        loggedIn: _userLoggedIn,
+                        name: _userName,
+                        email: _userEmail,
+                        initial: _avatarInitial,
+                        onSignIn: _handleLogin,
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    _ProfileSection(
-                      title: 'Account',
-                      muted: muted,
-                      child: _ProfileMenuGroup(
-                        surface: surface,
-                        border: border,
-                        children: [
-                          _ProfileMenuTile(
-                            icon: Icons.person_outline_rounded,
-                            iconColor: AppColors.primary,
-                            title: 'Profile information',
-                            subtitle: 'Name, email & delivery addresses',
-                            ink: ink,
-                            muted: muted,
-                            onTap: _userLoggedIn
-                                ? () => _navigateTo(AppRoutes.profileScreen)
-                                : () => _requireSignIn(
-                                      feature: 'profile information',
-                                    ),
-                          ),
-                          Selector<NotificationProvider, int>(
-                            selector: (_, p) => p.unreadCount,
-                            builder: (context, unread, _) {
-                              return _ProfileMenuTile(
-                                icon: Icons.notifications_outlined,
-                                iconColor: Colors.orange.shade700,
-                                title: 'Notifications',
-                                subtitle: 'Alerts & order updates',
-                                ink: ink,
-                                muted: muted,
-                                badge: unread > 0 ? unread : null,
-                                badgeColor: Colors.orange.shade600,
-                                onTap: _userLoggedIn
-                                    ? () =>
-                                        _navigateTo(AppRoutes.notifications)
-                                    : () => _requireSignIn(
-                                          feature: 'notifications',
-                                        ),
-                              );
-                            },
-                          ),
-                          FutureBuilder<int>(
-                            future: _wishlistCount != null
-                                ? Future.value(_wishlistCount!)
-                                : WishlistService.instance
-                                    .getWishlistCount(useCache: false),
-                            builder: (context, snapshot) {
-                              if (snapshot.hasData) {
-                                _wishlistCount = snapshot.data;
-                              }
-                              final count =
-                                  snapshot.data ?? _wishlistCount ?? 0;
-                              return _ProfileMenuTile(
-                                icon: Icons.favorite_outline_rounded,
-                                iconColor: Colors.pink.shade400,
-                                title: 'My wishlist',
-                                subtitle: 'Saved products',
-                                ink: ink,
-                                muted: muted,
-                                badge: count > 0 ? count : null,
-                                badgeColor: AppColors.primary,
-                                onTap: () => _navigateTo(AppRoutes.wishlist),
-                              );
-                            },
-                          ),
-                          _ProfileMenuTile(
-                            icon: Icons.account_balance_wallet_outlined,
-                            iconColor: AppColors.primaryDark,
-                            title: 'My wallet',
-                            subtitle: 'Balance & transactions',
-                            ink: ink,
-                            muted: muted,
-                            onTap: _userLoggedIn
-                                ? () => _navigateTo(AppRoutes.wallet)
-                                : () => _requireSignIn(feature: 'wallet'),
-                            showDivider: false,
-                          ),
-                        ],
+                      const SizedBox(height: 24),
+                      _ProfileSection(
+                        title: 'Preferences',
+                        muted: muted,
+                        child: _ProfileMenuGroup(
+                          surface: surface,
+                          border: border,
+                          children: [
+                            Consumer<ThemeProvider>(
+                              builder: (context, themeProvider, _) {
+                                return _ProfileSwitchTile(
+                                  icon: Icons.dark_mode_outlined,
+                                  iconColor: Colors.indigo.shade400,
+                                  title: 'Dark mode',
+                                  subtitle:
+                                      themeProvider.isDarkMode ? 'On' : 'Off',
+                                  ink: ink,
+                                  muted: muted,
+                                  value: themeProvider.isDarkMode,
+                                  onChanged: (_) => themeProvider.toggleTheme(),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    _ProfileSection(
-                      title: 'Health & orders',
-                      muted: muted,
-                      child: _ProfileMenuGroup(
-                        surface: surface,
-                        border: border,
-                        children: [
-                          _ProfileMenuTile(
-                            icon: Icons.upload_file_outlined,
-                            iconColor: AppColors.primaryDark,
-                            title: 'Uploaded prescriptions',
-                            subtitle: 'Your prescription history',
-                            ink: ink,
-                            muted: muted,
-                            onTap: _userLoggedIn
-                                ? () =>
-                                    _navigateTo(AppRoutes.prescriptionHistory)
-                                : () => _requireSignIn(
-                                      feature: 'uploaded prescriptions',
-                                    ),
-                          ),
-                          _ProfileMenuTile(
-                            icon: Icons.calendar_month_outlined,
-                            iconColor: Colors.teal.shade700,
-                            title: 'My appointments',
-                            subtitle: 'Consultations & follow-ups',
-                            ink: ink,
-                            muted: muted,
-                            onTap: _userLoggedIn
-                                ? () => _navigateTo(AppRoutes.myAppointments)
-                                : () => _requireSignIn(feature: 'appointments'),
-                          ),
-                          _ProfileMenuTile(
-                            icon: Icons.refresh_rounded,
-                            iconColor: AppColors.primary,
-                            title: 'Refill medicines',
-                            subtitle: 'Reorder your medications',
-                            ink: ink,
-                            muted: muted,
-                            onTap: _userLoggedIn
-                                ? _navigateToRefillPage
-                                : () => _requireSignIn(
-                                      feature: 'refill medicines',
-                                    ),
-                          ),
-                          _ProfileMenuTile(
-                            icon: Icons.shopping_bag_outlined,
-                            iconColor: AppColors.primaryDark,
-                            title: 'Purchases',
-                            subtitle: _userLoggedIn
-                                ? 'Order history & tracking'
-                                : 'Sign in to view orders',
-                            ink: ink,
-                            muted: muted,
-                            onTap: _userLoggedIn
-                                ? () => _navigateTo(AppRoutes.purchases)
-                                : () => _requireSignIn(
-                                      feature: 'order tracking and purchases',
-                                    ),
-                            showDivider: false,
-                          ),
-                        ],
+                      const SizedBox(height: 16),
+                      _ProfileSection(
+                        title: 'Account',
+                        muted: muted,
+                        child: _ProfileMenuGroup(
+                          surface: surface,
+                          border: border,
+                          children: [
+                            _ProfileMenuTile(
+                              icon: Icons.person_outline_rounded,
+                              iconColor: AppColors.primary,
+                              title: 'Profile information',
+                              subtitle: 'Name, email & delivery addresses',
+                              ink: ink,
+                              muted: muted,
+                              onTap: _userLoggedIn
+                                  ? () => _navigateTo(AppRoutes.profileScreen)
+                                  : () => _requireSignIn(
+                                        feature: 'profile information',
+                                      ),
+                            ),
+                            if (_userLoggedIn)
+                              Selector<NotificationProvider, int>(
+                                selector: (_, p) => p.unreadCount,
+                                builder: (context, unread, _) {
+                                  return _ProfileMenuTile(
+                                    icon: Icons.notifications_outlined,
+                                    iconColor: Colors.orange.shade700,
+                                    title: 'Notifications',
+                                    subtitle: 'Alerts & order updates',
+                                    ink: ink,
+                                    muted: muted,
+                                    badge: unread > 0 ? unread : null,
+                                    badgeColor: Colors.orange.shade600,
+                                    onTap: () =>
+                                        _navigateTo(AppRoutes.notifications),
+                                  );
+                                },
+                              ),
+                            FutureBuilder<int>(
+                              future: _wishlistCount != null
+                                  ? Future.value(_wishlistCount!)
+                                  : WishlistService.instance
+                                      .getWishlistCount(useCache: false),
+                              builder: (context, snapshot) {
+                                if (snapshot.hasData) {
+                                  _wishlistCount = snapshot.data;
+                                }
+                                final count =
+                                    snapshot.data ?? _wishlistCount ?? 0;
+                                return _ProfileMenuTile(
+                                  icon: Icons.favorite_outline_rounded,
+                                  iconColor: Colors.pink.shade400,
+                                  title: 'My wishlist',
+                                  subtitle: 'Saved products',
+                                  ink: ink,
+                                  muted: muted,
+                                  badge: count > 0 ? count : null,
+                                  badgeColor: AppColors.primary,
+                                  onTap: () => _navigateTo(AppRoutes.wishlist),
+                                );
+                              },
+                            ),
+                            _ProfileMenuTile(
+                              icon: Icons.account_balance_wallet_outlined,
+                              iconColor: AppColors.primaryDark,
+                              title: 'My wallet',
+                              subtitle: 'Balance & transactions',
+                              ink: ink,
+                              muted: muted,
+                              onTap: _userLoggedIn
+                                  ? () => _navigateTo(AppRoutes.wallet)
+                                  : () => _requireSignIn(feature: 'wallet'),
+                              showDivider: false,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    _ProfileSection(
-                      title: 'Support',
-                      muted: muted,
-                      child: _ProfileMenuGroup(
-                        surface: surface,
-                        border: border,
-                        children: [
-                          _ProfileMenuTile(
-                            icon: Icons.description_outlined,
-                            iconColor: muted,
-                            title: 'Terms & conditions',
-                            ink: ink,
-                            muted: muted,
-                            onTap: () =>
-                                _navigateTo(AppRoutes.termsAndConditions),
-                          ),
-                          _ProfileMenuTile(
-                            icon: Icons.privacy_tip_outlined,
-                            iconColor: muted,
-                            title: 'Privacy policy',
-                            ink: ink,
-                            muted: muted,
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const PrivacyPolicyScreen(),
+                      const SizedBox(height: 16),
+                      _ProfileSection(
+                        title: 'Health & orders',
+                        muted: muted,
+                        child: _ProfileMenuGroup(
+                          surface: surface,
+                          border: border,
+                          children: [
+                            _ProfileMenuTile(
+                              icon: Icons.upload_file_outlined,
+                              iconColor: AppColors.primaryDark,
+                              title: 'Uploaded prescriptions',
+                              subtitle: 'Your prescription history',
+                              ink: ink,
+                              muted: muted,
+                              onTap: _userLoggedIn
+                                  ? () =>
+                                      _navigateTo(AppRoutes.prescriptionHistory)
+                                  : () => _requireSignIn(
+                                        feature: 'uploaded prescriptions',
+                                      ),
+                            ),
+                            _ProfileMenuTile(
+                              icon: Icons.calendar_month_outlined,
+                              iconColor: Colors.teal.shade700,
+                              title: 'My appointments',
+                              subtitle: 'Consultations & follow-ups',
+                              ink: ink,
+                              muted: muted,
+                              onTap: _userLoggedIn
+                                  ? () => _navigateTo(AppRoutes.myAppointments)
+                                  : () =>
+                                      _requireSignIn(feature: 'appointments'),
+                            ),
+                            _ProfileMenuTile(
+                              icon: Icons.refresh_rounded,
+                              iconColor: AppColors.primary,
+                              title: 'Refill medicines',
+                              subtitle: 'Reorder your medications',
+                              ink: ink,
+                              muted: muted,
+                              onTap: _userLoggedIn
+                                  ? _navigateToRefillPage
+                                  : () => _requireSignIn(
+                                        feature: 'refill medicines',
+                                      ),
+                            ),
+                            _ProfileMenuTile(
+                              icon: Icons.shopping_bag_outlined,
+                              iconColor: AppColors.primaryDark,
+                              title: 'Purchases',
+                              subtitle: _userLoggedIn
+                                  ? 'Order history & tracking'
+                                  : 'Sign in to view orders',
+                              ink: ink,
+                              muted: muted,
+                              onTap: _userLoggedIn
+                                  ? () => _navigateTo(AppRoutes.purchases)
+                                  : () => _requireSignIn(
+                                        feature: 'order tracking and purchases',
+                                      ),
+                              showDivider: false,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _ProfileSection(
+                        title: 'Support',
+                        muted: muted,
+                        child: _ProfileMenuGroup(
+                          surface: surface,
+                          border: border,
+                          children: [
+                            _ProfileMenuTile(
+                              icon: Icons.description_outlined,
+                              iconColor: muted,
+                              title: 'Terms & conditions',
+                              ink: ink,
+                              muted: muted,
+                              onTap: () =>
+                                  _navigateTo(AppRoutes.termsAndConditions),
+                            ),
+                            _ProfileMenuTile(
+                              icon: Icons.privacy_tip_outlined,
+                              iconColor: muted,
+                              title: 'Privacy policy',
+                              ink: ink,
+                              muted: muted,
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const PrivacyPolicyScreen(),
+                                ),
                               ),
                             ),
-                          ),
-                          _ProfileMenuTile(
-                            icon: Icons.assignment_return_outlined,
-                            iconColor: muted,
-                            title: 'Return & refund policy',
-                            ink: ink,
-                            muted: muted,
-                            onTap: () => _navigateTo(AppRoutes.returnPolicy),
-                            showDivider: false,
-                          ),
-                        ],
+                            _ProfileMenuTile(
+                              icon: Icons.assignment_return_outlined,
+                              iconColor: muted,
+                              title: 'Return & refund policy',
+                              ink: ink,
+                              muted: muted,
+                              onTap: () => _navigateTo(AppRoutes.returnPolicy),
+                              showDivider: false,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 20),
-                    if (!_userLoggedIn)
-                      _ProfilePrimaryButton(
-                        label: 'Sign in',
-                        icon: Icons.login_rounded,
-                        onTap: _handleLogin,
-                      )
-                    else
-                      _ProfileDestructiveButton(
-                        label: 'Log out',
-                        onTap: _showLogoutDialog,
-                      ),
-                    if (_appVersion != null) ...[
+                      const SizedBox(height: 20),
+                      if (!_userLoggedIn)
+                        _ProfilePrimaryButton(
+                          label: 'Sign in',
+                          icon: Icons.login_rounded,
+                          onTap: _handleLogin,
+                        )
+                      else
+                        _ProfileDestructiveButton(
+                          label: 'Log out',
+                          onTap: _showLogoutDialog,
+                        ),
                       const SizedBox(height: 16),
-                      _ProfileVersionFooter(version: _appVersion!),
+                      const _ProfileVersionFooter(version: AppVersion.display),
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
         ),
       ),
       bottomNavigationBar:
@@ -724,45 +703,44 @@ class _ProfileHeaderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor =
-        isDark ? Colors.green.shade400 : AppColors.primaryDark;
+    final primaryColor = isDark ? Colors.green.shade400 : AppColors.primaryDark;
     final ink = isDark ? Colors.white : const Color(0xFF0F172A);
     final muted = isDark ? Colors.white70 : const Color(0xFF64748B);
 
     return Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: isDark
-                          ? const LinearGradient(
-                              colors: [Color(0xFF1E293B), Color(0xFF334155)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            )
-                          : const LinearGradient(
-                              colors: [Color(0xFFF7FAFF), Color(0xFFEEF6FF)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: primaryColor.withValues(alpha: 0.14),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: primaryColor.withValues(alpha: 0.12),
-                          blurRadius: 22,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Container(
-                          height: 80,
-                          width: 80,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: isDark
+            ? const LinearGradient(
+                colors: [Color(0xFF1E293B), Color(0xFF334155)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : const LinearGradient(
+                colors: [Color(0xFFF7FAFF), Color(0xFFEEF6FF)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: primaryColor.withValues(alpha: 0.14),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withValues(alpha: 0.12),
+            blurRadius: 22,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            height: 80,
+            width: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
               gradient: loggedIn
                   ? const LinearGradient(
                       begin: Alignment.topLeft,
@@ -773,13 +751,13 @@ class _ProfileHeaderCard extends StatelessWidget {
               color: loggedIn
                   ? null
                   : (isDark
-                                ? Colors.white.withValues(alpha: 0.08)
+                      ? Colors.white.withValues(alpha: 0.08)
                       : Colors.white),
-                            border: Border.all(
-                              color: primaryColor.withValues(alpha: 0.25),
-                              width: 2,
-                            ),
-                          ),
+              border: Border.all(
+                color: primaryColor.withValues(alpha: 0.25),
+                width: 2,
+              ),
+            ),
             alignment: Alignment.center,
             child: loggedIn
                 ? Text(
@@ -791,29 +769,29 @@ class _ProfileHeaderCard extends StatelessWidget {
                     ),
                   )
                 : Icon(Icons.person, size: 48, color: primaryColor),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
+          ),
+          const SizedBox(height: 16),
+          Text(
             loggedIn ? name : 'Guest User',
             textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
               color: ink,
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 8),
           if (loggedIn)
             Text(
               email,
               textAlign: TextAlign.center,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
                 color: muted,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                              )
+                fontWeight: FontWeight.w400,
+              ),
+            )
           else ...[
             Text(
               'Sign in to sync orders across devices',
@@ -827,37 +805,37 @@ class _ProfileHeaderCard extends StatelessWidget {
             const SizedBox(height: 10),
             GestureDetector(
               onTap: onSignIn,
-                                child: Container(
+              child: Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: primaryColor.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(999),
-                                    border: Border.all(
+                decoration: BoxDecoration(
+                  color: primaryColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
                     color: primaryColor.withValues(alpha: 0.2),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
                       'Sign in to continue',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 13,
-                                          color: primaryColor,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Icon(
-                                        Icons.arrow_forward_ios,
-                                        size: 12,
-                                        color: primaryColor,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: primaryColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 12,
+                      color: primaryColor,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ],
       ),
@@ -873,9 +851,9 @@ class _ProfileVersionFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-                    child: Text(
+      child: Text(
         'Version $version',
-                      style: GoogleFonts.poppins(
+        style: GoogleFonts.poppins(
           fontSize: 11,
           color: context.appColors.muted,
           fontWeight: FontWeight.w500,
@@ -979,18 +957,18 @@ class _ProfileSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-                  Padding(
+        Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
-                    child: Text(
+          child: Text(
             title.toUpperCase(),
-                      style: GoogleFonts.poppins(
+            style: GoogleFonts.poppins(
               fontSize: 11,
-                        fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w600,
               letterSpacing: 0.8,
               color: muted,
-                      ),
-                    ),
-                  ),
+            ),
+          ),
+        ),
         child,
       ],
     );
@@ -1057,68 +1035,68 @@ class _ProfileMenuTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(16),
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-              child: Row(
-                children: [
-                  Container(
+          child: Row(
+            children: [
+              Container(
                 width: 36,
                 height: 36,
-                    decoration: BoxDecoration(
-                      color: iconColor.withValues(alpha: 0.12),
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
-                    ),
+                ),
                 child: Icon(icon, size: 18, color: iconColor),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: GoogleFonts.poppins(
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.poppins(
                         fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w600,
                         color: ink,
-                          ),
-                        ),
+                      ),
+                    ),
                     if (subtitle != null && subtitle!.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(
+                      const SizedBox(height: 2),
+                      Text(
                         subtitle!,
-                            style: GoogleFonts.poppins(
+                        style: GoogleFonts.poppins(
                           fontSize: 11,
                           color: muted,
-                              height: 1.3,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
               if (badge != null && badge! > 0)
-                        Container(
+                Container(
                   margin: const EdgeInsets.only(right: 6),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(
+                  decoration: BoxDecoration(
                     color: badgeColor ?? AppColors.primary,
                     borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
+                  ),
+                  child: Text(
                     badge! > 99 ? '99+' : '$badge',
                     style: GoogleFonts.poppins(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
               Icon(Icons.chevron_right_rounded, size: 20, color: muted),
             ],
           ),
@@ -1162,11 +1140,11 @@ class _ProfilePrimaryButton extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
                 ),
-                  ),
-                ],
               ),
-            ),
+            ],
           ),
+        ),
+      ),
     );
   }
 }

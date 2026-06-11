@@ -39,6 +39,17 @@ abstract class DeliveryRemoteDataSource {
     required Map<String, String> headers,
     Duration timeout = const Duration(seconds: 5),
   });
+
+  Future<CategoryFetchResult> fetchDeliveryGeofence({
+    required Map<String, String> headers,
+    Duration timeout = const Duration(seconds: 8),
+  });
+
+  Future<CategoryFetchResult> validateGeofence({
+    required Map<String, String> headers,
+    required String body,
+    Duration timeout = const Duration(seconds: 8),
+  });
 }
 
 class DeliveryRemoteDataSourceImpl implements DeliveryRemoteDataSource {
@@ -167,7 +178,6 @@ class DeliveryRemoteDataSourceImpl implements DeliveryRemoteDataSource {
   }
 
   @override
-  @override
   Future<CategoryFetchResult> addXpressFee({
     required Map<String, String> headers,
     Duration timeout = const Duration(seconds: 5),
@@ -184,5 +194,38 @@ class DeliveryRemoteDataSourceImpl implements DeliveryRemoteDataSource {
     } catch (e) {
       return CategoryFetchResult(statusCode: 0, error: e);
     }
+  }
+
+  @override
+  Future<CategoryFetchResult> fetchDeliveryGeofence({
+    required Map<String, String> headers,
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    try {
+      final response = await HttpClientService.get(
+        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.deliveryGeofence)),
+        headers: headers,
+      ).timeout(timeout);
+      return CategoryFetchResult.fromResponse(
+        response.statusCode,
+        response.body,
+      );
+    } catch (e) {
+      return CategoryFetchResult(statusCode: 0, error: e);
+    }
+  }
+
+  @override
+  Future<CategoryFetchResult> validateGeofence({
+    required Map<String, String> headers,
+    required String body,
+    Duration timeout = const Duration(seconds: 8),
+  }) {
+    return _post(
+      Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.validateGeofence)),
+      headers,
+      body,
+      timeout,
+    );
   }
 }

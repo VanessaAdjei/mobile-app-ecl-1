@@ -8,7 +8,6 @@ import '../services/checkout_payment_service.dart';
 import '../services/auth_service.dart';
 import '../services/guest_checkout_draft_service.dart';
 import '../providers/cart_provider.dart';
-import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,9 +19,10 @@ import '../widgets/payment/payment_bill_summary_section.dart';
 import '../widgets/payment/payment_delivery_details_card.dart';
 import '../widgets/payment/payment_order_items_section.dart';
 import '../widgets/payment/payment_slide_design.dart';
-import '../widgets/checkout_progress_stepper.dart';
+import '../widgets/checkout_flow_header.dart';
 import '../config/app_colors.dart';
 import '../utils/app_theme_colors.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 // Post-checkout uses PostCheckoutOrderPage (see paymentwebview.dart).
 
@@ -170,6 +170,29 @@ class PaymentPageState extends State<PaymentPage> {
 
     if (showHint != _showScrollHint) {
       setState(() => _showScrollHint = showHint);
+    }
+  }
+
+  Future<void> _refreshPaymentPage() async {
+    if (_isProcessingPayment || !mounted) return;
+
+    setState(() => _paymentError = null);
+
+    final cart = Provider.of<CartProvider>(context, listen: false);
+    await Future.wait([
+      _loadUserData(),
+      cart.refreshLoginStatus(),
+      cart.syncWithApi(),
+    ]);
+
+    final appliedPromo = _appliedPromoCode?.trim();
+    if (appliedPromo != null && appliedPromo.isNotEmpty) {
+      _promoCodeController.text = appliedPromo;
+      await _applyPromoCode();
+    }
+
+    if (mounted) {
+      _scheduleScrollHintUpdate();
     }
   }
 
@@ -523,15 +546,12 @@ class PaymentPageState extends State<PaymentPage> {
   Widget build(BuildContext context) {
     final theme = context.appColors;
     final mediaQuery = MediaQuery.of(context);
-    final topPadding = mediaQuery.padding.top;
     // Persistent inset for home indicator / gesture bar (stable when keyboard opens).
     final systemBottomInset = mediaQuery.viewPadding.bottom;
     const bottomLift = 8.0;
     const payBarTopPadding = 8.0;
-    const slideHeight = 48.0;
+    const payBarGap = 10.0;
     final payBarBottomPadding = bottomLift + systemBottomInset;
-    final payBarInset =
-        payBarTopPadding + slideHeight + payBarBottomPadding;
 
     return Scaffold(
       backgroundColor: theme.pageBg,
@@ -553,163 +573,55 @@ class PaymentPageState extends State<PaymentPage> {
         children: [
           Column(
             children: [
-              // Enhanced header with better design
-              Animate(
-                effects: [
-                  FadeEffect(duration: 400.ms),
-                  SlideEffect(
-                      duration: 400.ms,
-                      begin: Offset(0, 0.1),
-                      end: Offset(0, 0))
-                ],
-                child: Container(
-                  padding: EdgeInsets.only(top: topPadding),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AppColors.primaryDark,
-                        Color(0xFF1B5E20),
-                        AppColors.primary,
-                      ],
-                    ),
-                    borderRadius: const BorderRadius.vertical(
-                      bottom: Radius.circular(16),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.3),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Positioned(
-                        right: -24,
-                        top: -8,
-                        child: Container(
-                          width: 90,
-                          height: 90,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withValues(alpha: 0.07),
+              CheckoutFlowHeader(
+                title: 'Checkout',
+                subtitle: 'Review & pay securely',
+                activeStep: 3,
+                completedSteps: const {1, 2},
+                confirmOnBack: true,
+                leaveTitle: 'Leave Checkout',
+                leaveMessage:
+                    'Are you sure you want to leave the checkout page? Your progress will be saved.',
+                footer: widget.isOrderUrgent
+                    ? Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.red.withValues(alpha: 0.4),
                           ),
                         ),
-                      ),
-                      Positioned(
-                        left: -20,
-                        bottom: -12,
-                        child: Container(
-                          width: 64,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppColors.primaryLight
-                                .withValues(alpha: 0.12),
-                          ),
-                        ),
-                      ),
-                      Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 2, 10, 0),
                         child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            BackButtonUtils.withConfirmation(
-                              backgroundColor:
-                                  Colors.white.withValues(alpha: 0.14),
-                              title: 'Leave Payment',
-                              message:
-                                  'Are you sure you want to leave the payment page? Your progress will be saved.',
+                            Icon(
+                              Icons.emergency_rounded,
+                              size: 15,
+                              color: theme.isDark
+                                  ? Colors.red.shade300
+                                  : Colors.red.shade700,
                             ),
-                            Expanded(
-                              child: Column(
-                                children: [
-                                  Text(
-                                    'Payment',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: -0.2,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Review & pay securely',
-                                    style: TextStyle(
-                                      color: Colors.white.withValues(alpha: 0.8),
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w400,
-                                    ),
-                                  ),
-                                ],
+                            const SizedBox(width: 6),
+                            Text(
+                              'Urgent Order',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: theme.isDark
+                                    ? Colors.red.shade200
+                                    : Colors.red.shade800,
                               ),
                             ),
-                            const SizedBox(width: 40),
                           ],
                         ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.fromLTRB(8, 0, 8, 5),
-                        child: const CheckoutProgressStepper(
-                          compact: true,
-                          steps: [
-                            'Cart',
-                            'Delivery',
-                            'Payment',
-                            'Confirmation',
-                          ],
-                          activeStep: 3,
-                          completedSteps: {1, 2},
-                        ),
-                      ),
-                      if (widget.isOrderUrgent) ...[
-                        Container(
-                          width: double.infinity,
-                          margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: Colors.red.withValues(alpha: 0.4),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.emergency_rounded,
-                                  size: 15,
-                                  color: theme.isDark
-                                      ? Colors.red.shade300
-                                      : Colors.red.shade700),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Urgent Order',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: theme.isDark
-                                      ? Colors.red.shade200
-                                      : Colors.red.shade800,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                      ),
-                    ],
-                  ),
-                ),
+                      )
+                    : null,
               ),
               Expanded(
                 child: Stack(
@@ -717,133 +629,121 @@ class PaymentPageState extends State<PaymentPage> {
                   children: [
                     Consumer<CartProvider>(
                       builder: (context, cart, child) {
-                        _scheduleScrollHintUpdate();
                         final totals = _checkoutTotals;
-                        return SingleChildScrollView(
-                          controller: _scrollController,
-                          physics: const BouncingScrollPhysics(),
-                          padding: EdgeInsets.fromLTRB(
-                            0,
-                            10,
-                            0,
-                            payBarInset + 10,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (widget._isDelivery) ...[
+                        return RefreshIndicator(
+                          color: AppColors.primary,
+                          onRefresh: _refreshPaymentPage,
+                          child: SingleChildScrollView(
+                            controller: _scrollController,
+                            physics: const AlwaysScrollableScrollPhysics(
+                              parent: BouncingScrollPhysics(),
+                            ),
+                            padding: const EdgeInsets.fromLTRB(0, 10, 0, 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (widget._isDelivery) ...[
+                                  _paymentSection(
+                                    0,
+                                    PaymentDeliveryDetailsCard(
+                                      deliveryAddress: widget.deliveryAddress,
+                                      contactNumber: widget.contactNumber,
+                                      deliveryOption: widget.deliveryOption,
+                                      deliveryIsFree:
+                                          totals.chargedDeliveryFee <= 0,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                ],
                                 _paymentSection(
-                                  0,
-                                  PaymentDeliveryDetailsCard(
-                                    deliveryAddress: widget.deliveryAddress,
-                                    contactNumber: widget.contactNumber,
+                                  widget._isDelivery ? 1 : 0,
+                                  PaymentOrderItemsSection(
+                                    selectedItems: cart.getSelectedItems(),
                                   ),
                                 ),
                                 const SizedBox(height: 10),
-                              ],
-                              _paymentSection(
-                                widget._isDelivery ? 1 : 0,
-                                PaymentOrderItemsSection(
-                                  selectedItems: cart.getSelectedItems(),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              _paymentSection(
-                                widget._isDelivery ? 2 : 1,
-                                PaymentBillSummarySection(
-                                  subtotal: totals.merchandiseSubtotal,
-                                  deliveryFee: totals.deliveryFee,
-                                  showDeliveryFee: totals.isDelivery,
-                                  emergencyOrderFee: totals.emergencyOrderFee,
-                                  discountAmount: totals.discount,
-                                  runningSubtotal: totals.runningSubtotal,
-                                  useRawDeliveryFee: true,
-                                  forceFreeDelivery: totals.shippingFree,
-                                  lockPromoEditing: false,
-                                  appliedPromoCode: _appliedPromoCode,
-                                  promoError: _promoError,
-                                  isApplyingPromo: _isApplyingPromo,
-                                  promoCodeController: _promoCodeController,
-                                  onApplyPromo: _applyPromoCode,
-                                  onRemovePromo: _removePromoCode,
-                                ),
-                              ),
-                              if (_paymentError != null) ...[
-                                const SizedBox(height: 8),
-                                Animate(
-                                  effects: [
-                                    FadeEffect(duration: 400.ms),
-                                    SlideEffect(
-                                        duration: 400.ms,
-                                        begin: Offset(0, 0.1),
-                                        end: Offset(0, 0))
-                                  ],
-                                  child: Container(
-                                    margin: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                    ),
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: theme.isDark
-                                          ? Colors.red.withValues(alpha: 0.14)
-                                          : Colors.red.shade50,
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: Colors.red.withValues(
-                                          alpha: theme.isDark ? 0.45 : 0.35,
-                                        ),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Icon(
-                                          Icons.error_outline,
-                                          size: 18,
-                                          color: theme.isDark
-                                              ? Colors.red.shade300
-                                              : Colors.red.shade600,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Payment error',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 11,
-                                                  color: theme.isDark
-                                                      ? Colors.red.shade300
-                                                      : Colors.red.shade700,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                _paymentError!,
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  color: theme.isDark
-                                                      ? Colors.red.shade400
-                                                      : Colors.red.shade600,
-                                                  height: 1.3,
-                                                ),
-                                                maxLines: 5,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                _paymentSection(
+                                  widget._isDelivery ? 2 : 1,
+                                  PaymentBillSummarySection(
+                                    subtotal: totals.merchandiseSubtotal,
+                                    deliveryFee: totals.deliveryFee,
+                                    showDeliveryFee: totals.isDelivery,
+                                    emergencyOrderFee: totals.emergencyOrderFee,
+                                    discountAmount: totals.discount,
+                                    runningSubtotal: totals.runningSubtotal,
+                                    useRawDeliveryFee: true,
+                                    forceFreeDelivery: totals.shippingFree,
+                                    lockPromoEditing: false,
+                                    appliedPromoCode: _appliedPromoCode,
+                                    promoError: _promoError,
+                                    isApplyingPromo: _isApplyingPromo,
+                                    promoCodeController: _promoCodeController,
+                                    onApplyPromo: _applyPromoCode,
+                                    onRemovePromo: _removePromoCode,
                                   ),
                                 ),
+                                if (_paymentError != null) ...[
+                                  const SizedBox(height: 8),
+                                  Animate(
+                                    effects: [
+                                      FadeEffect(duration: 400.ms),
+                                      SlideEffect(
+                                        duration: 400.ms,
+                                        begin: const Offset(0, 0.1),
+                                        end: Offset.zero,
+                                      ),
+                                    ],
+                                    child: Container(
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                      ),
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: theme.isDark
+                                            ? Colors.red.withValues(alpha: 0.12)
+                                            : Colors.red.shade50,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: Colors.red.withValues(
+                                            alpha:
+                                                theme.isDark ? 0.35 : 0.25,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Icon(
+                                            Icons.error_outline_rounded,
+                                            size: 18,
+                                            color: theme.isDark
+                                                ? Colors.red.shade300
+                                                : Colors.red.shade600,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              _paymentError!,
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 12,
+                                                color: theme.isDark
+                                                    ? Colors.red.shade300
+                                                    : Colors.red.shade700,
+                                                height: 1.35,
+                                              ),
+                                              maxLines: 5,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
                         );
                       },
@@ -852,7 +752,7 @@ class PaymentPageState extends State<PaymentPage> {
                       Positioned(
                         left: 0,
                         right: 0,
-                        bottom: payBarInset,
+                        bottom: 0,
                         child: IgnorePointer(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -900,59 +800,14 @@ class PaymentPageState extends State<PaymentPage> {
                           ),
                         ),
                       ),
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: Animate(
-                        effects: [
-                          FadeEffect(duration: 350.ms, delay: 200.ms),
-                          SlideEffect(
-                            duration: 350.ms,
-                            delay: 200.ms,
-                            begin: const Offset(0, 0.15),
-                            end: Offset.zero,
-                            curve: Curves.easeOutCubic,
-                          ),
-                        ],
-                        child: Container(
-                        decoration: BoxDecoration(
-                          color: theme.surface,
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(14),
-                          ),
-                          border: Border(
-                            top: BorderSide(
-                              color: AppColors.primary.withValues(alpha: 0.35),
-                              width: 1.5,
-                            ),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(
-                                alpha: theme.isDark ? 0.2 : 0.12,
-                              ),
-                              blurRadius: 16,
-                              offset: const Offset(0, -4),
-                            ),
-                          ],
-                        ),
-                        padding: EdgeInsets.fromLTRB(
-                          14,
-                          payBarTopPadding,
-                          14,
-                          payBarBottomPadding,
-                        ),
-                        child: Consumer<CartProvider>(
-                          builder: (context, cart, child) {
-                            return _buildSlideToPay(cart);
-                          },
-                        ),
-                      ),
-                      ),
-                    ),
                   ],
                 ),
+              ),
+              _buildPaymentPayBar(
+                theme: theme,
+                payBarTopPadding: payBarTopPadding,
+                payBarBottomPadding: payBarBottomPadding,
+                payBarGap: payBarGap,
               ),
             ],
           ),
@@ -966,6 +821,144 @@ class PaymentPageState extends State<PaymentPage> {
               ),
             ),
         ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentPayBar({
+    required AppThemeColors theme,
+    required double payBarTopPadding,
+    required double payBarBottomPadding,
+    required double payBarGap,
+  }) {
+    return RepaintBoundary(
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(14),
+          ),
+          border: Border(
+            top: BorderSide(
+              color: AppColors.primary.withValues(alpha: 0.35),
+              width: 1.5,
+            ),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(
+                alpha: theme.isDark ? 0.2 : 0.12,
+              ),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        padding: EdgeInsets.fromLTRB(
+          14,
+          payBarTopPadding,
+          14,
+          payBarBottomPadding,
+        ),
+        child: Selector<CartProvider, double>(
+          selector: (_, cart) {
+            final base = widget.orderTotals;
+            if (base != null) {
+              final subtotal = base.merchandiseSubtotal > 0
+                  ? base.merchandiseSubtotal
+                  : cart.calculateSubtotal();
+              return CheckoutOrderTotals(
+                merchandiseSubtotal: subtotal,
+                discount: _effectiveDiscountFromApiOrPromo,
+                deliveryFee: base.deliveryFee,
+                emergencyOrderFee: base.emergencyOrderFee,
+                runningSubtotal: base.runningSubtotal,
+                shippingFree: base.shippingFree,
+                isDelivery: widget._isDelivery,
+              ).total;
+            }
+            return CheckoutOrderTotals(
+              merchandiseSubtotal: cart.calculateSubtotal(),
+              discount: _discountAmount,
+              deliveryFee: 0,
+              emergencyOrderFee: 0,
+              isDelivery: widget._isDelivery,
+            ).total;
+          },
+          builder: (context, total, slideChild) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: theme.isDark
+                          ? [
+                              AppColors.primary.withValues(alpha: 0.18),
+                              AppColors.primaryDark.withValues(alpha: 0.28),
+                            ]
+                          : [
+                              AppColors.primary.withValues(alpha: 0.08),
+                              AppColors.primary.withValues(alpha: 0.14),
+                            ],
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(
+                        alpha: theme.isDark ? 0.35 : 0.2,
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.lock_outline_rounded,
+                          size: 12,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Total due',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: theme.muted,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        'GHS ${total.toStringAsFixed(2)}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: payBarGap),
+                slideChild!,
+              ],
+            );
+          },
+          child: Consumer<CartProvider>(
+            builder: (context, cart, _) => _buildSlideToPay(cart),
+          ),
         ),
       ),
     );
@@ -997,16 +990,18 @@ class PaymentPageState extends State<PaymentPage> {
     final theme = context.appColors;
     final selectedItems = cart.getSelectedItems();
     final canPay = selectedItems.isNotEmpty && !_isProcessingPayment;
-    final horizontalInset = 14.0 * 2;
-    final double containerWidth =
-        MediaQuery.sizeOf(context).width - horizontalInset;
-    final double handleSize = 42.0;
-    final double maxSlideDistance = containerWidth - handleSize;
-    final double threshold = maxSlideDistance * 0.8;
-    final bool isCompleted = _slidePosition >= threshold;
-    final bool wasCompleted = _slidePosition >= threshold - 10;
-    final bool labelOnProgress = _slidePosition > containerWidth * 0.42;
-    return Opacity(
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double containerWidth = constraints.maxWidth;
+        final double handleSize = 42.0;
+        final double maxSlideDistance = containerWidth - handleSize;
+        final double threshold = maxSlideDistance * 0.8;
+        final bool isCompleted = _slidePosition >= threshold;
+        final bool wasCompleted = _slidePosition >= threshold - 10;
+        final bool labelOnProgress = _slidePosition > containerWidth * 0.42;
+
+        return Opacity(
       opacity: canPay ? 1 : PaymentSlideDesign.disabledOpacity(context),
       child: GestureDetector(
         onHorizontalDragStart: (_) {
@@ -1181,6 +1176,8 @@ class PaymentPageState extends State<PaymentPage> {
           ),
         ),
       ),
+    );
+      },
     );
   }
 

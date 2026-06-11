@@ -16,7 +16,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:eclapp/pages/map_picker_page.dart';
 import '../utils/app_error_utils.dart';
 import '../utils/checkout_order_totals.dart';
-import '../widgets/checkout_progress_stepper.dart';
+import '../widgets/checkout_flow_header.dart';
 import '../config/app_colors.dart';
 import '../utils/app_theme_colors.dart';
 
@@ -1327,89 +1327,14 @@ class DeliveryPageState extends State<DeliveryPage> {
         children: [
           Column(
             children: [
-              // Header - green gradient with title and progress steps
-              Animate(
-                effects: [
-                  FadeEffect(duration: 400.ms),
-                  SlideEffect(
-                      duration: 400.ms,
-                      begin: const Offset(0, 0.1),
-                      end: Offset.zero)
-                ],
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AppThemeColors.headerBackground,
-                        AppColors.primaryDark,
-                        AppColors.primary,
-                      ],
-                      stops: const [0.0, 0.5, 1.0],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.12),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: SafeArea(
-                    bottom: false,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          child: Row(
-                            children: [
-                              BackButtonUtils.withConfirmation(
-                                backgroundColor:
-                                    Colors.white.withValues(alpha: 0.2),
-                                title: 'Leave Delivery',
-                                message:
-                                    'Are you sure you want to leave the delivery page? Your information will be saved.',
-                              ),
-                              Expanded(
-                                child: Center(
-                                  child: Text(
-                                    'Delivery Information',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.2,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 40),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-                          child: const CheckoutProgressStepper(
-                            compact: true,
-                            steps: [
-                              'Cart',
-                              'Delivery',
-                              'Payment',
-                              'Confirmation'
-                            ],
-                            activeStep: 2,
-                            completedSteps: {1},
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              const CheckoutFlowHeader(
+                title: 'Delivery Information',
+                activeStep: 2,
+                completedSteps: {1},
+                confirmOnBack: true,
+                leaveTitle: 'Leave Delivery',
+                leaveMessage:
+                    'Are you sure you want to leave the delivery page? Your information will be saved.',
               ),
               Expanded(
                 child: Stack(
@@ -3437,6 +3362,11 @@ class DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
+  void _switchToPickupFromOutsideGeofence() {
+    _handleDeliveryOptionChange('pickup');
+    _scrollToError(pickupSectionKey);
+  }
+
   /// Show map picker to select exact location
   void _showMapPicker() async {
     if (!mounted) return;
@@ -3500,10 +3430,7 @@ class DeliveryPageState extends State<DeliveryPage> {
           print(
               '🗺️ [MAP PICKER] State updated with new coordinates: ($_latitude, $_longitude)');
 
-          // Fetch delivery time from API with new coordinates
-          _fetchDeliveryTimeFromAPI();
-
-          // Force a small delay to ensure iOS processes the coordinate update
+          // Fee sync runs after the user confirms a pin on the map — not while opening it.
           await Future.delayed(const Duration(milliseconds: 200));
           if (!mounted) return;
 
@@ -3563,6 +3490,7 @@ class DeliveryPageState extends State<DeliveryPage> {
         builder: (context) => MapPickerPage(
           initialLatitude: initialLat,
           initialLongitude: initialLng,
+          onOfferPickup: _switchToPickupFromOutsideGeofence,
           onLocationSelected: (double lat, double lng, String? address) {
             _onDeliveryLocationSelected(lat, lng, address: address);
 

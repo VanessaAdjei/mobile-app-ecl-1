@@ -6,9 +6,11 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import '../config/api_config.dart';
 import '../models/category_fetch_result.dart';
+import '../models/delivery_geofence.dart';
 import '../models/store_location_model.dart';
 import '../repositories/delivery_repository.dart';
 import '../utils/delivery_api_parser.dart';
+import '../utils/delivery_geofence_parser.dart';
 import 'package:eclapp/services/auth_service.dart';
 import '../utils/app_error_utils.dart';
 
@@ -359,10 +361,9 @@ class DeliveryService {
           'success': false,
           'message': AppErrorUtils.messageFromMap(
             errorData,
-            fallback: AppErrorUtils.messageFromApiBody(
-              result.rawBody ?? '',
-              fallback: 'Failed to save delivery information',
-            ),
+            fallback: result.statusCode == 500
+                ? 'Could not verify your delivery address. Please try again or pick a location on the map.'
+                : 'Failed to save delivery information',
           ),
         };
       }
@@ -656,6 +657,129 @@ class DeliveryService {
       'Authorization': 'Guest $guestId',
       'X-Guest-ID': guestId,
     };
+  }
+
+  /// Loads the delivery zone boundary from `/delivery-geofence` for the map picker.
+  static Future<DeliveryGeofence?> fetchDeliveryGeofence() async {
+    try {
+      final headers = await deliveryAuthHeaders();
+      if (headers.isEmpty || !headers.containsKey('Authorization')) {
+        debugPrint('delivery-geofence: Auth required');
+        return null;
+      }
+
+      final url = ApiConfig.getEndpointUrl(ApiConfig.deliveryGeofence);
+      debugPrint('📤 [DELIVERY-GEOFENCE] GET $url');
+
+      final result = await _repository.fetchDeliveryGeofence(
+        headers: headers,
+        timeout: _apiTimeout,
+      );
+
+      if (result.statusCode == 404 || result.statusCode == 405) {
+        debugPrint(
+          '📥 [DELIVERY-GEOFENCE] status=${result.statusCode} — '
+          'route not registered on server yet (GET /delivery-geofence)',
+        );
+        return null;
+      }
+
+      debugPrint(
+        '📥 [DELIVERY-GEOFENCE] status=${result.statusCode} body=${result.rawBody}',
+      );
+
+      if (result.statusCode != 200 && result.statusCode != 201) {
+        return null;
+      }
+
+      final decoded = _decodedPayload(result);
+      return DeliveryGeofenceParser.parseGeofenceResponse(decoded);
+    } catch (e) {
+      debugPrint('delivery-geofence error: $e');
+      return null;
+    }
+  }
+
+  /// Validates picked coordinates against `/validate-geofence`.
+  static Future<GeofenceValidationResult> validateGeofence({
+    required double lat,
+    required double lng,
+  }) async {
+    try {
+      final headers = await deliveryAuthHeaders();
+      if (headers.isEmpty || !headers.containsKey('Authorization')) {
+        return const GeofenceValidationResult(
+          isValid: false,
+          message: 'Please sign in or continue as guest to verify delivery area.',
+        );
+      }
+
+      final url = ApiConfig.getEndpointUrl(ApiConfig.validateGeofence);
+      final body = json.encode({
+        'lat': lat,
+        'lng': lng,
+      });
+
+      debugPrint('📤 [VALIDATE-GEOFENCE] POST $url');
+      debugPrint('📤 [VALIDATE-GEOFENCE] body: $body');
+
+      final result = await _repository.validateGeofence(
+        headers: headers,
+        body: body,
+        timeout: _apiTimeout,
+      );
+
+      if (result.statusCode == 404 || result.statusCode == 405) {
+        debugPrint(
+          '📥 [VALIDATE-GEOFENCE] status=${result.statusCode} — '
+          'route not registered on server yet (POST /validate-geofence)',
+        );
+        return const GeofenceValidationResult(
+          isValid: false,
+          checkedRemotely: false,
+        );
+      }
+
+      debugPrint(
+        '📥 [VALIDATE-GEOFENCE] status=${result.statusCode} body=${result.rawBody}',
+      );
+
+      if (result.statusCode == 0) {
+        return const GeofenceValidationResult(
+          isValid: false,
+          message: 'Could not verify delivery area. Check your connection.',
+        );
+      }
+
+      final decoded = _decodedPayload(result);
+      final parsed = DeliveryGeofenceParser.parseValidationResponse(decoded);
+      if (parsed != null) return parsed;
+
+      if (result.statusCode == 200 || result.statusCode == 201) {
+        return const GeofenceValidationResult(
+          isValid: true,
+          message: 'Location verified',
+        );
+      }
+
+      final message = decoded is Map
+          ? (decoded['message'] ?? decoded['error'])?.toString()
+          : null;
+
+      return GeofenceValidationResult(
+        isValid: false,
+        message: message?.trim().isNotEmpty == true &&
+                !AppErrorUtils.isTechnicalBackendMessage(message!.trim())
+            ? message.trim()
+            : DeliveryGeofenceCopy.outsideArea,
+      );
+    } catch (e) {
+      debugPrint('validate-geofence error: $e');
+      return const GeofenceValidationResult(
+        isValid: false,
+        message: 'Could not verify delivery area. Please try again.',
+      );
+    }
   }
 
   /// Parses calculate-delivery-fee JSON (supports nested `data` wrapper).

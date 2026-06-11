@@ -5,127 +5,207 @@ import '../../config/app_colors.dart';
 import '../../utils/app_theme_colors.dart';
 import '../../utils/responsive_utils.dart';
 
-/// Section title row used across payment information cards.
+/// Section accent palette for payment cards.
+class PaymentSectionAccent {
+  const PaymentSectionAccent({
+    required this.gradient,
+    this.tint,
+    this.border,
+  });
+
+  final List<Color> gradient;
+  final Color? tint;
+  final Color? border;
+
+  static PaymentSectionAccent delivery(BuildContext context) {
+    final dark = context.appColors.isDark;
+    return PaymentSectionAccent(
+      gradient: const [Color(0xFF42A5F5), Color(0xFF1565C0)],
+      tint: dark
+          ? const Color(0xFF1565C0).withValues(alpha: 0.14)
+          : const Color(0xFFE3F2FD),
+      border: dark
+          ? const Color(0xFF42A5F5).withValues(alpha: 0.28)
+          : const Color(0xFF90CAF9),
+    );
+  }
+
+  static PaymentSectionAccent order(BuildContext context) {
+    final dark = context.appColors.isDark;
+    return PaymentSectionAccent(
+      gradient: const [Color(0xFF66BB6A), AppColors.primary],
+      tint: dark
+          ? AppColors.primary.withValues(alpha: 0.12)
+          : const Color(0xFFE8F5E9),
+      border: dark
+          ? AppColors.primaryLight.withValues(alpha: 0.28)
+          : const Color(0xFFA5D6A7),
+    );
+  }
+
+  static PaymentSectionAccent bill(BuildContext context) {
+    final dark = context.appColors.isDark;
+    return PaymentSectionAccent(
+      gradient: const [Color(0xFF43A047), AppColors.primaryDark],
+      tint: dark
+          ? AppColors.primaryDark.withValues(alpha: 0.16)
+          : const Color(0xFFEEF9F3),
+      border: dark
+          ? AppColors.primary.withValues(alpha: 0.3)
+          : const Color(0xFFBBEAD3),
+    );
+  }
+}
+
+/// Section title with gradient icon badge.
 class PaymentSectionHeader extends StatelessWidget {
   const PaymentSectionHeader({
     super.key,
     required this.title,
-    this.subtitle,
-    required this.icon,
-    this.accentColors,
+    this.eyebrow,
+    this.trailing,
+    this.icon,
+    this.accent,
+    this.compact = false,
   });
 
   final String title;
-  final String? subtitle;
-  final IconData icon;
-  final List<Color>? accentColors;
+  final String? eyebrow;
+  final String? trailing;
+  final IconData? icon;
+  final PaymentSectionAccent? accent;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final t = context.appColors;
-    final gradient = accentColors ??
-        [
-          AppColors.primary,
-          AppColors.primaryDark,
-        ];
+    final colors = accent?.gradient ??
+        const [AppColors.primary, AppColors.primaryDark];
+    final badgeSize = compact ? 30.0 : 36.0;
+    final iconSize = compact ? 15.0 : 18.0;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: gradient,
-            ),
-            borderRadius: BorderRadius.circular(9),
-            boxShadow: [
-              BoxShadow(
-                color: gradient.last.withValues(alpha: 0.35),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
+        if (icon != null) ...[
+          Container(
+            width: badgeSize,
+            height: badgeSize,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: colors,
               ),
-            ],
+              borderRadius: BorderRadius.circular(compact ? 8 : 10),
+              boxShadow: compact
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: colors.last.withValues(alpha: 0.35),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+            ),
+            child: Icon(icon, size: iconSize, color: Colors.white),
           ),
-          child: Icon(icon, size: 16, color: Colors.white),
-        ),
-        const SizedBox(width: 10),
+          SizedBox(width: compact ? 10 : 12),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (!compact && eyebrow != null && eyebrow!.isNotEmpty) ...[
+                Text(
+                  eyebrow!.toUpperCase(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.3,
+                    color: colors.first.withValues(alpha: t.isDark ? 0.9 : 1),
+                  ),
+                ),
+                const SizedBox(height: 2),
+              ],
               Text(
                 title,
                 style: GoogleFonts.poppins(
+                  fontSize: compact ? 14 : 15,
                   fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  height: 1.15,
+                  height: 1.2,
                   color: t.ink,
+                  letterSpacing: -0.2,
                 ),
               ),
-              if (subtitle != null && subtitle!.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Text(
-                  subtitle!,
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    height: 1.2,
-                    color: t.muted,
-                  ),
-                ),
-              ],
             ],
           ),
         ),
+        if (trailing != null && trailing!.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: (accent?.tint ?? t.accentTint),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: accent?.border ?? t.accentBorder,
+              ),
+            ),
+            child: Text(
+              trailing!,
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: colors.last,
+              ),
+            ),
+          ),
       ],
     );
   }
 }
 
-/// Payment section card with a left accent stripe (safe with borderRadius).
+/// Payment section card with optional accent tint.
 class PaymentSectionCard extends StatelessWidget {
   const PaymentSectionCard({
     super.key,
     required this.child,
-    this.accentStripe,
     this.padding,
+    this.accent,
+    this.inFlow = false,
   });
 
   final Widget child;
-  final Color? accentStripe;
   final EdgeInsets? padding;
+  final PaymentSectionAccent? accent;
+  final bool inFlow;
 
   @override
   Widget build(BuildContext context) {
-    final stripe = accentStripe ?? AppColors.primary;
     final pad = padding ?? PaymentSectionStyle.paddingOf(context);
 
     return Container(
-      margin: PaymentSectionStyle.marginOf(context),
+      margin: inFlow ? EdgeInsets.zero : PaymentSectionStyle.marginOf(context),
       decoration: PaymentSectionStyle.cardDecoration(
         context,
-        accentStripe: stripe,
+        accent: accent,
       ),
       clipBehavior: Clip.antiAlias,
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ColoredBox(
-              color: stripe,
-              child: const SizedBox(width: 4),
-            ),
-            Expanded(
-              child: Padding(
-                padding: pad,
-                child: child,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (accent != null)
+            Container(
+              height: 3,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: accent!.gradient),
               ),
             ),
-          ],
-        ),
+          Padding(
+            padding: pad,
+            child: child,
+          ),
+        ],
       ),
     );
   }
@@ -138,50 +218,55 @@ abstract final class PaymentSectionStyle {
       );
 
   static EdgeInsets paddingOf(BuildContext context) =>
-      EdgeInsets.all(ResponsiveUtils.scaled(context, 13));
+      EdgeInsets.all(ResponsiveUtils.scaled(context, 14));
 
   static double radiusOf(BuildContext context) =>
-      ResponsiveUtils.scaled(context, 14);
+      ResponsiveUtils.scaled(context, 16);
 
   static double innerRadiusOf(BuildContext context) =>
       ResponsiveUtils.scaled(context, 10);
 
   static BoxDecoration cardDecoration(
     BuildContext context, {
-    Color? accentStripe,
+    PaymentSectionAccent? accent,
   }) {
     final t = context.appColors;
-    final stripe = accentStripe ?? AppColors.primary;
-    final edgeColor =
-        t.isDark ? t.border : t.accentBorder.withValues(alpha: 0.4);
+    final stripe = accent?.gradient.last ?? AppColors.primary;
     return BoxDecoration(
       color: t.surface,
       borderRadius: BorderRadius.circular(radiusOf(context)),
-      border: Border.all(color: edgeColor),
+      border: Border.all(
+        color: accent?.border?.withValues(alpha: 0.55) ?? t.border,
+      ),
       boxShadow: t.isDark
           ? [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.18),
-                blurRadius: ResponsiveUtils.scaled(context, 8),
-                offset: Offset(0, ResponsiveUtils.scaled(context, 2)),
+                color: Colors.black.withValues(alpha: 0.24),
+                blurRadius: ResponsiveUtils.scaled(context, 12),
+                offset: Offset(0, ResponsiveUtils.scaled(context, 4)),
               ),
             ]
           : [
               BoxShadow(
                 color: stripe.withValues(alpha: 0.1),
-                blurRadius: ResponsiveUtils.scaled(context, 10),
-                offset: Offset(0, ResponsiveUtils.scaled(context, 3)),
+                blurRadius: ResponsiveUtils.scaled(context, 14),
+                offset: Offset(0, ResponsiveUtils.scaled(context, 5)),
               ),
             ],
     );
   }
 
-  static BoxDecoration innerPanelDecoration(BuildContext context) {
+  static BoxDecoration innerPanelDecoration(
+    BuildContext context, {
+    PaymentSectionAccent? accent,
+  }) {
     final t = context.appColors;
     return BoxDecoration(
-      color: t.fieldBg,
+      color: accent?.tint ?? t.fieldBg,
       borderRadius: BorderRadius.circular(innerRadiusOf(context)),
-      border: Border.all(color: t.border.withValues(alpha: 0.8)),
+      border: Border.all(
+        color: accent?.border?.withValues(alpha: 0.5) ?? t.border,
+      ),
     );
   }
 
@@ -190,7 +275,7 @@ abstract final class PaymentSectionStyle {
     return BoxDecoration(
       color: t.accentTint,
       borderRadius: BorderRadius.circular(innerRadiusOf(context)),
-      border: Border.all(color: t.accentBorder),
+      border: Border.all(color: t.accentBorder.withValues(alpha: 0.8)),
     );
   }
 
@@ -202,18 +287,27 @@ abstract final class PaymentSectionStyle {
         end: Alignment.centerRight,
         colors: t.isDark
             ? [
-                AppColors.primary.withValues(alpha: 0.22),
-                AppColors.primaryDark.withValues(alpha: 0.38),
+                AppColors.primary.withValues(alpha: 0.2),
+                AppColors.primaryDark.withValues(alpha: 0.35),
               ]
             : [
-                AppColors.primary.withValues(alpha: 0.1),
-                AppColors.primary.withValues(alpha: 0.2),
+                AppColors.primary.withValues(alpha: 0.08),
+                AppColors.primary.withValues(alpha: 0.16),
               ],
       ),
       borderRadius: BorderRadius.circular(innerRadiusOf(context)),
       border: Border.all(
-        color: AppColors.primary.withValues(alpha: t.isDark ? 0.45 : 0.28),
+        color: AppColors.primary.withValues(alpha: t.isDark ? 0.4 : 0.22),
       ),
+    );
+  }
+
+  static Widget sectionDivider(BuildContext context) {
+    final t = context.appColors;
+    return Divider(
+      height: 1,
+      thickness: 1,
+      color: t.border.withValues(alpha: 0.75),
     );
   }
 }
