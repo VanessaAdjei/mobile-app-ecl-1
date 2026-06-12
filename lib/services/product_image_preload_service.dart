@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:eclapp/config/api_config.dart';
 import 'package:eclapp/models/product_model.dart';
 import 'package:eclapp/pages/homepage.dart';
+import 'package:eclapp/utils/category_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
@@ -17,9 +18,15 @@ class ProductImagePreloadService {
   static CacheManager get cacheManager => _cache;
   static Future<void>? _gridWarmFuture;
   static Future<void>? _homeGridWarmFuture;
+  static Future<void>? _categoryWarmFuture;
+
+  static bool _lastCategoryImagesWarmComplete = false;
 
   /// Must match [HomeProductCard] / grid [CachedNetworkImage] disk resize.
   static const int homeThumbDiskSize = 300;
+
+  /// Must match category grid [CachedNetworkImage] disk resize.
+  static const int categoryThumbDiskSize = 400;
 
   /// Matches [_getLimitedProducts] on home (medication horizontal row).
   static const int homeMedicationVisibleCount = 8;
@@ -27,6 +34,8 @@ class ProductImagePreloadService {
   static int get downloadedCount => _downloaded.length;
 
   static bool get isHomeGridWarm => _lastHomeGridWarmComplete;
+
+  static bool get isCategoryImagesWarm => _lastCategoryImagesWarmComplete;
 
   static bool _lastHomeGridWarmComplete = false;
 
@@ -41,6 +50,18 @@ class ProductImagePreloadService {
   /// Disk key used by [ImageCacheManager.getImageFile] when `key` is the image URL.
   static String diskCacheKeyFor(String url) =>
       'resized_w${homeThumbDiskSize}_h${homeThumbDiskSize}_$url';
+
+  static String categoryDiskCacheKeyFor(String url) =>
+      'resized_w${categoryThumbDiskSize}_h${categoryThumbDiskSize}_$url';
+
+  static List<String> collectCategoryImageUrls(Iterable<dynamic> rows) {
+    final urls = <String>{};
+    for (final row in rows) {
+      final url = categoryImageUrlFromApi(row);
+      if (url.isNotEmpty) urls.add(url);
+    }
+    return urls.toList();
+  }
 
   /// True when a resized thumbnail is already on disk (see [diskCacheKeyFor]).
   static bool isUrlCached(String url) {
@@ -227,6 +248,50 @@ class ProductImagePreloadService {
   }
 
   /// Cache thumbnails for the first visible home rows.
+  /// Downloads category banners to disk (no [BuildContext] — for onboarding).
+  static Future<bool> warmCategoryImageUrls({
+    required List<String> urls,
+    Duration maxWait = const Duration(seconds: 60),
+    int maxConcurrent = 10,
+  }) async {
+    if (urls.isEmpty) {
+      _lastCategoryImagesWarmComplete = true;
+      return true;
+    }
+
+    if (_categoryWarmFuture != null) {
+      try {
+        await _categoryWarmFuture!.timeout(maxWait);
+      } on TimeoutException {
+        debugPrint('ProductImagePreload: category warm still running');
+      }
+      return _lastCategoryImagesWarmComplete;
+    }
+
+    if (await _areCategoryUrlsCached(urls)) {
+      _lastCategoryImagesWarmComplete = true;
+      debugPrint(
+        'ProductImagePreload: ${urls.length} category images already cached',
+      );
+      return true;
+    }
+
+    _categoryWarmFuture = _warmCategoryUrls(
+      urls,
+      maxWait: maxWait,
+      maxConcurrent: maxConcurrent,
+    );
+    try {
+      await _categoryWarmFuture!.timeout(maxWait);
+    } on TimeoutException {
+      debugPrint('ProductImagePreload: category image warm timed out');
+    } finally {
+      _categoryWarmFuture = null;
+      _lastCategoryImagesWarmComplete = await _areCategoryUrlsCached(urls);
+    }
+    return _lastCategoryImagesWarmComplete;
+  }
+
   static Future<void> warmHomeGridImages({
     required List<Product> catalog,
     List<Product> popular = const [],
@@ -256,6 +321,83 @@ class ProductImagePreloadService {
       await _warmUrls(urls, maxWait: maxWait, maxConcurrent: maxConcurrent);
     } finally {
       _lastHomeGridWarmComplete = await _areUrlsCached(urls);
+    }
+  }
+
+  static Future<void> _warmCategoryUrls(
+    List<String> urls, {
+    required Duration maxWait,
+    required int maxConcurrent,
+  }) async {
+    if (urls.isEmpty) return;
+
+    debugPrint(
+      'ProductImagePreload: warming ${urls.length} category images...',
+    );
+    final deadline = DateTime.now().add(maxWait);
+    var index = 0;
+    while (index < urls.length && DateTime.now().isBefore(deadline)) {
+      final chunk = urls.skip(index).take(maxConcurrent).toList();
+      index += chunk.length;
+      await Future.wait(
+        chunk.map((url) => _downloadCategoryOne(url)),
+        eagerError: false,
+      );
+    }
+    debugPrint(
+      'ProductImagePreload: category warm finished '
+      '(${urls.where(isCategoryUrlCached).length}/${urls.length} cached)',
+    );
+  }
+
+  static Future<bool> _areCategoryUrlsCached(List<String> urls) async {
+    if (urls.isEmpty) return true;
+    var cachedCount = 0;
+    for (final url in urls) {
+      if (await _isCategoryUrlCached(url)) {
+        cachedCount++;
+      }
+    }
+    return cachedCount >= (urls.length * 0.85).ceil();
+  }
+
+  static bool isCategoryUrlCached(String url) {
+    if (url.isEmpty) return false;
+    return _downloaded.contains(categoryDiskCacheKeyFor(url));
+  }
+
+  static Future<bool> _isCategoryUrlCached(String url) async {
+    if (url.isEmpty) return false;
+    final key = categoryDiskCacheKeyFor(url);
+    if (_downloaded.contains(key)) return true;
+    final cached = await _cache.getFileFromCache(key);
+    if (cached != null) {
+      _downloaded.add(key);
+      return true;
+    }
+    return false;
+  }
+
+  static Future<void> _downloadCategoryOne(String url) async {
+    if (url.isEmpty) return;
+    final key = categoryDiskCacheKeyFor(url);
+    if (_downloaded.contains(key)) return;
+    try {
+      if (await _isCategoryUrlCached(url)) return;
+
+      await for (final response in _cache.getImageFile(
+        url,
+        key: url,
+        maxWidth: categoryThumbDiskSize,
+        maxHeight: categoryThumbDiskSize,
+      )) {
+        if (response is FileInfo) {
+          _downloaded.add(key);
+          break;
+        }
+      }
+    } catch (e) {
+      debugPrint('ProductImagePreload: skip category $url ($e)');
     }
   }
 

@@ -21,8 +21,32 @@ class CategoryFetchResult {
   bool get isApiSuccess =>
       isHttpOk && body != null && isCatalogApiBodySuccess(body!);
 
-  List<dynamic> get data =>
-      body?['data'] is List ? List<dynamic>.from(body!['data'] as List) : const [];
+  List<dynamic> get data => extractDataList(body);
+
+  /// Supports `data: [...]` and nested `data: { products: [...] }` shapes.
+  static List<dynamic> extractDataList(Map<String, dynamic>? body) {
+    if (body == null) return const [];
+
+    final data = body['data'];
+    if (data is List) return List<dynamic>.from(data);
+
+    if (data is Map) {
+      final map = Map<String, dynamic>.from(data);
+      for (final key in [
+        'products',
+        'subcategories',
+        'categories',
+        'items',
+        'list',
+        'data',
+      ]) {
+        final value = map[key];
+        if (value is List) return List<dynamic>.from(value);
+      }
+    }
+
+    return const [];
+  }
 
   Map<String, dynamic>? get dataMap =>
       body?['data'] is Map ? Map<String, dynamic>.from(body!['data'] as Map) : null;

@@ -2,7 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:eclapp/config/api_config.dart';
+import 'package:eclapp/services/product_image_preload_service.dart';
+import 'package:eclapp/utils/category_utils.dart';
 import 'package:eclapp/widgets/error_display.dart';
 
 class OptimizedCategoryWidget extends StatelessWidget {
@@ -116,7 +117,7 @@ class OptimizedCategoryWidget extends StatelessWidget {
   }
 
   Widget _buildOptimizedImage() {
-    final imageUrl = _getCategoryImageUrl(category['image_url']);
+    final imageUrl = categoryImageUrlFromApi(category);
 
     if (imageUrl.isEmpty) {
       return Container(
@@ -132,6 +133,12 @@ class OptimizedCategoryWidget extends StatelessWidget {
     return CachedNetworkImage(
       imageUrl: imageUrl,
       fit: BoxFit.cover,
+      cacheManager: ProductImagePreloadService.cacheManager,
+      memCacheWidth: ProductImagePreloadService.categoryThumbDiskSize,
+      memCacheHeight: ProductImagePreloadService.categoryThumbDiskSize,
+      maxWidthDiskCache: ProductImagePreloadService.categoryThumbDiskSize,
+      maxHeightDiskCache: ProductImagePreloadService.categoryThumbDiskSize,
+      fadeInDuration: const Duration(milliseconds: 120),
       placeholder: (context, url) => Container(
         color: Colors.grey.shade200,
         child: Center(
@@ -149,8 +156,6 @@ class OptimizedCategoryWidget extends StatelessWidget {
           color: Colors.grey.shade400,
         ),
       ),
-      memCacheWidth: 160, // Optimize memory usage
-      memCacheHeight: 160,
     );
   }
 
@@ -243,15 +248,6 @@ class OptimizedCategoryWidget extends StatelessWidget {
     );
   }
 
-  String _getCategoryImageUrl(String? imagePath) {
-    if (imagePath == null || imagePath.isEmpty) return '';
-
-    if (imagePath.startsWith('http')) {
-      return imagePath;
-    }
-
-    return ApiConfig.getStorageUrl('categories/$imagePath');
-  }
 }
 
 class OptimizedCategoryGrid extends StatelessWidget {

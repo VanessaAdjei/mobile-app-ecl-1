@@ -8,6 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config/api_config.dart';
 import '../services/category_catalog_service.dart';
+import '../services/product_image_preload_service.dart';
+import '../utils/category_utils.dart';
 import 'app_optimization_service.dart';
 
 class CategoryOptimizationService {
@@ -28,16 +30,21 @@ class CategoryOptimizationService {
       Duration(hours: 4); // Extended from 1 hour to 4 hours
   static const Duration _productsCacheDuration =
       Duration(hours: 2); // Extended from 30 minutes to 2 hours
+  static const Duration _subcategoriesCacheDuration = Duration(minutes: 30);
+  static const int _subcategoryPrefetchConcurrency = 4;
   static const int _maxCachedProducts = 1000;
 
   // In-memory cache
   List<dynamic> _cachedCategories = [];
   List<dynamic> _cachedProducts = [];
+  final Map<int, List<dynamic>> _cachedSubcategoriesByCategoryId = {};
+  final Map<int, DateTime> _subcategoriesCacheTimeByCategoryId = {};
   final Map<int, bool> _subcategoryCache = {}; // Cache for subcategory info
   DateTime? _categoriesCacheTime;
   DateTime? _productsCacheTime;
   bool _isLoadingCategories = false;
   bool _isLoadingProducts = false;
+  bool _isPrefetchingSubcategories = false;
 
   // Image preloading
   final Map<String, bool> _preloadedImages = {};
@@ -63,8 +70,50 @@ class CategoryOptimizationService {
 
   bool get isLoadingCategories => _isLoadingCategories;
   bool get isLoadingProducts => _isLoadingProducts;
+  bool get isPrefetchingSubcategories => _isPrefetchingSubcategories;
   bool get hasCachedCategories => _cachedCategories.isNotEmpty;
   bool get hasCachedProducts => _cachedProducts.isNotEmpty;
+
+  Map<int, List<dynamic>> get cachedSubcategoriesByCategoryId =>
+      Map.unmodifiable(_cachedSubcategoriesByCategoryId);
+
+  bool isSubcategoriesCacheValid(int categoryId) {
+    final timestamp = _subcategoriesCacheTimeByCategoryId[categoryId];
+    if (timestamp == null) return false;
+    return DateTime.now().difference(timestamp) < _subcategoriesCacheDuration;
+  }
+
+  List<dynamic>? getCachedSubcategories(int categoryId) {
+    if (!isSubcategoriesCacheValid(categoryId)) return null;
+    final cached = _cachedSubcategoriesByCategoryId[categoryId];
+    if (cached == null) return null;
+    return List<dynamic>.from(cached);
+  }
+
+  void cacheSubcategories(int categoryId, List<dynamic> subcategories) {
+    _cachedSubcategoriesByCategoryId[categoryId] =
+        List<dynamic>.from(subcategories);
+    _subcategoriesCacheTimeByCategoryId[categoryId] = DateTime.now();
+    _subcategoryCache[categoryId] = subcategories.isNotEmpty;
+  }
+
+  void invalidateSubcategoriesCache(int categoryId) {
+    _cachedSubcategoriesByCategoryId.remove(categoryId);
+    _subcategoriesCacheTimeByCategoryId.remove(categoryId);
+    _subcategoryCache.remove(categoryId);
+  }
+
+  /// True when every top-level category with subcategories has a fresh cache row.
+  bool get hasPrefetchedAllSubcategories {
+    if (!hasCachedCategories) return false;
+    for (final category in _cachedCategories) {
+      if (!categoryHasSubcategoriesFromApi(category)) continue;
+      final categoryId = categoryIdFromApi(category['id']);
+      if (categoryId <= 0) continue;
+      if (!isSubcategoriesCacheValid(categoryId)) return false;
+    }
+    return true;
+  }
 
   // Check if a category has subcategories (from cache)
   bool hasSubcategoryInfo(int categoryId) {
@@ -182,6 +231,70 @@ class CategoryOptimizationService {
     } catch (e) {
       debugPrint('Background product refresh failed: $e');
       // Keep using old cache data
+    }
+  }
+
+  /// Prefetch subcategory lists for all categories that expose a subcategory tree.
+  Future<bool> prefetchAllSubcategories({
+    Duration maxWait = const Duration(minutes: 2),
+  }) async {
+    if (hasPrefetchedAllSubcategories) return true;
+
+    if (_isPrefetchingSubcategories) {
+      final deadline = DateTime.now().add(maxWait);
+      while (_isPrefetchingSubcategories && DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+      }
+      return hasPrefetchedAllSubcategories;
+    }
+
+    _isPrefetchingSubcategories = true;
+    final deadline = DateTime.now().add(maxWait);
+
+    try {
+      final categories = hasCachedCategories
+          ? cachedCategories
+          : await getCategories();
+
+      final targets = categories
+          .where(categoryHasSubcategoriesFromApi)
+          .map((category) => categoryIdFromApi(category['id']))
+          .where((id) => id > 0)
+          .where((id) => !isSubcategoriesCacheValid(id))
+          .toList();
+
+      if (targets.isEmpty) return hasPrefetchedAllSubcategories;
+
+      debugPrint(
+        'CategoryOptimizationService: prefetching subcategories for '
+        '${targets.length} categories',
+      );
+
+      for (var i = 0; i < targets.length; i += _subcategoryPrefetchConcurrency) {
+        if (DateTime.now().isAfter(deadline)) break;
+
+        final batch = targets.skip(i).take(_subcategoryPrefetchConcurrency);
+        await Future.wait(
+          batch.map((categoryId) async {
+            try {
+              final subcategories = await _catalogService.getSubcategories(
+                categoryId,
+                timeout: const Duration(seconds: 8),
+              );
+              cacheSubcategories(categoryId, subcategories);
+            } catch (e) {
+              debugPrint(
+                'CategoryOptimizationService: subcategories for '
+                '$categoryId failed: $e',
+              );
+            }
+          }),
+        );
+      }
+
+      return hasPrefetchedAllSubcategories;
+    } finally {
+      _isPrefetchingSubcategories = false;
     }
   }
 
@@ -341,23 +454,32 @@ class CategoryOptimizationService {
     }
   }
 
-  // Preload category images with optimization
+  // Preload category images to disk (and memory when [context] is available).
   Future<void> preloadCategoryImages(
       BuildContext context, List<dynamic> categories) async {
-    final imageUrls = categories
-        .take(10) // Preload first 10 category images
-        .map((category) => _getCategoryImageUrl(category['image_url']))
-        .where((url) => url.isNotEmpty)
-        .toList();
+    final imageUrls =
+        ProductImagePreloadService.collectCategoryImageUrls(categories);
+    if (imageUrls.isEmpty) return;
 
     debugPrint('Preloading ${imageUrls.length} category images...');
+    unawaited(
+      ProductImagePreloadService.warmCategoryImageUrls(
+        urls: imageUrls,
+        maxWait: const Duration(seconds: 45),
+      ),
+    );
 
     for (final imageUrl in imageUrls) {
       if (!_preloadedImages.containsKey(imageUrl)) {
         _preloadedImages[imageUrl] = true;
         try {
           precacheImage(
-            CachedNetworkImageProvider(imageUrl),
+            CachedNetworkImageProvider(
+              imageUrl,
+              maxWidth: ProductImagePreloadService.categoryThumbDiskSize,
+              maxHeight: ProductImagePreloadService.categoryThumbDiskSize,
+              cacheManager: ProductImagePreloadService.cacheManager,
+            ),
             context,
             onError: (exception, stackTrace) {
               debugPrint(
@@ -371,17 +493,6 @@ class CategoryOptimizationService {
     }
 
     debugPrint('Category image preloading completed');
-  }
-
-  // Get category image URL
-  String _getCategoryImageUrl(String? imagePath) {
-    if (imagePath == null || imagePath.isEmpty) return '';
-
-    if (imagePath.startsWith('http')) {
-      return imagePath;
-    }
-
-    return ApiConfig.getStorageUrl('categories/$imagePath');
   }
 
   // Search products with caching
@@ -413,6 +524,9 @@ class CategoryOptimizationService {
     debugPrint('Clearing all category caches...');
     _cachedCategories.clear();
     _cachedProducts.clear();
+    _cachedSubcategoriesByCategoryId.clear();
+    _subcategoriesCacheTimeByCategoryId.clear();
+    _subcategoryCache.clear();
     _categoriesCacheTime = null;
     _productsCacheTime = null;
     _preloadedImages.clear();

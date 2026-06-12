@@ -1,6 +1,7 @@
 import '../cache/product_cache.dart';
 import '../models/category_fetch_result.dart';
 import '../repositories/category_repository.dart';
+import '../utils/category_utils.dart';
 import '../utils/product_detail_parser.dart';
 import 'package:flutter/foundation.dart';
 
@@ -11,6 +12,12 @@ class CategoryCatalogService {
       : _repository = repository ?? CategoryRepositoryImpl();
 
   final CategoryRepository _repository;
+
+  /// Dedupes parallel requests for the same category/subcategory list.
+  final Map<String, Future<List<Map<String, dynamic>>>> _listInFlight = {};
+
+  /// Leaf categories: `/categories/{id}` → one wrapper id → `/product-categories/{id}`.
+  static final Map<int, int> _leafWrapperProductCategoryId = {};
 
   Future<List<dynamic>> getTopCategories({
     Duration timeout = const Duration(seconds: 8),
@@ -34,6 +41,100 @@ class CategoryCatalogService {
   }) =>
       _repository.fetchCategorySubcategories(categoryId, timeout: timeout);
 
+  /// Products for a leaf category (`has_subcategories: false`) — GET /categories/{id}.
+  Future<CategoryFetchResult> categoryProductsResult(
+    int categoryId, {
+    Duration timeout = const Duration(seconds: 15),
+  }) =>
+      categorySubcategoriesResult(categoryId, timeout: timeout);
+
+  /// Subcategory products — `/product-categories/{id}` or `/categories/{id}`.
+  Future<CategoryFetchResult> subcategoryListProductsResult(
+    int subcategoryId, {
+    required bool hasProductCategories,
+    Duration timeout = const Duration(seconds: 15),
+  }) {
+    if (hasProductCategories) {
+      return subcategoryProductsResult(subcategoryId, timeout: timeout);
+    }
+    return categoryProductsResult(subcategoryId, timeout: timeout);
+  }
+
+  /// Parsed rows from a category or subcategory products response.
+  List<Map<String, dynamic>> parseCategoryListResult(CategoryFetchResult result) {
+    if (!result.isApiSuccess) return const [];
+    return normalizeCategoryApiRows(result.data);
+  }
+
+  /// `/categories/{id}` may return product rows or subcategory rows.
+  /// Leaf categories often return one subcategory wrapper — load its products.
+  Future<List<Map<String, dynamic>>> resolveRowsToProducts(
+    List<Map<String, dynamic>> rows, {
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    if (rows.isEmpty) return const [];
+    if (categoryListRowsAreProducts(rows)) return rows;
+
+    if (rows.length == 1 && !categoryListRowsAreProducts(rows)) {
+      final subId = categoryIdFromApi(rows.first['id']);
+      if (subId > 0) {
+        return getSubcategoryListProducts(
+          subId,
+          hasProductCategories: subcategoryHasProductCategoriesFromApi(rows.first),
+          timeout: timeout,
+        );
+      }
+    }
+
+    final batches = await Future.wait(
+      rows.map((row) {
+        final subId = categoryIdFromApi(row['id']);
+        if (subId <= 0) return Future<List<Map<String, dynamic>>>.value(const []);
+        return getSubcategoryListProducts(
+          subId,
+          hasProductCategories: subcategoryHasProductCategoriesFromApi(row),
+          timeout: timeout,
+        );
+      }),
+    );
+
+    return batches.expand((batch) => batch).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> fetchResolvedCategoryProducts(
+    int categoryId, {
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    final cachedWrapperId = _leafWrapperProductCategoryId[categoryId];
+    if (cachedWrapperId != null) {
+      final cached = await getSubcategoryListProducts(
+        cachedWrapperId,
+        hasProductCategories: true,
+        timeout: timeout,
+      );
+      if (cached.isNotEmpty) return cached;
+      _leafWrapperProductCategoryId.remove(categoryId);
+    }
+
+    final result = await categoryProductsResult(categoryId, timeout: timeout);
+    if (!result.isApiSuccess) return const [];
+
+    final rows = parseCategoryListResult(result);
+    if (rows.length == 1 && !categoryListRowsAreProducts(rows)) {
+      final subId = categoryIdFromApi(rows.first['id']);
+      if (subId > 0) {
+        _leafWrapperProductCategoryId[categoryId] = subId;
+        return getSubcategoryListProducts(
+          subId,
+          hasProductCategories: subcategoryHasProductCategoriesFromApi(rows.first),
+          timeout: timeout,
+        );
+      }
+    }
+
+    return resolveRowsToProducts(rows, timeout: timeout);
+  }
+
   Future<List<dynamic>> getSubcategories(
     int categoryId, {
     Duration timeout = const Duration(seconds: 8),
@@ -54,8 +155,27 @@ class CategoryCatalogService {
       subcategoryId,
       timeout: timeout,
     );
-    if (!result.isApiSuccess) return const [];
-    return result.data;
+    return parseCategoryListResult(result);
+  }
+
+  Future<List<Map<String, dynamic>>> getSubcategoryListProducts(
+    int subcategoryId, {
+    required bool hasProductCategories,
+    Duration timeout = const Duration(seconds: 15),
+  }) {
+    final key = 'sub:$subcategoryId:${hasProductCategories ? 1 : 0}';
+    return _listInFlight.putIfAbsent(key, () async {
+      try {
+        final result = await subcategoryListProductsResult(
+          subcategoryId,
+          hasProductCategories: hasProductCategories,
+          timeout: timeout,
+        );
+        return parseCategoryListResult(result);
+      } finally {
+        _listInFlight.remove(key);
+      }
+    });
   }
 
   /// Raw `data` array from get-all-products (each item has nested `product`).

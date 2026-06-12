@@ -1,6 +1,8 @@
 // pages/search.dart
 import 'package:flutter/material.dart';
 import 'package:eclapp/pages/categories.dart';
+import 'package:eclapp/utils/category_navigation.dart';
+import 'package:eclapp/utils/category_utils.dart';
 
 class CategorySearchDelegate extends SearchDelegate {
   final List<dynamic> categories;
@@ -339,13 +341,14 @@ class CategorySearchDelegate extends SearchDelegate {
         size: isExactMatch ? 20 : 16,
       ),
       onTap: () {
-        if (category['has_subcategories']) {
+        final categoryId = categoryIdFromApi(category['id']);
+        if (categoryHasSubcategoriesFromApi(category)) {
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => SubcategoryPage(
-                categoryName: category['name'],
-                categoryId: category['id'],
+                categoryName: category['name']?.toString() ?? '',
+                categoryId: categoryId,
               ),
             ),
           );
@@ -354,8 +357,8 @@ class CategorySearchDelegate extends SearchDelegate {
             context,
             MaterialPageRoute(
               builder: (context) => ProductListPage(
-                categoryName: category['name'],
-                categoryId: category['id'],
+                categoryName: category['name']?.toString() ?? '',
+                categoryId: categoryId,
               ),
             ),
           );

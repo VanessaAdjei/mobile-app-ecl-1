@@ -15,6 +15,7 @@ import 'package:shimmer/shimmer.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:eclapp/widgets/home/home_search_bar.dart';
+import 'package:eclapp/widgets/home/home_popular_products_featured.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/product_card.dart';
@@ -35,6 +36,8 @@ import '../utils/product_tap_guard.dart';
 import '../services/category_optimization_service.dart';
 import '../services/product_catalog_service.dart';
 import '../utils/app_theme_colors.dart';
+import '../utils/category_navigation.dart';
+import '../utils/category_utils.dart';
 import '../utils/app_error_utils.dart';
 import 'categories.dart';
 import '../cache/product_cache.dart';
@@ -205,7 +208,7 @@ class _HomeSearchSkeleton extends StatelessWidget {
   }
 }
 
-/// Green logo row + search in one collapsible [SliverAppBar] (safe area when collapsed).
+/// Green logo row + search in a pinned [SliverAppBar] (header stays visible on scroll).
 class _HomeHeaderSearchFlexibleSpace extends StatelessWidget {
   const _HomeHeaderSearchFlexibleSpace({
     required this.toolbarHeight,
@@ -1039,7 +1042,6 @@ class HomePageState extends State<HomePage>
     final toolbarHeight = isTablet ? 80.0 : 60.0;
     final searchExtent = HomeSearchBar.headerExtent(isTablet: isTablet);
     final top = MediaQuery.viewPaddingOf(context).top;
-    final collapsedHeight = top + _kHomeSearchPinnedTopExtra + searchExtent;
     final expandedHeight = top + toolbarHeight + searchExtent;
 
     return SliverAppBar(
@@ -1053,7 +1055,8 @@ class HomePageState extends State<HomePage>
       floating: false,
       stretch: false,
       expandedHeight: expandedHeight,
-      collapsedHeight: collapsedHeight,
+      // Match expanded height so logo + cart row never collapse away on scroll.
+      collapsedHeight: expandedHeight,
       toolbarHeight: 0,
       flexibleSpace: _HomeHeaderSearchFlexibleSpace(
         toolbarHeight: toolbarHeight,
@@ -2279,6 +2282,9 @@ class HomePageState extends State<HomePage>
                     ),
                   ),
                   SliverToBoxAdapter(
+                    child: _buildPopularProductsFeatured(isTablet: isTablet),
+                  ),
+                  SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.only(top: 16),
                       child: KeyedSubtree(
@@ -2548,8 +2554,11 @@ class HomePageState extends State<HomePage>
               itemCount: _categories.length,
               itemBuilder: (context, index) {
                 final category = _categories[index];
-                final categoryName = category['name'] ?? '';
-                final hasSubcategories = _categoryHasSubcategories(category);
+                final categoryName = category['name']?.toString() ?? '';
+                final categoryId =
+                    categoryIdFromApi(category['id'], fallback: index);
+                final hasSubcategories =
+                    categoryHasSubcategoriesFromApi(category);
                 final theme = context.appColors;
                 return Container(
                   margin: const EdgeInsets.only(right: 8),
@@ -2562,14 +2571,14 @@ class HomePageState extends State<HomePage>
                             MaterialPageRoute(
                                 builder: (context) => SubcategoryPage(
                                     categoryName: categoryName,
-                                    categoryId: category['id'])),
+                                    categoryId: categoryId)),
                           );
                         } else {
                           _pushOnce(
                             MaterialPageRoute(
                                 builder: (context) => ProductListPage(
                                     categoryName: categoryName,
-                                    categoryId: category['id'])),
+                                    categoryId: categoryId)),
                           );
                         }
                       },
@@ -2608,21 +2617,6 @@ class HomePageState extends State<HomePage>
           ),
         ),
     ]);
-  }
-
-  bool _categoryHasSubcategories(dynamic category) {
-    if (category is! Map) return false;
-
-    final id = int.tryParse('${category['id']}');
-    // Keep homepage category navigation aligned with Categories page behavior.
-    const forcedSubcategoryIds = {1, 2, 3, 4, 6, 7, 8, 9, 11};
-    if (id != null && forcedSubcategoryIds.contains(id)) return true;
-
-    final raw = category['has_subcategories'];
-    if (raw is bool) return raw;
-    if (raw is num) return raw != 0;
-    final text = '${raw ?? ''}'.toLowerCase().trim();
-    return text == '1' || text == 'true' || text == 'yes';
   }
 
   // ─── Special offers ────────────────────────────────────────────────────────
@@ -2678,6 +2672,53 @@ class HomePageState extends State<HomePage>
     ]);
   }
 
+  List<Product> _popularProductsForFeatured({int count = 9}) {
+    final eligible =
+        ProductCache.withoutPrescriptionProducts(popularProducts);
+    return eligible.take(count).toList();
+  }
+
+  List<Product> _popularProductsForStrip({int start = 9, int count = 12}) {
+    final eligible =
+        ProductCache.withoutPrescriptionProducts(popularProducts);
+    if (eligible.length <= start) {
+      return eligible.take(count).toList();
+    }
+    return eligible.skip(start).take(count).toList();
+  }
+
+  // ─── Trending picks (under categories) ───────────────────────────────────
+  Widget _buildPopularProductsFeatured({bool isTablet = false}) {
+    if (_isLoadingPopular) {
+      return Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: isTablet ? 24 : 16,
+          vertical: 12,
+        ),
+        child: SizedBox(
+          height: isTablet ? 240 : 210,
+          child: Center(
+            child: CircularProgressIndicator(
+              color: Theme.of(context).colorScheme.primary,
+              strokeWidth: 2,
+            ),
+          ),
+        ),
+      );
+    }
+    if (_popularError != null || popularProducts.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final featured = _popularProductsForFeatured();
+    if (featured.isEmpty) return const SizedBox.shrink();
+
+    return HomePopularProductsFeatured(
+      products: featured,
+      isTablet: isTablet,
+    );
+  }
+
   // ─── Popular right now ─────────────────────────────────────────────────────
   Widget _buildPopularProducts({bool isTablet = false}) {
     if (_isLoadingPopular) {
@@ -2694,13 +2735,14 @@ class HomePageState extends State<HomePage>
         },
       );
     }
-    if (popularProducts.isEmpty) {
+    final stripProducts = _popularProductsForStrip();
+    if (stripProducts.isEmpty) {
       return EmptyStateWidget(
           message: 'Nothing popular right now', icon: Icons.star_border);
     }
 
     return HomePopularProductsStrip(
-      products: popularProducts,
+      products: stripProducts,
       isTablet: isTablet,
     );
   }

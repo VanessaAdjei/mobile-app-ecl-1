@@ -22,6 +22,7 @@ class HomePreloadService {
 
   static Future<void>? _preloadFuture;
   static Future<void>? _deferredPreloadFuture;
+  static Future<void>? _categoryTreePreloadFuture;
   static bool _preloadComplete = false;
   static Future<bool>? _ensureReadyForHomeFuture;
 
@@ -157,6 +158,33 @@ class HomePreloadService {
       }
     }
 
+    remaining = deadline.difference(DateTime.now());
+    if (remaining > Duration.zero) {
+      try {
+        await ensureCategoriesReady(maxWait: remaining);
+      } on TimeoutException {
+        debugPrint('HomePreloadService: categories preload timed out');
+      }
+    }
+
+    remaining = deadline.difference(DateTime.now());
+    if (remaining > Duration.zero) {
+      try {
+        await ensureSubcategoriesReady(maxWait: remaining);
+      } on TimeoutException {
+        debugPrint('HomePreloadService: subcategories preload timed out');
+      }
+    }
+
+    remaining = deadline.difference(DateTime.now());
+    if (remaining > Duration.zero) {
+      try {
+        await ensureCategoryImagesReady(maxWait: remaining);
+      } on TimeoutException {
+        debugPrint('HomePreloadService: category image warm timed out');
+      }
+    }
+
     return ProductImagePreloadService.isHomeGridWarm;
   }
 
@@ -166,11 +194,38 @@ class HomePreloadService {
       return;
     }
     unawaited(_prefetchCatalogIfStale());
+    _startCategoryTreePreload();
     if (_preloadFuture != null) return;
     debugPrint(
       'HomePreloadService: preload started — priority first, full catalog background',
     );
     _preloadFuture = _runPriorityOnboardingPreload();
+  }
+
+  /// Categories + subcategories while the user is on onboarding slides.
+  static void _startCategoryTreePreload() {
+    if (isFlutterTest) return;
+    if (_categoryTreePreloadFuture != null) return;
+    _categoryTreePreloadFuture = _runCategoryTreePreload();
+    unawaited(_categoryTreePreloadFuture);
+  }
+
+  static Future<void> _awaitCategoryTreePreload() async {
+    _startCategoryTreePreload();
+    await (_categoryTreePreloadFuture ?? Future<void>.value());
+  }
+
+  static Future<void> _runCategoryTreePreload() async {
+    try {
+      final categoriesReady = await ensureCategoriesReady(
+        maxWait: const Duration(minutes: 2),
+      );
+      if (!categoriesReady) return;
+      await ensureSubcategoriesReady(maxWait: const Duration(minutes: 2));
+      await ensureCategoryImagesReady(maxWait: const Duration(seconds: 60));
+    } catch (e, st) {
+      debugPrint('HomePreloadService: category tree preload error: $e\n$st');
+    }
   }
 
   @Deprecated('Use startOnboardingPreload')
@@ -264,8 +319,8 @@ class HomePreloadService {
       await Future.wait([
         _safeStep('popular', ProductCache.ensurePopularReady()),
         _safeStep(
-          'categories',
-          ensureCategoriesReady(maxWait: const Duration(minutes: 2)),
+          'category-tree',
+          _awaitCategoryTreePreload(),
         ),
         _safeStep(
           'banners',
@@ -281,6 +336,7 @@ class HomePreloadService {
         'popular=${ProductCache.cachedPopularProducts.length}, '
         'images=${ProductImagePreloadService.downloadedCount}, '
         'categories=${_categories.cachedCategories.length}, '
+        'subcategory_groups=${_categories.cachedSubcategoriesByCategoryId.length}, '
         'banners=${_banners.cachedBanners.length}',
       );
     }
@@ -435,6 +491,89 @@ class HomePreloadService {
     return _categories.hasCachedCategories;
   }
 
+  static List<String> _collectCategoryImageUrls() {
+    final urls = <String>{
+      ...ProductImagePreloadService.collectCategoryImageUrls(
+        _categories.cachedCategories,
+      ),
+    };
+    for (final subcategories
+        in _categories.cachedSubcategoriesByCategoryId.values) {
+      urls.addAll(
+        ProductImagePreloadService.collectCategoryImageUrls(subcategories),
+      );
+    }
+    return urls.toList();
+  }
+
+  static Future<bool> ensureCategoryImagesReady({
+    Duration maxWait = const Duration(seconds: 45),
+  }) async {
+    await _categories.initialize();
+    if (!_categories.hasCachedCategories) {
+      final categoriesReady = await ensureCategoriesReady(maxWait: maxWait);
+      if (!categoriesReady) return false;
+    }
+
+    final urls = _collectCategoryImageUrls();
+    if (urls.isEmpty) return true;
+
+    try {
+      return await ProductImagePreloadService.warmCategoryImageUrls(
+        urls: urls,
+        maxWait: maxWait,
+        maxConcurrent: 10,
+      );
+    } catch (e) {
+      debugPrint('HomePreloadService: category images error: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> ensureSubcategoriesReady({
+    Duration maxWait = const Duration(seconds: 45),
+  }) async {
+    await _categories.initialize();
+    if (!_categories.hasCachedCategories) {
+      final categoriesReady = await ensureCategoriesReady(maxWait: maxWait);
+      if (!categoriesReady) return false;
+    }
+    if (_categories.hasPrefetchedAllSubcategories) return true;
+
+    final deadline = DateTime.now().add(maxWait);
+    if (!_categories.isPrefetchingSubcategories) {
+      unawaited(
+        _categories.prefetchAllSubcategories(maxWait: maxWait).catchError(
+          (Object e) {
+            debugPrint('HomePreloadService: subcategories error: $e');
+            return false;
+          },
+        ),
+      );
+    }
+
+    while (DateTime.now().isBefore(deadline)) {
+      if (_categories.hasPrefetchedAllSubcategories) return true;
+      if (!_categories.isPrefetchingSubcategories) break;
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+    }
+
+    if (!_categories.hasPrefetchedAllSubcategories &&
+        !_categories.isPrefetchingSubcategories) {
+      try {
+        return await _categories.prefetchAllSubcategories(
+          maxWait: deadline.difference(DateTime.now()),
+        );
+      } catch (e) {
+        debugPrint('HomePreloadService: subcategories fetch failed: $e');
+      }
+    }
+    return _categories.hasPrefetchedAllSubcategories;
+  }
+
   static List<dynamic> get cachedCategories =>
       List<dynamic>.from(_categories.cachedCategories);
+
+  static Map<int, List<dynamic>> get cachedSubcategoriesByCategoryId =>
+      _categories.cachedSubcategoriesByCategoryId;
 }

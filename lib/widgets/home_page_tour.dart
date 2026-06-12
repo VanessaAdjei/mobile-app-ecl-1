@@ -84,8 +84,7 @@ class HomePageTour {
         SpotlightStep(
           targetKey: targets.categoriesKey,
           title: 'Browse categories',
-          body:
-              'Swipe the chips to explore departments on your home feed.',
+          body: 'Swipe the chips to explore categories on your home feed.',
           align: SpotlightTooltipAlign.below,
           padding: 6,
           beforeShow: () => _scrollTargetIntoView(
@@ -110,8 +109,7 @@ class HomePageTour {
         SpotlightStep(
           targetKey: targets.popularKey!,
           title: 'Popular right now',
-          body:
-              'See trending products—swipe sideways to browse more picks.',
+          body: 'See trending products—swipe sideways to browse more picks.',
           align: SpotlightTooltipAlign.below,
           padding: 8,
           beforeShow: () => _scrollTargetIntoView(
@@ -123,8 +121,7 @@ class HomePageTour {
         SpotlightStep(
           targetKey: targets.shopKey!,
           title: 'Shop',
-          body:
-              'Open the full catalog and browse every category in one place.',
+          body: 'Open the full catalog and browse every category in one place.',
           align: SpotlightTooltipAlign.above,
           padding: 6,
           beforeShow: () => _scrollToTop(scrollController),
@@ -133,8 +130,7 @@ class HomePageTour {
         SpotlightStep(
           targetKey: targets.menuKey!,
           title: 'Quick actions',
-          body:
-              'Open the menu for pharmacist chat, prescriptions, and more.',
+          body: 'Open the menu for pharmacist chat, prescriptions, and more.',
           align: SpotlightTooltipAlign.above,
           beforeShow: () => _scrollToTop(scrollController),
         ),
@@ -169,7 +165,8 @@ class HomePageTour {
 
     for (var i = 0; i < 100; i++) {
       if (!context.mounted) return false;
-      if (_minimumTargetsReady(targets) && _bottomNavTourTargetsReady(targets)) {
+      if (_minimumTargetsReady(targets) &&
+          _bottomNavTourTargetsReady(targets)) {
         break;
       }
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -180,8 +177,7 @@ class HomePageTour {
       return false;
     }
 
-    final needsBottomNav =
-        targets.shopKey != null || targets.menuKey != null;
+    final needsBottomNav = targets.shopKey != null || targets.menuKey != null;
     if (needsBottomNav && !_bottomNavTourTargetsReady(targets)) {
       debugPrint('HomePageTour: skipped — shop/menu not laid out');
       return false;
@@ -192,8 +188,8 @@ class HomePageTour {
         if (!context.mounted) return false;
         final medReady = targets.medicationKey == null ||
             _targetReady(targets.medicationKey!);
-        final popReady = targets.popularKey == null ||
-            _targetReady(targets.popularKey!);
+        final popReady =
+            targets.popularKey == null || _targetReady(targets.popularKey!);
         if (medReady && popReady) break;
         await Future<void>.delayed(const Duration(milliseconds: 50));
       }
