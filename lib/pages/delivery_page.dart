@@ -46,12 +46,16 @@ class DeliveryPageState extends State<DeliveryPage> {
 
   void _onAddressFieldsChanged() {
     if (_suppressAddressDrivenFeeRefresh > 0) return;
-    // Only trigger if all fields are non-empty
-    if (_regionController.text.trim().isNotEmpty &&
-        _cityController.text.trim().isNotEmpty &&
-        _addressController.text.trim().isNotEmpty) {
-      _updateDeliveryFee();
+    if (_regionController.text.trim().isEmpty ||
+        _cityController.text.trim().isEmpty ||
+        _addressController.text.trim().isEmpty) {
+      return;
     }
+    _addressFeeDebounceTimer?.cancel();
+    _addressFeeDebounceTimer = Timer(_addressFeeDebounce, () {
+      if (!mounted) return;
+      _updateDeliveryFee();
+    });
   }
 
   String deliveryOption = 'delivery';
@@ -62,6 +66,8 @@ class DeliveryPageState extends State<DeliveryPage> {
   int _suppressAddressDrivenFeeRefresh = 0;
   int _feeUpdateGeneration = 0;
   Future<void>? _activeDeliveryFeeRefresh;
+  Timer? _addressFeeDebounceTimer;
+  static const Duration _addressFeeDebounce = Duration(milliseconds: 650);
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -160,6 +166,7 @@ class DeliveryPageState extends State<DeliveryPage> {
   @override
   void dispose() {
     _feeUpdateGeneration++;
+    _addressFeeDebounceTimer?.cancel();
     unawaited(_persistGuestCheckoutDraft());
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
@@ -180,6 +187,10 @@ class DeliveryPageState extends State<DeliveryPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    _regionController.addListener(_onAddressFieldsChanged);
+    _cityController.addListener(_onAddressFieldsChanged);
+    _addressController.addListener(_onAddressFieldsChanged);
+    unawaited(DeliveryService.getStoresForFeeEstimate());
     _initialDeliveryDataLoad = _loadUserData().whenComplete(() {
       if (!mounted) return;
       setState(() => _isInitialDeliveryDataLoading = false);
@@ -249,6 +260,52 @@ class DeliveryPageState extends State<DeliveryPage> {
   bool _isFeeGenerationCurrent(int generation) =>
       mounted && generation == _feeUpdateGeneration;
 
+  Future<void> _applyProvisionalFeeEstimate(
+    double lat,
+    double lng,
+    int generation,
+  ) async {
+    try {
+      final stores = await DeliveryService.getStoresForFeeEstimate();
+      if (!_isFeeGenerationCurrent(generation)) return;
+
+      final estimate = DeliveryService.estimateFeeFromCoordinates(
+        lat: lat,
+        lng: lng,
+        stores: stores,
+      );
+      if (estimate == null || !_isFeeGenerationCurrent(generation)) return;
+
+      final feeRaw = estimate['delivery_fee'];
+      final parsedFee =
+          feeRaw is num ? feeRaw.toDouble() : double.tryParse('$feeRaw');
+      if (parsedFee == null) return;
+
+      final distanceKmRaw = estimate['distance_km'];
+      final distanceKm = distanceKmRaw is num
+          ? distanceKmRaw.toDouble()
+          : double.tryParse('$distanceKmRaw');
+
+      _setStateIfMounted(() {
+        if (!_deliveryFeeFromApi) {
+          deliveryFee = parsedFee;
+          if (distanceKm != null) {
+            _distanceKm = distanceKm;
+          }
+        }
+      });
+    } catch (e) {
+      debugPrint('📦 [DELIVERY] Provisional fee estimate failed: $e');
+    }
+  }
+
+  bool _distanceTextsMatch(String? a, String? b) {
+    if (a == null || b == null) return false;
+    final left = DeliveryService.normalizeDistanceTextForFeeApi(a.trim());
+    final right = DeliveryService.normalizeDistanceTextForFeeApi(b.trim());
+    return left.isNotEmpty && left == right;
+  }
+
   /// Fetches delivery fee from save-billing (distance) + calculate-delivery-fee only.
   Future<void> _refreshDeliveryFeeForCoordinates(
     double lat,
@@ -262,9 +319,9 @@ class DeliveryPageState extends State<DeliveryPage> {
     setState(() {
       _isUpdatingDeliveryFee = true;
       _deliveryFeeFromApi = false;
-      _lastFeeDistanceText = null;
-      deliveryFee = 0;
     });
+
+    unawaited(_applyProvisionalFeeEstimate(lat, lng, generation));
 
     final refresh = _runDeliveryFeeRefresh(
       generation,
@@ -386,8 +443,6 @@ class DeliveryPageState extends State<DeliveryPage> {
         if (deliveryOption == 'delivery') {
           _isUpdatingDeliveryFee = true;
           _deliveryFeeFromApi = false;
-          _lastFeeDistanceText = null;
-          deliveryFee = 0;
           if (preferredAddress != null) {
             _addressController.text = preferredAddress;
             _highlightAddressField = false;
@@ -491,6 +546,8 @@ class DeliveryPageState extends State<DeliveryPage> {
   Future<void> _resolveDeliveryFeeFromApis(
     Map<String, dynamic> result, {
     required int generation,
+    Map<String, dynamic>? prefetchedFeeResult,
+    String? prefetchedDistanceText,
   }) async {
     if (!_isFeeGenerationCurrent(generation)) return;
     if (deliveryOption != 'delivery' || _apiShippingFree) return;
@@ -506,8 +563,39 @@ class DeliveryPageState extends State<DeliveryPage> {
       return;
     }
 
+    final trimmedDistance = distanceText.trim();
+
+    if (prefetchedFeeResult != null &&
+        prefetchedDistanceText != null &&
+        _distanceTextsMatch(prefetchedDistanceText, trimmedDistance)) {
+      final resolvedFee = _toDouble(prefetchedFeeResult['delivery_fee']);
+      if (resolvedFee != null) {
+        final fromApi = prefetchedFeeResult['from_api'] == true;
+        _applyDeliveryFeeResult(
+          prefetchedFeeResult,
+          trimmedDistance,
+          fromApi: fromApi,
+          generation: generation,
+        );
+        debugPrint(
+          '📊 [DELIVERY] Reused parallel calculate-delivery-fee for '
+          '"$trimmedDistance"',
+        );
+        return;
+      }
+    }
+
+    if (_distanceTextsMatch(_lastFeeDistanceText, trimmedDistance) &&
+        _deliveryFeeFromApi) {
+      debugPrint(
+        '📊 [DELIVERY] Skipping duplicate calculate-delivery-fee for '
+        '"$trimmedDistance"',
+      );
+      return;
+    }
+
     final calcResult = await DeliveryService.fetchDeliveryFeeFromApi(
-      distanceText: distanceText.trim(),
+      distanceText: trimmedDistance,
       fallbackToLocalEstimate: true,
     );
     if (!_isFeeGenerationCurrent(generation)) return;
@@ -518,7 +606,7 @@ class DeliveryPageState extends State<DeliveryPage> {
     if (resolvedFee == null) {
       debugPrint(
         '❌ [DELIVERY] calculate-delivery-fee returned no fee for '
-        '"${distanceText.trim()}" (save-billing had ${feeFromSave ?? 'n/a'})',
+        '"$trimmedDistance" (save-billing had ${feeFromSave ?? 'n/a'})',
       );
       return;
     }
@@ -531,7 +619,7 @@ class DeliveryPageState extends State<DeliveryPage> {
       _apiDeliveryFeeAmount = resolvedFee;
       deliveryFee = resolvedFee;
       _deliveryFeeFromApi = true;
-      _lastFeeDistanceText = distanceText.trim();
+      _lastFeeDistanceText = trimmedDistance;
     });
 
     debugPrint(
@@ -549,6 +637,8 @@ class DeliveryPageState extends State<DeliveryPage> {
   Future<void> _applySaveBillingSideEffects(
     Map<String, dynamic> result, {
     required int generation,
+    Map<String, dynamic>? prefetchedFeeResult,
+    String? prefetchedDistanceText,
   }) async {
     if (result['success'] != true || !mounted) return;
 
@@ -566,7 +656,12 @@ class DeliveryPageState extends State<DeliveryPage> {
     if (deliveryOption != 'delivery') return;
     if (!_isFeeGenerationCurrent(generation)) return;
 
-    await _resolveDeliveryFeeFromApis(result, generation: generation);
+    await _resolveDeliveryFeeFromApis(
+      result,
+      generation: generation,
+      prefetchedFeeResult: prefetchedFeeResult,
+      prefetchedDistanceText: prefetchedDistanceText,
+    );
   }
 
   void _applyDeliveryFeeResult(
@@ -1300,6 +1395,9 @@ class DeliveryPageState extends State<DeliveryPage> {
       cityId = _idFromLocationMap(
         cityMatch != null ? Map<String, dynamic>.from(cityMatch) : null,
       );
+      final cachedRows =
+          await DeliveryService.getCitiesForRegionCached(regionId);
+      _citiesCache[regionId] = cachedRows;
     }
 
     _cachedBillingRegionLabel = regionLabel;
@@ -2355,7 +2453,16 @@ class DeliveryPageState extends State<DeliveryPage> {
         skipLookup: skipLocationIdLookup,
       );
 
-      final result = await DeliveryService.saveDeliveryInfo(
+      String? provisionalDistanceText;
+      if (lat != null && lng != null) {
+        provisionalDistanceText =
+            await DeliveryService.provisionalDistanceTextForCoordinates(
+          lat: lat,
+          lng: lng,
+        );
+      }
+
+      final saveFuture = DeliveryService.saveDeliveryInfo(
         name: name,
         email: email,
         phone: phone,
@@ -2373,6 +2480,13 @@ class DeliveryPageState extends State<DeliveryPage> {
         lat: lat,
         lng: lng,
       );
+
+      final parallel = await DeliveryService.saveBillingAndCalculateFeeParallel(
+        saveFuture: saveFuture,
+        provisionalDistanceText: provisionalDistanceText,
+      );
+      final result = parallel.saveResult;
+      final prefetchedFeeResult = parallel.feeResult;
 
       if (!mounted) {
         print('⚠️ Widget disposed, ignoring API result');
@@ -2404,6 +2518,8 @@ class DeliveryPageState extends State<DeliveryPage> {
         await _applySaveBillingSideEffects(
           Map<String, dynamic>.from(result),
           generation: generation ?? _feeUpdateGeneration,
+          prefetchedFeeResult: prefetchedFeeResult,
+          prefetchedDistanceText: provisionalDistanceText,
         );
       } else if (mounted &&
           (generation == null || generation == _feeUpdateGeneration)) {
@@ -3851,73 +3967,32 @@ class DeliveryPageState extends State<DeliveryPage> {
     });
 
     try {
-      final result = await DeliveryService.getCitiesByRegion(regionId)
-          .timeout(const Duration(seconds: 3)); // Faster timeout
-      if (result['success'] && mounted) {
-        final citiesData = List<Map<String, dynamic>>.from(result['data']);
-        if (!mounted) return;
-        try {
-          setState(() {
-            // Deduplicate cities by description to prevent dropdown errors
-            final uniqueCities = <String, Map<String, dynamic>>{};
+      final citiesData =
+          await DeliveryService.getCitiesForRegionCached(regionId);
+      if (!mounted) return;
+      setState(() {
+        cities = List<Map<String, dynamic>>.from(citiesData);
+        _citiesCache[regionId] = cities;
+        isLoadingCities = false;
 
-            print('🔍 [CITIES] Processing ${citiesData.length} raw cities');
-
-            for (final city in citiesData) {
-              try {
-                final description = city['description']?.toString() ?? '';
-                if (description.isNotEmpty &&
-                    !uniqueCities.containsKey(description)) {
-                  uniqueCities[description] = city;
-                } else if (description.isNotEmpty) {
-                  print(
-                      '⚠️ [CITIES] Duplicate city description found: "$description"');
-                }
-              } catch (e) {
-                print('⚠️ [CITIES] Error processing city: $e');
-                continue;
-              }
-            }
-
-            cities = uniqueCities.values.toList();
-            print('✅ [CITIES] Deduplicated to ${cities.length} unique cities');
-            _citiesCache[regionId] =
-                uniqueCities.values.toList(); // Cache the deduplicated result
-            isLoadingCities = false;
-
-            // Validate pre-filled city value - use flexible matching
-            if (_cityController.text.isNotEmpty) {
-              final cityVal = _cityController.text.trim().toLowerCase();
-              final cityExists = cities.any((c) {
-                final desc = (c['description'] ?? '').toString().toLowerCase();
-                return desc == cityVal ||
-                    desc.contains(cityVal) ||
-                    cityVal.contains(desc);
-              });
-              if (!cityExists) {
-                _cityController.clear();
-                print(
-                    '⚠️ [CITIES] Pre-filled city not in cities list, cleared');
-              }
-            }
+        if (_cityController.text.isNotEmpty) {
+          final cityVal = _cityController.text.trim().toLowerCase();
+          final cityExists = cities.any((c) {
+            final desc = (c['description'] ?? '').toString().toLowerCase();
+            return desc == cityVal ||
+                desc.contains(cityVal) ||
+                cityVal.contains(desc);
           });
-        } catch (e) {
-          print('❌ [CITIES] Error setting cities state: $e');
-          setState(() {
-            cities = [];
-            isLoadingCities = false;
-          });
+          if (!cityExists) {
+            _cityController.clear();
+            print('⚠️ [CITIES] Pre-filled city not in cities list, cleared');
+          }
         }
-      } else {
-        if (!mounted) return;
-        setState(() {
-          isLoadingCities = false;
-        });
-        debugPrint('Failed to load cities: ${result['message']}');
-      }
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
+        cities = [];
         isLoadingCities = false;
       });
       debugPrint('Error loading cities: $e');

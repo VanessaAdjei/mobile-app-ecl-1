@@ -27,9 +27,9 @@ class HomeSearchBar extends StatefulWidget {
 
   /// Height for [SliverPersistentHeader] — must fit padding + field (never clip).
   static double headerExtent({required bool isTablet}) {
-    final top = isTablet ? 18.0 : 12.0;
-    final field = isTablet ? 52.0 : 48.0;
-    final bottom = isTablet ? 10.0 : 6.0;
+    final top = isTablet ? 12.0 : 8.0;
+    final field = isTablet ? 44.0 : 40.0;
+    final bottom = isTablet ? 6.0 : 4.0;
     return top + field + bottom;
   }
 
@@ -109,16 +109,16 @@ class HomeSearchBarState extends State<HomeSearchBar> {
   Widget build(BuildContext context) {
     final isTablet = widget.isTablet;
 
-    final fieldHeight = isTablet ? 52.0 : 48.0;
-    final radius = isTablet ? 24.0 : 18.0;
+    final fieldHeight = isTablet ? 44.0 : 40.0;
+    final radius = isTablet ? 22.0 : 16.0;
     final theme = context.appColors;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        isTablet ? 24 : 16,
-        isTablet ? 18 : 12,
-        isTablet ? 24 : 16,
-        isTablet ? 10 : 6,
+        isTablet ? 20 : 14,
+        isTablet ? 12 : 8,
+        isTablet ? 20 : 14,
+        isTablet ? 6 : 4,
       ),
       child: Container(
         height: fieldHeight,
@@ -135,9 +135,9 @@ class HomeSearchBarState extends State<HomeSearchBar> {
               controller: _controller,
               borderRadius: radius,
               fillColor: theme.searchBarBg,
-              textStyle: TextStyle(color: theme.searchBarText, fontSize: 15),
-              hintStyle: TextStyle(color: theme.searchBarHint, fontSize: 15),
-              prefixIcon: Icon(Icons.search, color: theme.searchBarHint),
+              textStyle: TextStyle(color: theme.searchBarText, fontSize: 14),
+              hintStyle: TextStyle(color: theme.searchBarHint, fontSize: 14),
+              prefixIcon: Icon(Icons.search, color: theme.searchBarHint, size: 20),
               suffixIconBuilder: (controller) => controller.text.isNotEmpty
                   ? IconButton(
                       icon: Icon(Icons.clear, color: theme.searchBarHint),

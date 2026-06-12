@@ -29,6 +29,12 @@ class DeliveryService {
   static Future<List<Map<String, dynamic>>>? _storesForFeeEstimateLoadFuture;
   static const Duration _storesCacheTtl = Duration(hours: 6);
 
+  static final Map<int, List<Map<String, dynamic>>> _citiesByRegionCache = {};
+  static final Map<int, DateTime> _citiesByRegionCachedAt = {};
+  static final Map<int, Future<List<Map<String, dynamic>>>> _citiesByRegionInFlight =
+      {};
+  static const Duration _citiesCacheTtl = Duration(hours: 6);
+
   // Delivery pricing constants
   // Base fee = 20
   // Base distance = 3 km
@@ -127,7 +133,7 @@ class DeliveryService {
     return null;
   }
 
-  /// Match a city label within a region via [/regions/{id}/cities].
+  /// Match a city label within a region via cached [/regions/{id}/cities].
   static Future<Map<String, dynamic>?> findCityInRegion(
     int regionId,
     String label,
@@ -135,14 +141,8 @@ class DeliveryService {
     final trimmed = label.trim();
     if (trimmed.isEmpty || regionId <= 0) return null;
 
-    final result = await getCitiesByRegion(regionId);
-    if (result['success'] != true) return null;
-
-    final cities = result['data'];
-    if (cities is! List) return null;
-
+    final cities = await getCitiesForRegionCached(regionId);
     for (final raw in cities) {
-      if (raw is! Map) continue;
       final city = Map<String, dynamic>.from(raw);
       final name = (city['description'] ?? city['name'] ?? city['title'] ?? '')
           .toString();
@@ -151,6 +151,100 @@ class DeliveryService {
       }
     }
     return null;
+  }
+
+  /// Cached city rows for a region (shared by billing lookup and pickup UI).
+  static Future<List<Map<String, dynamic>>> getCitiesForRegionCached(
+    int regionId,
+  ) async {
+    if (regionId <= 0) return const [];
+
+    final cachedAt = _citiesByRegionCachedAt[regionId];
+    final cachedRows = _citiesByRegionCache[regionId];
+    if (cachedRows != null &&
+        cachedAt != null &&
+        DateTime.now().difference(cachedAt) < _citiesCacheTtl) {
+      return cachedRows;
+    }
+
+    final inFlight = _citiesByRegionInFlight[regionId];
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final future = _fetchAndCacheCitiesForRegion(regionId);
+    _citiesByRegionInFlight[regionId] = future;
+    try {
+      return await future;
+    } finally {
+      _citiesByRegionInFlight.remove(regionId);
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> _fetchAndCacheCitiesForRegion(
+    int regionId,
+  ) async {
+    final result = await getCitiesByRegion(regionId);
+    if (result['success'] != true || result['data'] is! List) {
+      return _citiesByRegionCache[regionId] ?? const [];
+    }
+
+    final uniqueCities = <String, Map<String, dynamic>>{};
+    for (final raw in result['data'] as List) {
+      if (raw is! Map) continue;
+      final city = Map<String, dynamic>.from(raw);
+      final description = city['description']?.toString() ?? '';
+      if (description.isNotEmpty && !uniqueCities.containsKey(description)) {
+        uniqueCities[description] = city;
+      }
+    }
+
+    final rows = uniqueCities.values.toList();
+    _citiesByRegionCache[regionId] = rows;
+    _citiesByRegionCachedAt[regionId] = DateTime.now();
+    return rows;
+  }
+
+  /// Provisional distance label from coordinates + cached stores (for parallel fee API).
+  static Future<String?> provisionalDistanceTextForCoordinates({
+    required double lat,
+    required double lng,
+  }) async {
+    final stores = await getStoresForFeeEstimate();
+    final estimate = estimateFeeFromCoordinates(
+      lat: lat,
+      lng: lng,
+      stores: stores,
+    );
+    return estimate?['distance_text']?.toString();
+  }
+
+  /// Runs save-billing and calculate-delivery-fee concurrently when distance is known.
+  static Future<({
+    Map<String, dynamic> saveResult,
+    Map<String, dynamic>? feeResult,
+  })> saveBillingAndCalculateFeeParallel({
+    required Future<Map<String, dynamic>> saveFuture,
+    String? provisionalDistanceText,
+    bool fallbackToLocalEstimate = true,
+  }) async {
+    final trimmedDistance = provisionalDistanceText?.trim() ?? '';
+    final feeFuture = trimmedDistance.isNotEmpty
+        ? fetchDeliveryFeeFromApi(
+            distanceText: trimmedDistance,
+            fallbackToLocalEstimate: fallbackToLocalEstimate,
+          )
+        : Future<Map<String, dynamic>?>.value(null);
+
+    final results = await Future.wait<dynamic>([
+      saveFuture,
+      feeFuture,
+    ]);
+
+    return (
+      saveResult: Map<String, dynamic>.from(results[0] as Map),
+      feeResult: results[1] as Map<String, dynamic>?,
+    );
   }
 
   // save where they want stuff delivered

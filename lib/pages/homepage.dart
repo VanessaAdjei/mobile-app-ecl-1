@@ -187,15 +187,16 @@ class _HomeSearchSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.appColors;
-    final radius = isTablet ? 24.0 : 18.0;
+    final radius = isTablet ? 22.0 : 16.0;
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        isTablet ? 24 : 16,
-        isTablet ? 18 : 12,
-        isTablet ? 24 : 16,
-        isTablet ? 10 : 6,
+        isTablet ? 20 : 14,
+        isTablet ? 12 : 8,
+        isTablet ? 20 : 14,
+        isTablet ? 6 : 4,
       ),
       child: Container(
+        height: isTablet ? 44.0 : 40.0,
         decoration: BoxDecoration(
           color: theme.searchBarBg,
           borderRadius: BorderRadius.circular(radius),
@@ -257,13 +258,13 @@ class _HomeHeaderSearchFlexibleSpace extends StatelessWidget {
                           padding: EdgeInsets.only(left: isTablet ? 16 : 1),
                           child: Image.asset(
                             'assets/images/png.png',
-                            height: isTablet ? 32 : 20,
+                            height: isTablet ? 26 : 17,
                           ),
                         ),
                         CartIconButton(
                           key: tourCartKey,
                           iconColor: Colors.white,
-                          iconSize: isTablet ? 28 : 24,
+                          iconSize: isTablet ? 24 : 22,
                           backgroundColor: Colors.transparent,
                         ),
                       ],
@@ -1039,7 +1040,7 @@ class HomePageState extends State<HomePage>
     bool isTablet, {
     bool skeleton = false,
   }) {
-    final toolbarHeight = isTablet ? 80.0 : 60.0;
+    final toolbarHeight = isTablet ? 64.0 : 48.0;
     final searchExtent = HomeSearchBar.headerExtent(isTablet: isTablet);
     final top = MediaQuery.viewPaddingOf(context).top;
     final expandedHeight = top + toolbarHeight + searchExtent;
