@@ -79,10 +79,10 @@ class PaymentSectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.appColors;
-    final colors = accent?.gradient ??
-        const [AppColors.primary, AppColors.primaryDark];
-    final badgeSize = compact ? 30.0 : 36.0;
-    final iconSize = compact ? 15.0 : 18.0;
+    final colors =
+        accent?.gradient ?? const [AppColors.primary, AppColors.primaryDark];
+    final badgeSize = compact ? 28.0 : 32.0;
+    final iconSize = compact ? 14.0 : 16.0;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -131,7 +131,7 @@ class PaymentSectionHeader extends StatelessWidget {
               Text(
                 title,
                 style: GoogleFonts.poppins(
-                  fontSize: compact ? 14 : 15,
+                  fontSize: compact ? 13 : 14,
                   fontWeight: FontWeight.w600,
                   height: 1.2,
                   color: t.ink,
@@ -196,7 +196,7 @@ class PaymentSectionCard extends StatelessWidget {
         children: [
           if (accent != null)
             Container(
-              height: 3,
+              height: 2,
               decoration: BoxDecoration(
                 gradient: LinearGradient(colors: accent!.gradient),
               ),
@@ -218,13 +218,13 @@ abstract final class PaymentSectionStyle {
       );
 
   static EdgeInsets paddingOf(BuildContext context) =>
-      EdgeInsets.all(ResponsiveUtils.scaled(context, 14));
+      EdgeInsets.all(ResponsiveUtils.scaled(context, 10));
 
   static double radiusOf(BuildContext context) =>
-      ResponsiveUtils.scaled(context, 16);
+      ResponsiveUtils.scaled(context, 13);
 
   static double innerRadiusOf(BuildContext context) =>
-      ResponsiveUtils.scaled(context, 10);
+      ResponsiveUtils.scaled(context, 8);
 
   static BoxDecoration cardDecoration(
     BuildContext context, {

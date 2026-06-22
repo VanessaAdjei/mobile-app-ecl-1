@@ -581,7 +581,11 @@ class PaymentWebViewState extends State<PaymentWebView> {
 
       if (!mounted) return;
 
-      final resolved = parsePaymentRedirectUrl(targetUrl) ?? targetUrl;
+      var resolved = parsePaymentRedirectUrl(targetUrl) ?? targetUrl;
+      final expected = _expectedPayableAmount;
+      if (expected != null && expected > 0) {
+        resolved = alignExpressPayCheckoutUrl(resolved, expected);
+      }
       if (resolved.isEmpty) {
         setState(() {
           _loadError =
@@ -942,7 +946,11 @@ class PaymentWebViewState extends State<PaymentWebView> {
       await _tearDownWebView(forReinit: true);
     }
     _webViewTornDown = false;
-    final resolved = parsePaymentRedirectUrl(portalUrl) ?? portalUrl.trim();
+    var resolved = parsePaymentRedirectUrl(portalUrl) ?? portalUrl.trim();
+    final expected = _expectedPayableAmount;
+    if (expected != null && expected > 0) {
+      resolved = alignExpressPayCheckoutUrl(resolved, expected);
+    }
     final parsed = Uri.tryParse(resolved);
     if (parsed == null ||
         !parsed.hasScheme ||

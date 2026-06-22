@@ -19,6 +19,8 @@ class CartItem {
   final String urlName;
   final double totalPrice;
   bool isSelected;
+  /// When non-null (from check-auth), quantity cannot be changed on the cart page.
+  final int? servedBy;
 
   CartItem({
     required this.id,
@@ -36,7 +38,11 @@ class CartItem {
     required this.urlName,
     required this.totalPrice,
     this.isSelected = true,
+    this.servedBy,
   }) : lastModified = lastModified ?? DateTime.now();
+
+  /// `served_by == null` in check-auth → user may +/- qty; otherwise read-only.
+  bool get canAdjustQuantity => servedBy == null;
 
   static double _parseDouble(dynamic value) {
     if (value is double) return value;
@@ -49,6 +55,13 @@ class CartItem {
     if (value is int) return value;
     if (value is String) return int.tryParse(value) ?? 1;
     return 1;
+  }
+
+  static int? _parseNullableInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value);
+    return null;
   }
 
   static DateTime? _parseDate(dynamic value) {
@@ -76,6 +89,7 @@ class CartItem {
       'original_product_id': originalProductId,
       'server_product_id': serverProductId,
       'is_selected': isSelected,
+      'served_by': servedBy,
     };
   }
 
@@ -102,6 +116,7 @@ class CartItem {
       urlName: json['url_name'] ?? '',
       totalPrice: price * quantity,
       isSelected: json['is_selected'] ?? true,
+      servedBy: _parseNullableInt(json['served_by']),
     );
   }
 
@@ -131,6 +146,7 @@ class CartItem {
       urlName: json['url_name']?.toString() ?? '',
       totalPrice: totalPrice > 0 ? totalPrice : price * resolvedQty,
       isSelected: json['is_selected'] ?? true,
+      servedBy: _parseNullableInt(json['served_by']),
     );
   }
 
@@ -155,6 +171,7 @@ class CartItem {
     String? urlName,
     double? totalPrice,
     bool? isSelected,
+    int? servedBy,
   }) {
     return CartItem(
       id: id ?? this.id,
@@ -172,6 +189,7 @@ class CartItem {
       urlName: urlName ?? this.urlName,
       totalPrice: totalPrice ?? this.totalPrice,
       isSelected: isSelected ?? this.isSelected,
+      servedBy: servedBy ?? this.servedBy,
     );
   }
 

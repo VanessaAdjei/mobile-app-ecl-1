@@ -73,7 +73,9 @@ class OrderThresholdPromoBanner extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w600,
-                  color: t.isDark ? AppColors.primaryLight : const Color(0xFF1B4332),
+                  color: t.isDark
+                      ? AppColors.primaryLight
+                      : const Color(0xFF1B4332),
                   height: 1.3,
                 ),
               ),

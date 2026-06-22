@@ -4,6 +4,7 @@ import 'package:eclapp/pages/homepage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/home_tour_gate.dart';
 import 'spotlight_tour.dart';
 
 /// GlobalKeys for home-screen coach marks — attach to matching widgets.
@@ -212,6 +213,7 @@ class HomePageTour {
       steps: steps,
       onFinished: () {
         unawaited(prefs.setBool('has_seen_smart_tips', true));
+        HomeTourGate.release();
       },
     );
     return true;

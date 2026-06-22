@@ -634,7 +634,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                             _ProfileMenuTile(
                               icon: Icons.privacy_tip_outlined,
                               iconColor: muted,
-                              title: 'Privacy policy',
+                              title: 'Privacy Statement',
                               ink: ink,
                               muted: muted,
                               onTap: () => Navigator.push(

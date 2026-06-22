@@ -193,7 +193,7 @@ class _PostCheckoutOrderContentState extends State<PostCheckoutOrderContent> {
                   ),
                 ],
                 if (order.contactNumber.trim().isNotEmpty) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 6),
                   _enter(
                     _SmsUpdatesNoticeCard(
                       phone: order.contactNumber.trim(),
@@ -1192,12 +1192,12 @@ class _SmsUpdatesNoticeCard extends StatelessWidget {
     final t = context.appColors;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: t.isDark
             ? Colors.green.withValues(alpha: 0.12)
             : Colors.green.shade50,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: t.isDark
               ? Colors.green.withValues(alpha: 0.35)
@@ -1209,20 +1209,20 @@ class _SmsUpdatesNoticeCard extends StatelessWidget {
         children: [
           Icon(
             Icons.sms_outlined,
-            size: 20,
+            size: 14,
             color: t.isDark ? Colors.green.shade300 : Colors.green.shade700,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 6),
           Expanded(
             child: Text(
               'We will send delivery updates to $phone by text. '
               'This screen keeps your order details here; dispatch and delivery '
               'updates arrive by SMS.',
               style: GoogleFonts.poppins(
-                fontSize: 12,
+                fontSize: 10,
                 fontWeight: FontWeight.w500,
                 color: PostCheckoutDesign.ink(context),
-                height: 1.4,
+                height: 1.25,
               ),
             ),
           ),

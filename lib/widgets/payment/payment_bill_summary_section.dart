@@ -53,87 +53,86 @@ class PaymentBillSummarySection extends StatelessWidget {
   }
 
   bool get _isDeliveryFree =>
-      showDeliveryFee &&
-      (forceFreeDelivery || _displayDeliveryFee <= 0);
+      showDeliveryFee && (forceFreeDelivery || _displayDeliveryFee <= 0);
 
   @override
   Widget build(BuildContext context) {
     final accent = PaymentSectionAccent.bill(context);
 
     final content = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          PaymentSectionHeader(
-            eyebrow: 'Payment',
-            title: 'Bill summary',
-            icon: Icons.receipt_long_rounded,
-            accent: accent,
-            compact: embedded,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        PaymentSectionHeader(
+          eyebrow: 'Payment',
+          title: 'Bill summary',
+          icon: Icons.receipt_long_rounded,
+          accent: accent,
+          compact: embedded,
+        ),
+        SizedBox(height: embedded ? 8 : 10),
+        OrderThresholdPromoBanner(compact: true, subtotal: subtotal),
+        const SizedBox(height: 8),
+        _PromoCodeBlock(
+          lockPromoEditing: lockPromoEditing,
+          appliedPromoCode: appliedPromoCode,
+          promoError: promoError,
+          isApplyingPromo: isApplyingPromo,
+          promoCodeController: promoCodeController,
+          discountAmount: discountAmount,
+          onApplyPromo: onApplyPromo,
+          onRemovePromo: onRemovePromo,
+        ),
+        SizedBox(height: embedded ? 10 : 12),
+        Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: embedded ? 0 : 10,
+            vertical: embedded ? 4 : 8,
           ),
-          SizedBox(height: embedded ? 10 : 12),
-          OrderThresholdPromoBanner(compact: true, subtotal: subtotal),
-          const SizedBox(height: 12),
-          _PromoCodeBlock(
-            lockPromoEditing: lockPromoEditing,
-            appliedPromoCode: appliedPromoCode,
-            promoError: promoError,
-            isApplyingPromo: isApplyingPromo,
-            promoCodeController: promoCodeController,
-            discountAmount: discountAmount,
-            onApplyPromo: onApplyPromo,
-            onRemovePromo: onRemovePromo,
-          ),
-          SizedBox(height: embedded ? 12 : 14),
-          Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: embedded ? 0 : 12,
-              vertical: embedded ? 4 : 10,
-            ),
-            decoration: embedded
-                ? null
-                : PaymentSectionStyle.innerPanelDecoration(
-                    context,
-                    accent: accent,
-                  ),
-            child: Column(
-              children: [
-                PaymentSummaryRow(
-                  label: 'Subtotal',
-                  value: subtotal,
-                  icon: Icons.shopping_cart_outlined,
+          decoration: embedded
+              ? null
+              : PaymentSectionStyle.innerPanelDecoration(
+                  context,
+                  accent: accent,
                 ),
-                if (discountAmount > 0) ...[
-                  const SizedBox(height: 6),
-                  PaymentSummaryRow(
-                    label: 'Discount',
-                    value: -discountAmount,
-                    isDiscount: true,
-                    icon: Icons.local_offer_outlined,
-                  ),
-                ],
-                if (showDeliveryFee) ...[
-                  const SizedBox(height: 6),
-                  PaymentSummaryRow(
-                    label: _isDeliveryFree ? 'Delivery' : 'Delivery fee',
-                    value: _displayDeliveryFee,
-                    isFree: _isDeliveryFree,
-                    icon: Icons.local_shipping_outlined,
-                  ),
-                ],
-                if (emergencyOrderFee > 0) ...[
-                  const SizedBox(height: 6),
-                  PaymentSummaryRow(
-                    label: 'xPress order fee',
-                    value: emergencyOrderFee,
-                    icon: Icons.bolt_rounded,
-                  ),
-                ],
+          child: Column(
+            children: [
+              PaymentSummaryRow(
+                label: 'Subtotal',
+                value: subtotal,
+                icon: Icons.shopping_cart_outlined,
+              ),
+              if (discountAmount > 0) ...[
+                const SizedBox(height: 6),
+                PaymentSummaryRow(
+                  label: 'Discount',
+                  value: -discountAmount,
+                  isDiscount: true,
+                  icon: Icons.local_offer_outlined,
+                ),
               ],
-            ),
+              if (showDeliveryFee) ...[
+                const SizedBox(height: 6),
+                PaymentSummaryRow(
+                  label: _isDeliveryFree ? 'Delivery' : 'Delivery fee',
+                  value: _displayDeliveryFee,
+                  isFree: _isDeliveryFree,
+                  icon: Icons.local_shipping_outlined,
+                ),
+              ],
+              if (emergencyOrderFee > 0) ...[
+                const SizedBox(height: 6),
+                PaymentSummaryRow(
+                  label: 'xPress order fee',
+                  value: emergencyOrderFee,
+                  icon: Icons.bolt_rounded,
+                ),
+              ],
+            ],
           ),
-        ],
-      );
+        ),
+      ],
+    );
 
     if (embedded) return content;
 

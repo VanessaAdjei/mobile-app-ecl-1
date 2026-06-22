@@ -458,7 +458,10 @@ class PaymentPageState extends State<PaymentPage> {
             resolveRedirectUrl: () async {
               final responseBody = await _checkoutPaymentService
                   .submitExpressPayment(params: expressPayParams);
-              final redirectUrl = parsePaymentRedirectUrl(responseBody);
+              final redirectUrl = prepareExpressPayPortalUrl(
+                responseBody,
+                totals.total,
+              );
               if (redirectUrl == null || redirectUrl.isEmpty) {
                 throw Exception(
                   'Could not read a payment page URL from the server. '
@@ -570,257 +573,259 @@ class PaymentPageState extends State<PaymentPage> {
           ),
         ),
         child: Stack(
-        children: [
-          Column(
-            children: [
-              CheckoutFlowHeader(
-                title: 'Checkout',
-                subtitle: 'Review & pay securely',
-                activeStep: 3,
-                completedSteps: const {1, 2},
-                confirmOnBack: true,
-                leaveTitle: 'Leave Checkout',
-                leaveMessage:
-                    'Are you sure you want to leave the checkout page? Your progress will be saved.',
-                footer: widget.isOrderUrgent
-                    ? Container(
-                        width: double.infinity,
-                        margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: Colors.red.withValues(alpha: 0.4),
+          children: [
+            Column(
+              children: [
+                CheckoutFlowHeader(
+                  title: 'Checkout',
+                  subtitle: 'Review & pay securely',
+                  activeStep: 3,
+                  completedSteps: const {1, 2},
+                  confirmOnBack: true,
+                  leaveTitle: 'Leave Checkout',
+                  leaveMessage:
+                      'Are you sure you want to leave the checkout page? Your progress will be saved.',
+                  footer: widget.isOrderUrgent
+                      ? Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
                           ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.emergency_rounded,
-                              size: 15,
-                              color: theme.isDark
-                                  ? Colors.red.shade300
-                                  : Colors.red.shade700,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Urgent Order',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: theme.isDark
-                                    ? Colors.red.shade200
-                                    : Colors.red.shade800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : null,
-              ),
-              Expanded(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Consumer<CartProvider>(
-                      builder: (context, cart, child) {
-                        final totals = _checkoutTotals;
-                        return RefreshIndicator(
-                          color: AppColors.primary,
-                          onRefresh: _refreshPaymentPage,
-                          child: SingleChildScrollView(
-                            controller: _scrollController,
-                            physics: const AlwaysScrollableScrollPhysics(
-                              parent: BouncingScrollPhysics(),
-                            ),
-                            padding: const EdgeInsets.fromLTRB(0, 10, 0, 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (widget._isDelivery) ...[
-                                  _paymentSection(
-                                    0,
-                                    PaymentDeliveryDetailsCard(
-                                      deliveryAddress: widget.deliveryAddress,
-                                      contactNumber: widget.contactNumber,
-                                      deliveryOption: widget.deliveryOption,
-                                      deliveryIsFree:
-                                          totals.chargedDeliveryFee <= 0,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                ],
-                                _paymentSection(
-                                  widget._isDelivery ? 1 : 0,
-                                  PaymentOrderItemsSection(
-                                    selectedItems: cart.getSelectedItems(),
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                _paymentSection(
-                                  widget._isDelivery ? 2 : 1,
-                                  PaymentBillSummarySection(
-                                    subtotal: totals.merchandiseSubtotal,
-                                    deliveryFee: totals.deliveryFee,
-                                    showDeliveryFee: totals.isDelivery,
-                                    emergencyOrderFee: totals.emergencyOrderFee,
-                                    discountAmount: totals.discount,
-                                    runningSubtotal: totals.runningSubtotal,
-                                    useRawDeliveryFee: true,
-                                    forceFreeDelivery: totals.shippingFree,
-                                    lockPromoEditing: false,
-                                    appliedPromoCode: _appliedPromoCode,
-                                    promoError: _promoError,
-                                    isApplyingPromo: _isApplyingPromo,
-                                    promoCodeController: _promoCodeController,
-                                    onApplyPromo: _applyPromoCode,
-                                    onRemovePromo: _removePromoCode,
-                                  ),
-                                ),
-                                if (_paymentError != null) ...[
-                                  const SizedBox(height: 8),
-                                  Animate(
-                                    effects: [
-                                      FadeEffect(duration: 400.ms),
-                                      SlideEffect(
-                                        duration: 400.ms,
-                                        begin: const Offset(0, 0.1),
-                                        end: Offset.zero,
-                                      ),
-                                    ],
-                                    child: Container(
-                                      margin: const EdgeInsets.symmetric(
-                                        horizontal: 14,
-                                      ),
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: theme.isDark
-                                            ? Colors.red.withValues(alpha: 0.12)
-                                            : Colors.red.shade50,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: Colors.red.withValues(
-                                            alpha:
-                                                theme.isDark ? 0.35 : 0.25,
-                                          ),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Icon(
-                                            Icons.error_outline_rounded,
-                                            size: 18,
-                                            color: theme.isDark
-                                                ? Colors.red.shade300
-                                                : Colors.red.shade600,
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Text(
-                                              _paymentError!,
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 12,
-                                                color: theme.isDark
-                                                    ? Colors.red.shade300
-                                                    : Colors.red.shade700,
-                                                height: 1.35,
-                                              ),
-                                              maxLines: 5,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ],
+                          decoration: BoxDecoration(
+                            color: Colors.red.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Colors.red.withValues(alpha: 0.4),
                             ),
                           ),
-                        );
-                      },
-                    ),
-                    if (_showScrollHint)
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: IgnorePointer(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Container(
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      theme.pageBg.withValues(alpha: 0),
-                                      theme.pageBg,
-                                    ],
-                                  ),
-                                ),
+                              Icon(
+                                Icons.emergency_rounded,
+                                size: 15,
+                                color: theme.isDark
+                                    ? Colors.red.shade300
+                                    : Colors.red.shade700,
                               ),
-                              Container(
-                                width: double.infinity,
-                                color: theme.pageBg,
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.keyboard_arrow_down_rounded,
-                                      size: 20,
-                                      color: AppColors.primaryLight,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Scroll for more',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: theme.isDark
-                                            ? Colors.white70
-                                            : AppColors.primaryDark,
-                                      ),
-                                    ),
-                                  ],
+                              const SizedBox(width: 6),
+                              Text(
+                                'Urgent Order',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.isDark
+                                      ? Colors.red.shade200
+                                      : Colors.red.shade800,
                                 ),
                               ),
                             ],
                           ),
-                        ),
+                        )
+                      : null,
+                ),
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Consumer<CartProvider>(
+                        builder: (context, cart, child) {
+                          final totals = _checkoutTotals;
+                          return RefreshIndicator(
+                            color: AppColors.primary,
+                            onRefresh: _refreshPaymentPage,
+                            child: SingleChildScrollView(
+                              controller: _scrollController,
+                              physics: const AlwaysScrollableScrollPhysics(
+                                parent: BouncingScrollPhysics(),
+                              ),
+                              padding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (widget._isDelivery) ...[
+                                    _paymentSection(
+                                      0,
+                                      PaymentDeliveryDetailsCard(
+                                        deliveryAddress: widget.deliveryAddress,
+                                        contactNumber: widget.contactNumber,
+                                        deliveryOption: widget.deliveryOption,
+                                        deliveryIsFree:
+                                            totals.chargedDeliveryFee <= 0,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                  ],
+                                  _paymentSection(
+                                    widget._isDelivery ? 1 : 0,
+                                    PaymentOrderItemsSection(
+                                      selectedItems: cart.getSelectedItems(),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  _paymentSection(
+                                    widget._isDelivery ? 2 : 1,
+                                    PaymentBillSummarySection(
+                                      subtotal: totals.merchandiseSubtotal,
+                                      deliveryFee: totals.deliveryFee,
+                                      showDeliveryFee: totals.isDelivery,
+                                      emergencyOrderFee:
+                                          totals.emergencyOrderFee,
+                                      discountAmount: totals.discount,
+                                      runningSubtotal: totals.runningSubtotal,
+                                      useRawDeliveryFee: true,
+                                      forceFreeDelivery: totals.shippingFree,
+                                      lockPromoEditing: false,
+                                      appliedPromoCode: _appliedPromoCode,
+                                      promoError: _promoError,
+                                      isApplyingPromo: _isApplyingPromo,
+                                      promoCodeController: _promoCodeController,
+                                      onApplyPromo: _applyPromoCode,
+                                      onRemovePromo: _removePromoCode,
+                                    ),
+                                  ),
+                                  if (_paymentError != null) ...[
+                                    const SizedBox(height: 8),
+                                    Animate(
+                                      effects: [
+                                        FadeEffect(duration: 400.ms),
+                                        SlideEffect(
+                                          duration: 400.ms,
+                                          begin: const Offset(0, 0.1),
+                                          end: Offset.zero,
+                                        ),
+                                      ],
+                                      child: Container(
+                                        margin: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                        ),
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: theme.isDark
+                                              ? Colors.red
+                                                  .withValues(alpha: 0.12)
+                                              : Colors.red.shade50,
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: Colors.red.withValues(
+                                              alpha: theme.isDark ? 0.35 : 0.25,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Icon(
+                                              Icons.error_outline_rounded,
+                                              size: 18,
+                                              color: theme.isDark
+                                                  ? Colors.red.shade300
+                                                  : Colors.red.shade600,
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Text(
+                                                _paymentError!,
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 12,
+                                                  color: theme.isDark
+                                                      ? Colors.red.shade300
+                                                      : Colors.red.shade700,
+                                                  height: 1.35,
+                                                ),
+                                                maxLines: 5,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                  ],
+                      if (_showScrollHint)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: IgnorePointer(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        theme.pageBg.withValues(alpha: 0),
+                                        theme.pageBg,
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  width: double.infinity,
+                                  color: theme.pageBg,
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.keyboard_arrow_down_rounded,
+                                        size: 20,
+                                        color: AppColors.primaryLight,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Scroll for more',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: theme.isDark
+                                              ? Colors.white70
+                                              : AppColors.primaryDark,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              _buildPaymentPayBar(
-                theme: theme,
-                payBarTopPadding: payBarTopPadding,
-                payBarBottomPadding: payBarBottomPadding,
-                payBarGap: payBarGap,
-              ),
-            ],
-          ),
-          if (_isProcessingPayment)
-            Container(
-              color: PaymentSlideDesign.processingOverlay(context),
-              child: Center(
-                child: CircularProgressIndicator(
-                  color: PaymentSlideDesign.accent(context),
+                _buildPaymentPayBar(
+                  theme: theme,
+                  payBarTopPadding: payBarTopPadding,
+                  payBarBottomPadding: payBarBottomPadding,
+                  payBarGap: payBarGap,
                 ),
-              ),
+              ],
             ),
-        ],
+            if (_isProcessingPayment)
+              Container(
+                color: PaymentSlideDesign.processingOverlay(context),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: PaymentSlideDesign.accent(context),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -1002,181 +1007,181 @@ class PaymentPageState extends State<PaymentPage> {
         final bool labelOnProgress = _slidePosition > containerWidth * 0.42;
 
         return Opacity(
-      opacity: canPay ? 1 : PaymentSlideDesign.disabledOpacity(context),
-      child: GestureDetector(
-        onHorizontalDragStart: (_) {
-          if (canPay) {
-            setState(() {
-              _isSliding = true;
-            });
-          }
-        },
-        onHorizontalDragUpdate: (details) {
-          if (canPay && _isSliding) {
-            final newPosition = (_slidePosition + details.delta.dx)
-                .clamp(0.0, maxSlideDistance);
-            setState(() {
-              _slidePosition = newPosition;
-            });
+          opacity: canPay ? 1 : PaymentSlideDesign.disabledOpacity(context),
+          child: GestureDetector(
+            onHorizontalDragStart: (_) {
+              if (canPay) {
+                setState(() {
+                  _isSliding = true;
+                });
+              }
+            },
+            onHorizontalDragUpdate: (details) {
+              if (canPay && _isSliding) {
+                final newPosition = (_slidePosition + details.delta.dx)
+                    .clamp(0.0, maxSlideDistance);
+                setState(() {
+                  _slidePosition = newPosition;
+                });
 
-            if (newPosition >= threshold && !wasCompleted) {
-              HapticFeedback.mediumImpact();
-            }
-          }
-        },
-        onHorizontalDragEnd: (_) {
-          if (canPay) {
-            if (_slidePosition >= threshold) {
-              HapticFeedback.heavyImpact();
-              processPayment(cart);
-            } else {
-              setState(() {
-                _slidePosition = 0.0;
-                _isSliding = false;
-              });
-            }
-          }
-        },
-        child: Container(
-          height: 48,
-          decoration: BoxDecoration(
-            color: PaymentSlideDesign.trackBg(context),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: PaymentSlideDesign.trackBorder(context),
-              width: PaymentSlideDesign.trackBorderWidth(context),
+                if (newPosition >= threshold && !wasCompleted) {
+                  HapticFeedback.mediumImpact();
+                }
+              }
+            },
+            onHorizontalDragEnd: (_) {
+              if (canPay) {
+                if (_slidePosition >= threshold) {
+                  HapticFeedback.heavyImpact();
+                  processPayment(cart);
+                } else {
+                  setState(() {
+                    _slidePosition = 0.0;
+                    _isSliding = false;
+                  });
+                }
+              }
+            },
+            child: Container(
+              height: 48,
+              decoration: BoxDecoration(
+                color: PaymentSlideDesign.trackBg(context),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: PaymentSlideDesign.trackBorder(context),
+                  width: PaymentSlideDesign.trackBorderWidth(context),
+                ),
+              ),
+              child: Stack(
+                clipBehavior: Clip.hardEdge,
+                children: [
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 100),
+                      curve: Curves.easeOut,
+                      width: _slidePosition,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: PaymentSlideDesign.progressColors(context),
+                        ),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(24),
+                          bottomLeft: Radius.circular(24),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (_isProcessingPayment) ...[
+                            SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                color: PaymentSlideDesign.accent(context),
+                                strokeWidth: 2,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Processing…',
+                              style: TextStyle(
+                                color: theme.ink,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ] else ...[
+                            Icon(
+                              canPay
+                                  ? Icons.lock_outline
+                                  : Icons.shopping_cart_outlined,
+                              size: 14,
+                              color: PaymentSlideDesign.labelIconColor(
+                                context,
+                                onProgress: labelOnProgress,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              !canPay && selectedItems.isEmpty
+                                  ? 'Select items to pay'
+                                  : isCompleted
+                                      ? 'Release to pay'
+                                      : 'Swipe to pay',
+                              style: TextStyle(
+                                color: PaymentSlideDesign.labelColor(
+                                  context,
+                                  onProgress: labelOnProgress,
+                                ),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 100),
+                    curve: Curves.easeOut,
+                    left: _slidePosition.clamp(0.0, maxSlideDistance),
+                    top: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: handleSize,
+                      decoration: BoxDecoration(
+                        color: PaymentSlideDesign.handleBg(context),
+                        borderRadius: BorderRadius.circular(24),
+                        border: PaymentSlideDesign.handleBorder(context),
+                        boxShadow: PaymentSlideDesign.handleShadow(context),
+                      ),
+                      child: Center(
+                        child: _isProcessingPayment
+                            ? SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  color: PaymentSlideDesign.accent(context),
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Icon(
+                                isCompleted
+                                    ? Icons.check_circle
+                                    : Icons.arrow_forward,
+                                color: isCompleted
+                                    ? PaymentSlideDesign.accent(context)
+                                    : theme.muted,
+                                size: 20,
+                              )
+                                .animate(
+                                  onPlay: canPay && !isCompleted
+                                      ? (c) => c.repeat(reverse: true)
+                                      : null,
+                                )
+                                .moveX(
+                                  begin: 0,
+                                  end: 3,
+                                  duration: 900.ms,
+                                  curve: Curves.easeInOut,
+                                ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          child: Stack(
-            clipBehavior: Clip.hardEdge,
-            children: [
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 100),
-                  curve: Curves.easeOut,
-                  width: _slidePosition,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: PaymentSlideDesign.progressColors(context),
-                    ),
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      bottomLeft: Radius.circular(24),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned.fill(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (_isProcessingPayment) ...[
-                        SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            color: PaymentSlideDesign.accent(context),
-                            strokeWidth: 2,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Processing…',
-                          style: TextStyle(
-                            color: theme.ink,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ] else ...[
-                        Icon(
-                          canPay
-                              ? Icons.lock_outline
-                              : Icons.shopping_cart_outlined,
-                          size: 14,
-                          color: PaymentSlideDesign.labelIconColor(
-                            context,
-                            onProgress: labelOnProgress,
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          !canPay && selectedItems.isEmpty
-                              ? 'Select items to pay'
-                              : isCompleted
-                                  ? 'Release to pay'
-                                  : 'Swipe to pay',
-                          style: TextStyle(
-                            color: PaymentSlideDesign.labelColor(
-                              context,
-                              onProgress: labelOnProgress,
-                            ),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 100),
-                curve: Curves.easeOut,
-                left: _slidePosition.clamp(0.0, maxSlideDistance),
-                top: 0,
-                bottom: 0,
-                child: Container(
-                  width: handleSize,
-                  decoration: BoxDecoration(
-                    color: PaymentSlideDesign.handleBg(context),
-                    borderRadius: BorderRadius.circular(24),
-                    border: PaymentSlideDesign.handleBorder(context),
-                    boxShadow: PaymentSlideDesign.handleShadow(context),
-                  ),
-                  child: Center(
-                    child: _isProcessingPayment
-                        ? SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              color: PaymentSlideDesign.accent(context),
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : Icon(
-                            isCompleted
-                                ? Icons.check_circle
-                                : Icons.arrow_forward,
-                            color: isCompleted
-                                ? PaymentSlideDesign.accent(context)
-                                : theme.muted,
-                            size: 20,
-                          )
-                              .animate(
-                                onPlay: canPay && !isCompleted
-                                    ? (c) => c.repeat(reverse: true)
-                                    : null,
-                              )
-                              .moveX(
-                                begin: 0,
-                                end: 3,
-                                duration: 900.ms,
-                                curve: Curves.easeInOut,
-                              ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+        );
       },
     );
   }

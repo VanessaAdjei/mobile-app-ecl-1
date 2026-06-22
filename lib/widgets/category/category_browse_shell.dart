@@ -422,15 +422,15 @@ class CategoryBrowsePaginationBar extends StatelessWidget {
     required this.totalItems,
     required this.onPrevious,
     required this.onNext,
+    this.itemsPerPage = 12,
   });
 
   final int currentPage;
   final int totalPages;
   final int totalItems;
+  final int itemsPerPage;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
-
-  static const double _footerHeight = 36;
 
   @override
   Widget build(BuildContext context) {
@@ -439,145 +439,73 @@ class CategoryBrowsePaginationBar extends StatelessWidget {
     final theme = context.appColors;
     final canGoBack = currentPage > 0;
     final canGoForward = currentPage < totalPages - 1;
-    final progress = (currentPage + 1) / totalPages;
+    final rangeStart = currentPage * itemsPerPage + 1;
+    final rangeEnd = (rangeStart + itemsPerPage - 1).clamp(1, totalItems);
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: SubcategoryDesign.railBorder(context)),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.isDark
+              ? const Color(0xFF151D2B)
+              : const Color(0xFFF6FAF7),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: SubcategoryDesign.railBorder(context)),
         ),
-      ),
-      child: SizedBox(
-        height: _footerHeight,
-        width: double.infinity,
-        child: Center(
-          child: _CategoryPaginationPill(
-            theme: theme,
-            currentPage: currentPage,
-            totalPages: totalPages,
-            progress: progress,
-            canGoBack: canGoBack,
-            canGoForward: canGoForward,
-            onPrevious: onPrevious,
-            onNext: onNext,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CategoryPaginationPill extends StatelessWidget {
-  const _CategoryPaginationPill({
-    required this.theme,
-    required this.currentPage,
-    required this.totalPages,
-    required this.progress,
-    required this.canGoBack,
-    required this.canGoForward,
-    required this.onPrevious,
-    required this.onNext,
-  });
-
-  final AppThemeColors theme;
-  final int currentPage;
-  final int totalPages;
-  final double progress;
-  final bool canGoBack;
-  final bool canGoForward;
-  final VoidCallback? onPrevious;
-  final VoidCallback? onNext;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: SubcategoryDesign.accent(context)
-                .withValues(alpha: theme.isDark ? 0.12 : 0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          height: 32,
-          constraints: const BoxConstraints(minWidth: 180, maxWidth: 236),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: theme.isDark
-                  ? const [Color(0xFF151D2B), Color(0xFF111827)]
-                  : const [Color(0xFFFFFFFF), Color(0xFFF8FBF9)],
-            ),
-            border: Border.all(
-              color: SubcategoryDesign.selectedBorder(context),
-            ),
-          ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              _PaginationEdgeButton(
+              _PaginationNavButton(
                 icon: Icons.chevron_left_rounded,
+                label: 'Prev',
                 enabled: canGoBack,
                 onTap: onPrevious,
-              ),
-              Container(
-                width: 1,
-                height: 16,
-                color: SubcategoryDesign.railBorder(context),
+                compact: true,
               ),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '${currentPage + 1} / $totalPages',
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: SubcategoryDesign.selectedInk(context),
-                          height: 1.1,
-                          fontFeatures: const [
-                            FontFeature.tabularFigures(),
-                          ],
-                        ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Page ${currentPage + 1} of $totalPages',
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: SubcategoryDesign.ink(context),
+                        height: 1.15,
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
-                      const SizedBox(height: 3),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(99),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          minHeight: 2,
-                          backgroundColor: SubcategoryDesign.railBorder(context),
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            SubcategoryDesign.accent(context),
-                          ),
-                        ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$rangeStart–$rangeEnd of $totalItems',
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w500,
+                        color: SubcategoryDesign.muted(context),
+                        height: 1.1,
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 5),
+                    _CategoryPageDots(
+                      currentPage: currentPage,
+                      totalPages: totalPages,
+                    ),
+                  ],
                 ),
               ),
-              Container(
-                width: 1,
-                height: 16,
-                color: SubcategoryDesign.railBorder(context),
-              ),
-              _PaginationEdgeButton(
+              _PaginationNavButton(
                 icon: Icons.chevron_right_rounded,
+                label: 'Next',
                 enabled: canGoForward,
                 onTap: onNext,
+                compact: true,
               ),
             ],
           ),
@@ -587,34 +515,112 @@ class _CategoryPaginationPill extends StatelessWidget {
   }
 }
 
-class _PaginationEdgeButton extends StatelessWidget {
-  const _PaginationEdgeButton({
-    required this.icon,
-    required this.enabled,
-    required this.onTap,
+class _CategoryPageDots extends StatelessWidget {
+  const _CategoryPageDots({
+    required this.currentPage,
+    required this.totalPages,
   });
 
-  final IconData icon;
-  final bool enabled;
-  final VoidCallback? onTap;
+  final int currentPage;
+  final int totalPages;
 
   @override
   Widget build(BuildContext context) {
+    final accent = SubcategoryDesign.accent(context);
+    final muted = SubcategoryDesign.railBorder(context);
+    final visibleDots = totalPages.clamp(1, 7);
+    final startPage = totalPages <= visibleDots
+        ? 0
+        : (currentPage - visibleDots ~/ 2)
+            .clamp(0, totalPages - visibleDots);
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 0; i < visibleDots; i++)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2.5),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              width: startPage + i == currentPage ? 14 : 5,
+              height: 5,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(99),
+                color: startPage + i == currentPage ? accent : muted,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _PaginationNavButton extends StatelessWidget {
+  const _PaginationNavButton({
+    required this.icon,
+    required this.label,
+    required this.enabled,
+    required this.onTap,
+    this.compact = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool enabled;
+  final VoidCallback? onTap;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = enabled
+        ? SubcategoryDesign.selectedInk(context)
+        : SubcategoryDesign.muted(context).withValues(alpha: 0.35);
+
     return Material(
       color: enabled
           ? SubcategoryDesign.selectedTint(context)
           : Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
       child: InkWell(
         onTap: enabled ? onTap : null,
-        child: SizedBox(
-          width: 36,
-          height: 32,
-          child: Icon(
-            icon,
-            size: 20,
-            color: enabled
-                ? SubcategoryDesign.selectedInk(context)
-                : SubcategoryDesign.muted(context).withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 8 : 10,
+            vertical: compact ? 6 : 8,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon == Icons.chevron_left_rounded) ...[
+                Icon(icon, size: 18, color: ink),
+                if (!compact) ...[
+                  const SizedBox(width: 2),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: ink,
+                    ),
+                  ),
+                ],
+              ] else ...[
+                if (!compact) ...[
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: ink,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                ],
+                Icon(icon, size: 18, color: ink),
+              ],
+            ],
           ),
         ),
       ),

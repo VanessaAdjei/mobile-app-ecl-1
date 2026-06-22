@@ -33,7 +33,7 @@ class PaymentSummaryRow extends StatelessWidget {
             : t.muted;
 
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: isHighlighted ? 2 : 4),
+      padding: EdgeInsets.symmetric(vertical: isHighlighted ? 1 : 3),
       child: Row(
         children: [
           if (icon != null) ...[
@@ -72,7 +72,8 @@ class PaymentSummaryRow extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: t.isDark ? 0.18 : 0.1),
+                color:
+                    AppColors.primary.withValues(alpha: t.isDark ? 0.18 : 0.1),
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
                   color: AppColors.primary.withValues(alpha: 0.35),

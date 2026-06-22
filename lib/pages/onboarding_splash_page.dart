@@ -13,6 +13,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_error_utils.dart';
+import '../utils/home_tour_gate.dart';
 
 class OnboardingSplashPage extends StatefulWidget {
   final VoidCallback onFinish;
@@ -115,14 +116,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage> {
     }
     if (!mounted) return;
 
-    // Navigate immediately — do not await SharedPreferences or permissions.
-    HomePreloadService.markPermissionsRequestedAfterOnboarding();
-    widget.onFinish();
-
-    unawaited(_persistOnboardingCompletionFlags());
-  }
-
-  Future<void> _persistOnboardingCompletionFlags() async {
+    HomeTourGate.arm();
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('hasLaunchedBefore', true);
@@ -132,6 +126,10 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage> {
     } catch (e, st) {
       debugPrint('Onboarding: persist flags error: $e\n$st');
     }
+
+    if (!mounted) return;
+    HomePreloadService.markPermissionsRequestedAfterOnboarding();
+    widget.onFinish();
   }
 
   Future<void> _onSkip() async {

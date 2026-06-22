@@ -22,8 +22,7 @@ class PaymentDeliveryDetailsCard extends StatelessWidget {
 
   final bool embedded;
 
-  bool get _isDelivery =>
-      deliveryOption.toLowerCase().trim() == 'delivery';
+  bool get _isDelivery => deliveryOption.toLowerCase().trim() == 'delivery';
 
   @override
   Widget build(BuildContext context) {
@@ -36,76 +35,76 @@ class PaymentDeliveryDetailsCard extends StatelessWidget {
     final hasDetails = hasAddress || hasContact || !_isDelivery;
 
     final content = Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          PaymentSectionHeader(
-            eyebrow: _isDelivery ? 'Delivery' : 'Pickup',
-            title: _isDelivery ? 'Delivering to' : 'Collecting in store',
-            icon: _isDelivery
-                ? Icons.local_shipping_rounded
-                : Icons.storefront_rounded,
-            accent: accent,
-            compact: embedded,
-            trailing: _isDelivery && deliveryIsFree ? 'Free delivery' : null,
-          ),
-          SizedBox(height: embedded ? 10 : 12),
-          if (hasDetails)
-            Container(
-              padding: EdgeInsets.all(embedded ? 0 : 12),
-              decoration: embedded
-                  ? null
-                  : PaymentSectionStyle.innerPanelDecoration(
-                      context,
-                      accent: accent,
-                    ),
-              child: Column(
-                children: [
-                  if (hasAddress)
-                    _DetailLine(
-                      icon: Icons.place_rounded,
-                      value: address,
-                      accent: accent,
-                    ),
-                  if (hasAddress && hasContact) ...[
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PaymentSectionHeader(
+          eyebrow: _isDelivery ? 'Delivery' : 'Pickup',
+          title: _isDelivery ? 'Delivering to' : 'Collecting in store',
+          icon: _isDelivery
+              ? Icons.local_shipping_rounded
+              : Icons.storefront_rounded,
+          accent: accent,
+          compact: embedded,
+          trailing: _isDelivery && deliveryIsFree ? 'Free delivery' : null,
+        ),
+        SizedBox(height: embedded ? 8 : 10),
+        if (hasDetails)
+          Container(
+            padding: EdgeInsets.all(embedded ? 0 : 10),
+            decoration: embedded
+                ? null
+                : PaymentSectionStyle.innerPanelDecoration(
+                    context,
+                    accent: accent,
+                  ),
+            child: Column(
+              children: [
+                if (hasAddress)
+                  _DetailLine(
+                    icon: Icons.place_rounded,
+                    value: address,
+                    accent: accent,
+                  ),
+                if (hasAddress && hasContact) ...[
+                  const SizedBox(height: 8),
+                  PaymentSectionStyle.sectionDivider(context),
+                  const SizedBox(height: 8),
+                ],
+                if (hasContact)
+                  _DetailLine(
+                    icon: Icons.phone_rounded,
+                    value: contact,
+                    accent: accent,
+                  ),
+                if (!_isDelivery) ...[
+                  if (hasAddress || hasContact) ...[
                     const SizedBox(height: 10),
                     PaymentSectionStyle.sectionDivider(context),
                     const SizedBox(height: 10),
                   ],
-                  if (hasContact)
-                    _DetailLine(
-                      icon: Icons.phone_rounded,
-                      value: contact,
-                      accent: accent,
-                    ),
-                  if (!_isDelivery) ...[
-                    if (hasAddress || hasContact) ...[
-                      const SizedBox(height: 10),
-                      PaymentSectionStyle.sectionDivider(context),
-                      const SizedBox(height: 10),
-                    ],
-                    _DetailLine(
-                      icon: Icons.inventory_2_outlined,
-                      value:
-                          'We will notify you when your order is ready for pickup.',
-                      accent: accent,
-                    ),
-                  ],
+                  _DetailLine(
+                    icon: Icons.inventory_2_outlined,
+                    value:
+                        'We will notify you when your order is ready for pickup.',
+                    accent: accent,
+                  ),
                 ],
-              ),
-            )
-          else
-            Text(
-              _isDelivery
-                  ? 'Delivery details not available'
-                  : 'Pickup details not available',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: t.inputHint,
-                fontStyle: FontStyle.italic,
-              ),
+              ],
             ),
-        ],
-      );
+          )
+        else
+          Text(
+            _isDelivery
+                ? 'Delivery details not available'
+                : 'Pickup details not available',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: t.inputHint,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+      ],
+    );
 
     if (embedded) return content;
 
@@ -135,11 +134,11 @@ class _DetailLine extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 30,
-          height: 30,
+          width: 26,
+          height: 26,
           decoration: BoxDecoration(
             color: accent.tint,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(7),
             border: Border.all(
               color: accent.border?.withValues(alpha: 0.5) ?? t.border,
             ),

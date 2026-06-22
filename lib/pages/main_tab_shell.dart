@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../config/app_routes.dart';
+import '../utils/home_tour_gate.dart';
 import 'bottomnav.dart';
 import 'cart.dart';
 import 'categories.dart';
@@ -121,7 +122,7 @@ class MainTabShellState extends State<MainTabShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final shell = Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
         children: List.generate(
@@ -135,6 +136,24 @@ class MainTabShellState extends State<MainTabShell> {
         tourMenuKey: shellTourMenuKey,
         tourShopKey: shellTourShopKey,
       ),
+    );
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: HomeTourGate.blocking,
+      builder: (context, blocking, child) {
+        if (!blocking) return child!;
+        return Stack(
+          children: [
+            child!,
+            const Positioned.fill(
+              child: AbsorbPointer(
+                child: ColoredBox(color: Colors.transparent),
+              ),
+            ),
+          ],
+        );
+      },
+      child: shell,
     );
   }
 }

@@ -118,3 +118,55 @@ bool matchesPaymentRedirectUrl(String candidate, String configuredRedirect) {
   }
   return currentPath == configPath || currentPath.startsWith('$configPath/');
 }
+
+const _expressPayAmountQueryKeys = <String>[
+  'amount',
+  'total',
+  'total_amount',
+  'order_amount',
+  'payable',
+  'payable_amount',
+];
+
+double? _parseUrlAmount(String? raw) {
+  if (raw == null || raw.trim().isEmpty) return null;
+  return double.tryParse(raw.replaceAll(',', '').trim());
+}
+
+/// When the portal link embeds a merchandise-only amount, bump query params to
+/// [expectedAmount] so ExpressPay checkout matches delivery + fees.
+String alignExpressPayCheckoutUrl(String url, double expectedAmount) {
+  if (expectedAmount <= 0) return url;
+
+  final uri = Uri.tryParse(url.trim());
+  if (uri == null) return url;
+
+  final expected = expectedAmount.toStringAsFixed(2);
+  final params = Map<String, String>.from(uri.queryParameters);
+  var changed = false;
+
+  for (final key in _expressPayAmountQueryKeys) {
+    final raw = params[key];
+    if (raw == null) continue;
+
+    final current = _parseUrlAmount(raw);
+    if (current == null) continue;
+    if ((current - expectedAmount).abs() <= 0.02) continue;
+
+    // Only correct undercharges (e.g. subtotal without delivery).
+    if (current + 0.02 < expectedAmount) {
+      params[key] = expected;
+      changed = true;
+    }
+  }
+
+  if (!changed) return url;
+  return uri.replace(queryParameters: params).toString();
+}
+
+/// Parses a server redirect body and aligns embedded checkout amounts when needed.
+String? prepareExpressPayPortalUrl(String raw, double expectedAmount) {
+  final parsed = parsePaymentRedirectUrl(raw);
+  if (parsed == null || parsed.isEmpty) return parsed;
+  return alignExpressPayCheckoutUrl(parsed, expectedAmount);
+}

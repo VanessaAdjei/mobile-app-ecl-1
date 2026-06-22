@@ -867,6 +867,12 @@ class CartProvider with ChangeNotifier {
     }
 
     final item = _cartItems[itemIndex];
+    if (!item.canAdjustQuantity) {
+      debugPrint(
+        '⚠️ Quantity locked for ${item.name} (served_by: ${item.servedBy})',
+      );
+      return;
+    }
     final currentQty = item.quantity > 0 ? item.quantity : 1;
     final targetQty = currentQty + delta;
     if (targetQty < 0) return;

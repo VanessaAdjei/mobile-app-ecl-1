@@ -880,6 +880,7 @@ class CartState extends State<Cart> {
           isSelected: item.isSelected,
           isBusy: CartProvider.selectRowIsUpdating(cart, item.id, index),
           lineId: item.id,
+          canAdjustQuantity: item.canAdjustQuantity,
         );
       },
       builder: (context, vm, _) {
@@ -999,22 +1000,50 @@ class CartState extends State<Cart> {
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          CartQuantityStepper(
-                            quantity: vm.quantity,
-                            enabled: !vm.isBusy,
-                            onDecrement: () {
-                              cart.decrementCartLine(
-                                vm.lineId,
-                                rowIndex: index,
-                              );
-                            },
-                            onIncrement: () {
-                              cart.incrementCartLine(
-                                vm.lineId,
-                                rowIndex: index,
-                              );
-                            },
-                          ),
+                          if (vm.canAdjustQuantity)
+                            CartQuantityStepper(
+                              quantity: vm.quantity,
+                              enabled: !vm.isBusy,
+                              onDecrement: () {
+                                cart.decrementCartLine(
+                                  vm.lineId,
+                                  rowIndex: index,
+                                );
+                              },
+                              onIncrement: () {
+                                cart.incrementCartLine(
+                                  vm.lineId,
+                                  rowIndex: index,
+                                );
+                              },
+                            )
+                          else
+                            Container(
+                              height: 28,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 10),
+                              decoration: BoxDecoration(
+                                color: theme.isDark
+                                    ? theme.surface
+                                    : const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: theme.isDark
+                                      ? theme.border
+                                      : const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  'Qty ${vm.quantity}',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: theme.muted,
+                                  ),
+                                ),
+                              ),
+                            ),
                           const Spacer(),
                           Text(
                             'GHS ${vm.lineTotal.toStringAsFixed(2)}',
@@ -1049,6 +1078,7 @@ class _CartRowVm {
     required this.isSelected,
     required this.isBusy,
     required this.lineId,
+    required this.canAdjustQuantity,
   });
 
   final String skuKey;
@@ -1060,6 +1090,7 @@ class _CartRowVm {
   final bool isSelected;
   final bool isBusy;
   final String lineId;
+  final bool canAdjustQuantity;
 
   @override
   bool operator ==(Object other) {
@@ -1072,7 +1103,8 @@ class _CartRowVm {
         lineTotal == other.lineTotal &&
         isSelected == other.isSelected &&
         isBusy == other.isBusy &&
-        lineId == other.lineId;
+        lineId == other.lineId &&
+        canAdjustQuantity == other.canAdjustQuantity;
   }
 
   @override
@@ -1086,6 +1118,7 @@ class _CartRowVm {
         isSelected,
         isBusy,
         lineId,
+        canAdjustQuantity,
       );
 }
 

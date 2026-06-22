@@ -256,7 +256,7 @@ class _TermsAcceptancePageState extends State<TermsAcceptancePage> {
                         const SizedBox(height: 6),
                         _DocumentRow(
                           icon: Icons.privacy_tip_outlined,
-                          title: 'Privacy Policy',
+                          title: 'Privacy Statement',
                           onTap: _showPrivacyPolicy,
                         )
                             .animate()
@@ -662,7 +662,7 @@ class _ConsentSectionState extends State<_ConsentSection>
                       ),
                       const TextSpan(text: ' and '),
                       TextSpan(
-                        text: 'Privacy Policy',
+                        text: 'Privacy Statement',
                         style: const TextStyle(
                           color: AppColors.primaryDark,
                           fontWeight: FontWeight.w600,

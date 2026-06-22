@@ -20,6 +20,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/product_card.dart';
 import '../widgets/home_page_tour.dart';
+import '../utils/home_tour_gate.dart';
 import '../services/home_preload_service.dart';
 import '../services/product_image_preload_service.dart';
 import '../services/homepage_optimization_service.dart';
@@ -391,9 +392,6 @@ class HomePageState extends State<HomePage>
   bool _homeWarmStarted = false;
   int _homeImageWarmGeneration = 0;
 
-  /// Blocks taps on home until the first-run spotlight tour starts or gives up.
-  bool _homeTourInputBlocked = false;
-
   /// Categorize on a worker when the catalog is large enough to jank the UI.
   static const int _isolateProcessThreshold = 50;
 
@@ -463,7 +461,7 @@ class HomePageState extends State<HomePage>
     if (ProductCache.hasProductsInMemory || _products.isNotEmpty) {
       _scheduleSpotlightTourDelayed();
     }
-    unawaited(_armTourInputBlockAfterOnboarding());
+    unawaited(HomeTourGate.armIfTourPending());
 
     if (ProductImagePreloadService.isHomeGridWarm) {
       _homeGridImagesReady = true;
@@ -993,47 +991,10 @@ class HomePageState extends State<HomePage>
   }
 
   void _scheduleSpotlightTourDelayed() {
-    unawaited(_armTourInputBlockForPendingTour());
+    unawaited(HomeTourGate.armIfTourPending());
     Future<void>.delayed(const Duration(seconds: 2), () {
       if (mounted) _scheduleSpotlightTour();
     });
-  }
-
-  /// After onboarding, block accidental taps until coach marks appear.
-  Future<void> _armTourInputBlockAfterOnboarding() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!(prefs.getBool('just_finished_onboarding') ?? false)) return;
-    if (prefs.getBool('has_seen_smart_tips') ?? false) return;
-    if (!mounted) return;
-    setState(() => _homeTourInputBlocked = true);
-  }
-
-  Future<void> _armTourInputBlockForPendingTour() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!(prefs.getBool('hasLaunchedBefore') ?? false)) return;
-    if (prefs.getBool('has_seen_smart_tips') ?? false) return;
-    if (!mounted) return;
-    setState(() => _homeTourInputBlocked = true);
-  }
-
-  void _releaseTourInputBlock() {
-    if (!_homeTourInputBlocked) return;
-    if (!mounted) return;
-    setState(() => _homeTourInputBlocked = false);
-  }
-
-  Widget _wrapWithTourInputShield(Widget child) {
-    if (!_homeTourInputBlocked) return child;
-    return Stack(
-      children: [
-        child,
-        const Positioned.fill(
-          child: AbsorbPointer(
-            child: ColoredBox(color: Colors.transparent),
-          ),
-        ),
-      ],
-    );
   }
 
   SliverAppBar _buildHomeAppBarWithSearch(
@@ -1242,6 +1203,8 @@ class HomePageState extends State<HomePage>
     final forceTour =
         justFinished || !(prefs.getBool('has_seen_smart_tips') ?? false);
 
+    if (forceTour) HomeTourGate.arm();
+
     try {
       if (justFinished) {
         await _waitForFirstHomeUiReady();
@@ -1288,7 +1251,9 @@ class HomePageState extends State<HomePage>
       }
       debugPrint('HomePageTour: not shown after retries');
     } finally {
-      _releaseTourInputBlock();
+      if (!(prefs.getBool('has_seen_smart_tips') ?? false)) {
+        HomeTourGate.release();
+      }
     }
   }
 
@@ -2144,7 +2109,7 @@ class HomePageState extends State<HomePage>
     super.build(context);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: _wrapWithTourInputShield(_buildRefreshableBody()),
+      body: _buildRefreshableBody(),
       bottomNavigationBar: widget.showBottomNav
           ? CustomBottomNav(
               selectedIndex: 0,

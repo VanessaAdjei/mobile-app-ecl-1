@@ -229,6 +229,7 @@ Widget _buildCategoryProductPaginationBar({
     currentPage: currentPage,
     totalPages: totalPages,
     totalItems: totalItems,
+    itemsPerPage: _CategoryProductPagination.pageSize,
     onPrevious: onPrevious,
     onNext: onNext,
   );
@@ -3315,6 +3316,14 @@ class SubcategoryPageState extends State<SubcategoryPage> {
 
         return Column(
           children: [
+            _buildCategoryProductPaginationBar(
+              context: context,
+              currentPage: _currentProductPage,
+              totalPages: totalPages,
+              totalItems: _allProducts.length,
+              onPrevious: () => _goToProductPage(_currentProductPage - 1),
+              onNext: () => _goToProductPage(_currentProductPage + 1),
+            ),
             Expanded(
               child: RefreshIndicator(
                 color: SubcategoryDesign.accent(context),
@@ -3325,9 +3334,9 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: EdgeInsets.fromLTRB(
                     horizontalPadding,
-                    10,
+                    4,
                     horizontalPadding,
-                    8,
+                    12,
                   ),
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: crossAxisCount,
@@ -3380,14 +3389,6 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                   },
                 ),
               ),
-            ),
-            _buildCategoryProductPaginationBar(
-              context: context,
-              currentPage: _currentProductPage,
-              totalPages: totalPages,
-              totalItems: _allProducts.length,
-              onPrevious: () => _goToProductPage(_currentProductPage - 1),
-              onNext: () => _goToProductPage(_currentProductPage + 1),
             ),
           ],
         );
@@ -4166,6 +4167,14 @@ class ProductListPageState extends State<ProductListPage> {
 
         return Column(
           children: [
+            _buildCategoryProductPaginationBar(
+              context: context,
+              currentPage: _currentProductPage,
+              totalPages: totalPages,
+              totalItems: _allProducts.length,
+              onPrevious: () => _goToProductPage(_currentProductPage - 1),
+              onNext: () => _goToProductPage(_currentProductPage + 1),
+            ),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: () => fetchProducts(forceRefresh: true),
@@ -4176,9 +4185,9 @@ class ProductListPageState extends State<ProductListPage> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: EdgeInsets.fromLTRB(
                     metrics.horizontalPadding,
-                    10,
+                    4,
                     metrics.horizontalPadding,
-                    8,
+                    12,
                   ),
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: metrics.crossAxisCount,
@@ -4233,14 +4242,6 @@ class ProductListPageState extends State<ProductListPage> {
                   },
                 ),
               ),
-            ),
-            _buildCategoryProductPaginationBar(
-              context: context,
-              currentPage: _currentProductPage,
-              totalPages: totalPages,
-              totalItems: _allProducts.length,
-              onPrevious: () => _goToProductPage(_currentProductPage - 1),
-              onNext: () => _goToProductPage(_currentProductPage + 1),
             ),
           ],
         );

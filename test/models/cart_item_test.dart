@@ -52,6 +52,31 @@ void main() {
       expect(item.totalPrice, 30.0);
     });
 
+    test('fromServerJson parses served_by for quantity lock', () {
+      final unlocked = CartItem.fromServerJson({
+        'id': '1',
+        'product_id': '100',
+        'product_name': 'OTC Item',
+        'price': 5.0,
+        'qty': 2,
+        'total_price': 10.0,
+        'served_by': null,
+      });
+      final locked = CartItem.fromServerJson({
+        'id': '2',
+        'product_id': '101',
+        'product_name': 'Rx Item',
+        'price': 5.0,
+        'qty': 1,
+        'total_price': 5.0,
+        'served_by': 1,
+      });
+
+      expect(unlocked.canAdjustQuantity, isTrue);
+      expect(locked.canAdjustQuantity, isFalse);
+      expect(locked.servedBy, 1);
+    });
+
     test('copyWith preserves unchanged fields', () {
       final item = CartItem(
         id: '1',
