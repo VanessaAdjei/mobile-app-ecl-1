@@ -58,9 +58,13 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage> {
       if (_currentPage == _permissionsPageIndex) {
         if (!mounted) return;
         try {
-          await NativeNotificationService.requestOnboardingPermissions(
+          final result =
+              await NativeNotificationService.requestOnboardingPermissions(
             context: context,
           );
+          if (result.notifications) {
+            await NativeNotificationService.setPushNotificationsOptIn(true);
+          }
         } catch (e, st) {
           debugPrint('Onboarding: permission request error: $e\n$st');
         }

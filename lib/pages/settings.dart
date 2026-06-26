@@ -3,7 +3,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:eclapp/pages/privacypolicy.dart';
 import 'package:eclapp/pages/tandc.dart';
-import 'package:eclapp/providers/theme_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -166,8 +165,7 @@ class SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.isDarkMode;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Color scheme
     final primaryColor = isDark ? Colors.green.shade400 : Colors.green.shade700;

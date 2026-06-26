@@ -17,12 +17,12 @@ class ThemeRepositoryImpl implements ThemeRepository {
 
   @override
   Future<ThemePreference> getThemePreference() async {
-    final isDarkMode = await _storage.getDarkMode();
-    return ThemePreference(isDarkMode: isDarkMode);
+    final choice = await _storage.getThemeChoice();
+    return ThemePreference(choice: choice);
   }
 
   @override
   Future<void> setThemePreference(ThemePreference preference) async {
-    await _storage.setDarkMode(preference.isDarkMode);
+    await _storage.setThemeChoice(preference.choice);
   }
 }

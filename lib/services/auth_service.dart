@@ -18,6 +18,7 @@ import '../config/api_config.dart';
 import '../services/guest_local_order_service.dart';
 import '../services/http_client_service.dart';
 import '../utils/app_error_utils.dart';
+import '../utils/sensitive_log_redaction.dart';
 
 /// Thrown when sign-up hits a duplicate email for an account that is not verified yet.
 class UnverifiedAccountException implements Exception {
@@ -1307,9 +1308,9 @@ class AuthService {
     if (responseBody != null && responseBody.trim().isNotEmpty) {
       try {
         final decoded = json.decode(responseBody);
-        debugPrint(encoder.convert(decoded));
+        debugPrint(encoder.convert(redactSensitiveLogFields(decoded)));
       } catch (_) {
-        debugPrint(responseBody);
+        debugPrint('(non-JSON body omitted)');
       }
     } else {
       debugPrint('(empty body)');
@@ -2378,9 +2379,11 @@ class AuthService {
   }
 
   static Future<void> printStoredToken() async {
+    if (!kDebugMode) return;
     final token = await _safeRead(authTokenKey);
-    debugPrint('AuthService.printStoredToken: '
-        '${token != null && token.length > 20 ? '${token.substring(0, 20)}...' : token}');
+    debugPrint(
+      'AuthService.printStoredToken: token present=${token != null && token.isNotEmpty}',
+    );
   }
 
   static Future<void> _validateTokenInBackground() async {

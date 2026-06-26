@@ -543,8 +543,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 );
                 return ResponsiveUtils.applyResponsiveTheme(context, framed);
               },
-              themeMode:
-                  themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+              themeMode: themeProvider.themeMode,
               theme: ThemeData(
                 fontFamily: 'Poppins',
                 brightness: Brightness.light,

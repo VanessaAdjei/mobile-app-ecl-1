@@ -11,19 +11,53 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   final ThemeService _service;
-  bool _isDarkMode = false;
+  AppThemeChoice _choice = AppThemeChoice.light;
 
-  bool get isDarkMode => _isDarkMode;
+  AppThemeChoice get themeChoice => _choice;
+
+  ThemeMode get themeMode {
+    switch (_choice) {
+      case AppThemeChoice.light:
+        return ThemeMode.light;
+      case AppThemeChoice.dark:
+        return ThemeMode.dark;
+    }
+  }
+
+  /// Effective dark state when a [BuildContext] is unavailable (legacy callers).
+  bool get isDarkMode => _choice == AppThemeChoice.dark;
+
+  static AppThemeChoice nextChoice(AppThemeChoice current) {
+    return current == AppThemeChoice.light
+        ? AppThemeChoice.dark
+        : AppThemeChoice.light;
+  }
+
+  static IconData iconForChoice(AppThemeChoice choice) {
+    switch (choice) {
+      case AppThemeChoice.light:
+        return Icons.light_mode_outlined;
+      case AppThemeChoice.dark:
+        return Icons.dark_mode_outlined;
+    }
+  }
+
+  static String shortLabel(AppThemeChoice choice) => choice.label;
 
   Future<void> _loadThemePreference() async {
     final preference = await _service.getTheme();
-    _isDarkMode = preference.isDarkMode;
+    _choice = preference.choice;
     notifyListeners();
   }
 
-  void toggleTheme() {
-    _isDarkMode = !_isDarkMode;
-    _service.setTheme(ThemePreference(isDarkMode: _isDarkMode));
+  void cycleThemeChoice() {
+    setThemeChoice(nextChoice(_choice));
+  }
+
+  void setThemeChoice(AppThemeChoice choice) {
+    if (_choice == choice) return;
+    _choice = choice;
+    _service.setTheme(ThemePreference(choice: choice));
     notifyListeners();
   }
 }

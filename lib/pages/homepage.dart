@@ -1177,6 +1177,7 @@ class HomePageState extends State<HomePage>
         );
         if (granted) {
           unawaited(prefs.setBool('notification_prompt_attempted', true));
+          unawaited(NativeNotificationService.setPushNotificationsOptIn(true));
         }
       }
 

@@ -1066,8 +1066,10 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
     setState(() => _isSubmitting = true);
 
     try {
-      final token = widget.token ?? await AuthService.getToken();
-      final authToken = token ?? 'guest-temp-token';
+      var authToken = widget.token ?? await AuthService.getToken();
+      if (authToken == null || authToken.isEmpty) {
+        authToken = await AuthService.generateGuestId();
+      }
       if (authToken.isEmpty) {
         throw Exception('Unable to process prescription upload');
       }

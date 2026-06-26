@@ -112,8 +112,27 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen>
         });
       }
 
+      final isLoggedIn = await AuthService.isLoggedIn();
+      if (!isLoggedIn) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _error = 'Please sign in to view your prescriptions';
+          });
+        }
+        return;
+      }
+
       final token = await AuthService.getToken();
-      final authToken = token ?? 'guest-temp-token';
+      if (token == null || token.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _error = 'Please sign in to view your prescriptions';
+          });
+        }
+        return;
+      }
 
       if (mounted) {
         setState(() {
@@ -122,7 +141,7 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen>
       }
 
       final prescriptions = await _prescriptionService.fetchPrescriptions(
-        authToken: authToken,
+        authToken: token,
       );
 
       debugPrint(

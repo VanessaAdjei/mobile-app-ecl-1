@@ -1,4 +1,5 @@
 // pages/upload_prescription.dart
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -163,9 +164,10 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
         token = null;
       }
       _cachedLoginStatus = token != null;
-      debugPrint('🔍 Token check: ${_cachedLoginStatus! ? 'EXISTS' : 'NULL'}');
-      if (_cachedLoginStatus!) {
-        debugPrint('🔍 Token length: ${token!.length}');
+      if (kDebugMode) {
+        debugPrint(
+          '🔍 Token check: ${_cachedLoginStatus! ? 'EXISTS' : 'NULL'}',
+        );
       }
       return _cachedLoginStatus!;
     } catch (e) {

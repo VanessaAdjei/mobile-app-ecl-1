@@ -414,6 +414,9 @@ class _PasswordSectionCard extends StatelessWidget {
                       if (value == null || value.length < 8) {
                         return 'Use at least 8 characters';
                       }
+                      if (!RegExp(r'\d').hasMatch(value)) {
+                        return 'Include at least one number';
+                      }
                       if (value == currentController.text) {
                         return 'New password must differ from current';
                       }

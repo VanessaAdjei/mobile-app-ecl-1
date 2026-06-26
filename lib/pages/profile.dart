@@ -2,12 +2,16 @@
 import 'dart:async';
 import 'package:eclapp/pages/loggedout.dart';
 import 'package:eclapp/pages/privacypolicy.dart';
+import 'package:eclapp/models/theme_preference.dart';
 import 'package:eclapp/providers/theme_provider.dart';
 import 'package:eclapp/services/wishlist_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../services/native_notification_service.dart';
 import '../utils/app_error_utils.dart';
 import '../utils/app_theme_colors.dart';
 import 'bottomnav.dart';
@@ -38,10 +42,263 @@ class Profile extends StatefulWidget {
   ProfileState createState() => ProfileState();
 }
 
-class ProfileState extends State<Profile> {
+class _ProfileThemeSegmentTile extends StatelessWidget {
+  const _ProfileThemeSegmentTile({
+    required this.title,
+    required this.choice,
+    required this.ink,
+    required this.muted,
+    required this.fieldBg,
+    required this.fieldBorder,
+    required this.onSelect,
+  });
+
+  final String title;
+  final AppThemeChoice choice;
+  final Color ink;
+  final Color muted;
+  final Color fieldBg;
+  final Color fieldBorder;
+  final ValueChanged<AppThemeChoice> onSelect;
+
+  static const _animDuration = Duration(milliseconds: 320);
+  static const _animCurve = Curves.easeInOutCubicEmphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final trackBg = context.appColors.isDark
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.black.withValues(alpha: 0.05);
+    final isDark = choice == AppThemeChoice.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: fieldBg,
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: fieldBorder),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: ink,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 128,
+            height: 30,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: trackBg,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: fieldBorder.withValues(alpha: 0.65)),
+              ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final pillWidth = constraints.maxWidth / 2;
+
+                  return Stack(
+                    children: [
+                      AnimatedPositioned(
+                        duration: _animDuration,
+                        curve: _animCurve,
+                        left: isDark ? pillWidth : 0,
+                        top: 0,
+                        bottom: 0,
+                        width: pillWidth,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            borderRadius: BorderRadius.circular(6),
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    AppColors.primary.withValues(alpha: 0.28),
+                                blurRadius: 6,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          _segment(
+                            label: 'Light',
+                            icon: Icons.light_mode_outlined,
+                            selected: !isDark,
+                            ink: ink,
+                            muted: muted,
+                            onTap: () => _select(AppThemeChoice.light),
+                          ),
+                          _segment(
+                            label: 'Dark',
+                            icon: Icons.dark_mode_outlined,
+                            selected: isDark,
+                            ink: ink,
+                            muted: muted,
+                            onTap: () => _select(AppThemeChoice.dark),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _select(AppThemeChoice next) {
+    if (choice == next) return;
+    HapticFeedback.selectionClick();
+    onSelect(next);
+  }
+
+  Widget _segment({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required Color ink,
+    required Color muted,
+    required VoidCallback onTap,
+  }) {
+    final selectedColor = Colors.white;
+    final unselectedColor = ink.withValues(alpha: 0.72);
+
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          splashColor: AppColors.primary.withValues(alpha: 0.12),
+          highlightColor: AppColors.primary.withValues(alpha: 0.06),
+          child: SizedBox(
+            height: double.infinity,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TweenAnimationBuilder<Color?>(
+                  tween: ColorTween(
+                    end: selected ? selectedColor : muted,
+                  ),
+                  duration: _animDuration,
+                  curve: _animCurve,
+                  builder: (context, color, _) {
+                    return Icon(icon, size: 13, color: color);
+                  },
+                ),
+                const SizedBox(width: 3),
+                TweenAnimationBuilder<Color?>(
+                  tween: ColorTween(
+                    end: selected ? selectedColor : unselectedColor,
+                  ),
+                  duration: _animDuration,
+                  curve: _animCurve,
+                  builder: (context, color, _) {
+                    return Text(
+                      label,
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: color,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileCompactSwitchRow extends StatelessWidget {
+  const _ProfileCompactSwitchRow({
+    required this.title,
+    required this.value,
+    required this.ink,
+    required this.fieldBg,
+    required this.fieldBorder,
+    required this.onChanged,
+  });
+
+  final String title;
+  final bool value;
+  final Color ink;
+  final Color fieldBg;
+  final Color fieldBorder;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final trackOff = context.appColors.isDark
+        ? const Color(0xFF475569)
+        : Colors.grey.shade400;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => onChanged(!value),
+        borderRadius: BorderRadius.circular(9),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(9, 5, 4, 5),
+          decoration: BoxDecoration(
+            color: fieldBg,
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(color: fieldBorder),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: ink,
+                  ),
+                ),
+              ),
+              Transform.scale(
+                scale: 0.68,
+                child: Switch.adaptive(
+                  value: value,
+                  onChanged: onChanged,
+                  activeThumbColor: Colors.white,
+                  activeTrackColor: AppColors.primary,
+                  inactiveThumbColor: Colors.white,
+                  inactiveTrackColor: trackOff,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ProfileState extends State<Profile> with WidgetsBindingObserver {
   String _userName = "User";
   String _userEmail = "No email available";
   bool _userLoggedIn = false;
+  bool _pushNotificationsEnabled = false;
   final ScrollController _scrollController = ScrollController();
   int? _wishlistCount;
   final _swipeHint = ProfileSwipeHintController();
@@ -54,17 +311,27 @@ class ProfileState extends State<Profile> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeUserData();
+      unawaited(_syncPushNotifications());
     });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshPushNotificationStatus());
+    }
   }
 
   void _onScroll() {
@@ -139,6 +406,7 @@ class ProfileState extends State<Profile> {
       }
 
       await _refreshWishlistCount();
+      await _syncPushNotifications();
 
       if (mounted) {
         await context.read<NotificationProvider>().refreshUnreadCount();
@@ -147,6 +415,67 @@ class ProfileState extends State<Profile> {
     } catch (e) {
       debugPrint('Profile refresh error: $e');
     }
+  }
+
+  Future<void> _syncPushNotifications() async {
+    if (!mounted) return;
+    await NativeNotificationService.syncPushNotificationsFromOnboarding(
+      context: context,
+    );
+    await _refreshPushNotificationStatus();
+  }
+
+  Future<void> _refreshPushNotificationStatus() async {
+    final enabled =
+        await NativeNotificationService.resolvePushNotificationsEnabled();
+    if (!mounted) return;
+    setState(() => _pushNotificationsEnabled = enabled);
+  }
+
+  Future<void> _onPushNotificationToggle(bool enabled) async {
+    if (enabled) {
+      final granted =
+          await NativeNotificationService.requestNotificationPermissionDirect(
+        context: context,
+      );
+      if (granted) {
+        await NativeNotificationService.setPushNotificationsOptIn(true);
+      }
+    } else {
+      await NativeNotificationService.setPushNotificationsOptIn(false);
+      if (!mounted) return;
+      final openSettings = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          title: Text(
+            'Turn off notifications',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          ),
+          content: Text(
+            'Notifications are managed in your device settings. '
+            'Open Settings to disable alerts for this app.',
+            style: GoogleFonts.poppins(fontSize: 13.5, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Open Settings'),
+            ),
+          ],
+        ),
+      );
+      if (openSettings == true) {
+        await openAppSettings();
+      }
+    }
+    await _refreshPushNotificationStatus();
   }
 
   Future<void> _loadUserData() async {
@@ -356,23 +685,32 @@ class ProfileState extends State<Profile> {
                           ink: ink,
                           muted: muted,
                           title: 'Preferences',
-                          subtitle: 'App appearance',
+                          subtitle: 'Theme & notifications',
                           icon: Icons.tune_rounded,
                           iconTint: Colors.indigo.shade400,
                           children: [
                             Consumer<ThemeProvider>(
                               builder: (context, themeProvider, _) {
-                                return _ProfileSwitchTile(
-                                  icon: Icons.dark_mode_outlined,
-                                  iconColor: Colors.indigo.shade400,
-                                  title: 'Dark mode',
-                                  subtitle:
-                                      themeProvider.isDarkMode ? 'On' : 'Off',
+                                return _ProfileThemeSegmentTile(
+                                  title: 'Appearance',
+                                  choice: themeProvider.themeChoice,
                                   ink: ink,
                                   muted: muted,
-                                  value: themeProvider.isDarkMode,
-                                  onChanged: (_) => themeProvider.toggleTheme(),
+                                  fieldBg: theme.fieldBg,
+                                  fieldBorder: border,
+                                  onSelect: themeProvider.setThemeChoice,
                                 );
+                              },
+                            ),
+                            const SizedBox(height: 4),
+                            _ProfileCompactSwitchRow(
+                              title: 'Push notifications',
+                              value: _pushNotificationsEnabled,
+                              ink: ink,
+                              fieldBg: theme.fieldBg,
+                              fieldBorder: border,
+                              onChanged: (enabled) {
+                                unawaited(_onPushNotificationToggle(enabled));
                               },
                             ),
                           ],
@@ -969,74 +1307,6 @@ class _ProfileVersionFooter extends StatelessWidget {
           color: context.appColors.muted,
           fontWeight: FontWeight.w500,
         ),
-      ),
-    );
-  }
-}
-
-class _ProfileSwitchTile extends StatelessWidget {
-  const _ProfileSwitchTile({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.subtitle,
-    required this.ink,
-    required this.muted,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String subtitle;
-  final Color ink;
-  final Color muted;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = context.appColors.isDark;
-    final fieldBg = context.appColors.fieldBg;
-    final border = context.appColors.border;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 2, 4, 2),
-      decoration: BoxDecoration(
-        color: fieldBg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: border),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: iconColor),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              title,
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: ink,
-                height: 1.1,
-              ),
-            ),
-          ),
-          Transform.scale(
-            scale: 0.72,
-            child: Switch.adaptive(
-              value: value,
-              onChanged: onChanged,
-              activeThumbColor: Colors.white,
-              activeTrackColor: AppColors.primary,
-              inactiveThumbColor: Colors.white,
-              inactiveTrackColor:
-                  isDark ? const Color(0xFF475569) : Colors.grey.shade600,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
-        ],
       ),
     );
   }

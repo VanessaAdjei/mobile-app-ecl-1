@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import '../services/auth_service.dart';
 
 /// Background data prefetching service for improved performance
 class BackgroundPrefetchService {
@@ -149,7 +150,7 @@ class BackgroundPrefetchService {
     try {
       final response = await http
           .get(
-            Uri.parse('${ApiConfig.baseUrl}/api/user/profile'),
+            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getProfile)),
             headers: await _getHeaders(),
           )
           .timeout(const Duration(seconds: 10));
@@ -312,13 +313,12 @@ class BackgroundPrefetchService {
 
   /// Get headers for API requests
   Future<Map<String, String>> _getHeaders() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await AuthService.getToken();
 
     return {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
     };
   }
 

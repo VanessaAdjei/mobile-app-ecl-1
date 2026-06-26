@@ -110,5 +110,33 @@ void main() {
       expect(stored['city'], 'Tema');
       expect(stored['region'], 'Greater Accra Region');
     });
+
+    test('toUpdateRequestBody uses empty strings when coords are missing', () {
+      final profile = UserProfile(
+        name: 'Jane',
+        email: 'jane@example.com',
+      );
+
+      expect(profile.toUpdateRequestBody(), {
+        'fname': 'Jane',
+        'email': 'jane@example.com',
+        'number': '',
+        'addr_1': '',
+        'lat': '',
+        'lng': '',
+      });
+    });
+
+    test('street line uses first comma-separated segment for addr_1', () {
+      final profile = UserProfile(
+        name: 'Jane',
+        email: 'jane@example.com',
+        address: 'Walnut Close, Tema, Greater Accra Region',
+        lat: 5.6,
+        lng: -0.1,
+      );
+
+      expect(profile.toUpdateRequestBody()['addr_1'], 'Walnut Close');
+    });
   });
 }

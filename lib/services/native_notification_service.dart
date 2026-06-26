@@ -8,11 +8,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'notification_handler_service.dart';
 import '../pages/order_tracking_page.dart';
 
 class NativeNotificationService {
   static const MethodChannel _channel = MethodChannel('ecl_notifications');
+  static const String _keyPushOptIn = 'push_notifications_opt_in';
+  static const String _legacyPushOptInKey = 'notification_prompt_attempted';
   static final GlobalKey<NavigatorState> _globalNavigatorKey =
       GlobalKey<NavigatorState>();
   static String? _pendingNotificationPayload;
@@ -478,6 +481,46 @@ class NativeNotificationService {
     return canPostSystemNotifications();
   }
 
+  static Future<bool> getPushNotificationsOptIn() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyPushOptIn) ??
+        prefs.getBool(_legacyPushOptInKey) ??
+        false;
+  }
+
+  static Future<void> setPushNotificationsOptIn(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyPushOptIn, enabled);
+  }
+
+  /// OS permission when granted; otherwise honours onboarding opt-in for UI.
+  static Future<bool> resolvePushNotificationsEnabled() async {
+    if (await canPostSystemNotifications()) return true;
+    return getPushNotificationsOptIn();
+  }
+
+  /// Re-apply onboarding choice when the user already opted in.
+  static Future<void> syncPushNotificationsFromOnboarding({
+    BuildContext? context,
+  }) async {
+    if (await canPostSystemNotifications()) {
+      await setPushNotificationsOptIn(true);
+      return;
+    }
+    if (!await getPushNotificationsOptIn()) return;
+
+    final safeContext =
+        context != null && context.mounted ? context : globalNavigatorKey.currentContext;
+    await ensureSystemNotificationsEnabled(
+      context: safeContext,
+      requestIfNeeded: true,
+    );
+  }
+
+  static Future<void> _recordPushOptInIfGranted(bool granted) async {
+    if (granted) await setPushNotificationsOptIn(true);
+  }
+
   static Future<bool> isLocationWhenInUseGranted() async {
     try {
       final status = await Permission.locationWhenInUse.status;
@@ -550,6 +593,7 @@ class NativeNotificationService {
     final notifications = await requestNotificationPermissionDirect(
       context: context ?? globalNavigatorKey.currentContext,
     );
+    await _recordPushOptInIfGranted(notifications);
     await Future<void>.delayed(const Duration(milliseconds: 600));
     final location = await requestLocationWhenInUseDirect(
       context: globalNavigatorKey.currentContext,
@@ -581,11 +625,13 @@ class NativeNotificationService {
       await _initializeLocalNotifications();
 
       if (await canPostSystemNotifications()) {
+        await _recordPushOptInIfGranted(true);
         return true;
       }
 
       if (Platform.isAndroid) {
         if (await _requestAndroidNotificationPermissionNative()) {
+          await _recordPushOptInIfGranted(true);
           return true;
         }
         final android = _localNotifications
@@ -593,7 +639,10 @@ class NativeNotificationService {
                 AndroidFlutterLocalNotificationsPlugin>();
         final granted = await android?.requestNotificationsPermission();
         debugPrint('📱 Android notification plugin request: $granted');
-        if (granted == true) return true;
+        if (granted == true) {
+          await _recordPushOptInIfGranted(true);
+          return true;
+        }
       }
 
       if (Platform.isIOS) {
@@ -604,14 +653,20 @@ class NativeNotificationService {
           critical: false,
         );
         debugPrint('📱 iOS notification plugin request: $granted');
-        if (granted == true) return true;
+        if (granted == true) {
+          await _recordPushOptInIfGranted(true);
+          return true;
+        }
       }
 
       final permission = Permission.notification;
       final status = await permission.status;
       debugPrint('📱 Notification permission status: $status');
 
-      if (status.isGranted) return true;
+      if (status.isGranted) {
+        await _recordPushOptInIfGranted(true);
+        return true;
+      }
 
       if (status.isPermanentlyDenied) {
         if (dialogContext != null && dialogContext.mounted) {
@@ -622,6 +677,7 @@ class NativeNotificationService {
 
       final result = await permission.request();
       debugPrint('📱 Notification permission request result: $result');
+      await _recordPushOptInIfGranted(result.isGranted);
       return result.isGranted;
     } catch (e) {
       debugPrint('Error requesting notification permission: $e');

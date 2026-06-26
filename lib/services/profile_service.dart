@@ -3,6 +3,7 @@ import '../models/user_profile.dart';
 import '../repositories/profile_repository.dart';
 import '../services/auth_service.dart';
 import '../utils/app_error_utils.dart';
+import '../utils/sensitive_log_redaction.dart';
 import 'package:flutter/foundation.dart';
 import '../config/api_config.dart';
 import 'dart:convert';
@@ -40,12 +41,12 @@ class ProfileService {
     if (body != null && body.trim().isNotEmpty) {
       try {
         final decoded = json.decode(body);
-        debugPrint(encoder.convert(decoded));
+        debugPrint(encoder.convert(redactSensitiveLogFields(decoded)));
       } catch (_) {
-        debugPrint(body);
+        debugPrint('(non-JSON body omitted)');
       }
     } else if (result.body != null) {
-      debugPrint(encoder.convert(result.body));
+      debugPrint(encoder.convert(redactSensitiveLogFields(result.body)));
     } else {
       debugPrint('(empty body)');
     }
@@ -65,8 +66,8 @@ class ProfileService {
     debugPrint('');
     debugPrint('══════════════════════════════════════════════════════');
     debugPrint('[UPDATE-PROFILE] POST $url');
-    debugPrint('── Request body ──');
-    debugPrint(encoder.convert(requestBody));
+    debugPrint('── Request body (redacted) ──');
+    debugPrint(encoder.convert(redactSensitiveLogFields(requestBody)));
     debugPrint('── Response HTTP ${result.statusCode} ──');
     if (result.error != null) {
       debugPrint('Error: ${result.error}');
@@ -75,12 +76,12 @@ class ProfileService {
     if (responseBody != null && responseBody.trim().isNotEmpty) {
       try {
         final decoded = json.decode(responseBody);
-        debugPrint(encoder.convert(decoded));
+        debugPrint(encoder.convert(redactSensitiveLogFields(decoded)));
       } catch (_) {
-        debugPrint(responseBody);
+        debugPrint('(non-JSON body omitted)');
       }
     } else if (result.body != null) {
-      debugPrint(encoder.convert(result.body));
+      debugPrint(encoder.convert(redactSensitiveLogFields(result.body)));
     } else {
       debugPrint('(empty body)');
     }

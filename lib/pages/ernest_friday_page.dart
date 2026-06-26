@@ -8,7 +8,6 @@ import '../providers/promotional_event_provider.dart';
 import '../widgets/ernest_friday_banner.dart';
 import '../widgets/promotional_code_input.dart';
 import '../pages/bottomnav.dart';
-import '../providers/theme_provider.dart';
 import '../utils/app_error_utils.dart';
 
 class ErnestFridayPage extends StatefulWidget {
@@ -93,8 +92,7 @@ class _ErnestFridayPageState extends State<ErnestFridayPage>
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.isDarkMode;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Check if today is Friday
     final now = DateTime.now();

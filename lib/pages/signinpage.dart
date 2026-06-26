@@ -1,4 +1,5 @@
 // pages/signinpage.dart
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:eclapp/pages/forgot_password.dart';
@@ -233,13 +234,13 @@ class SignInScreenState extends State<SignInScreen> {
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
       final result = await AuthService.signIn(email, password);
-      debugPrint('=== SIGN IN API RESPONSE ===');
-      debugPrint('Sign in result: $result');
-      debugPrint('Success: ${result['success']}');
-      debugPrint('Message: ${result['message']}');
-      debugPrint('Token: ${result['token']}');
-      debugPrint('User: ${result['user']}');
-      debugPrint('============================');
+      if (kDebugMode) {
+        debugPrint('=== SIGN IN API RESPONSE ===');
+        debugPrint('Success: ${result['success']}');
+        debugPrint('Message: ${result['message']}');
+        debugPrint('Token received: ${result['token'] != null}');
+        debugPrint('============================');
+      }
 
       if (AuthService.resultNeedsOtpVerification(result)) {
         if (!mounted) return;
