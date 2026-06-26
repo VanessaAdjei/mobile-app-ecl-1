@@ -8,6 +8,7 @@ import '../config/app_colors.dart';
 import '../utils/app_theme_colors.dart';
 import '../models/cart_item.dart';
 import '../services/auth_service.dart';
+import '../utils/checkout_log.dart';
 import '../utils/payment_redirect_url.dart';
 import '../config/api_config.dart';
 import '../utils/app_error_utils.dart';
@@ -100,10 +101,8 @@ class PaymentWebView extends StatefulWidget {
   final String estimatedDeliveryTime;
   final double? deliveryFee;
   final double discount;
-  final double? expectedPayableAmount;
-  final double? merchandiseSubtotal;
 
-  PaymentWebView({
+  const PaymentWebView({
     super.key,
     this.url,
     this.resolveRedirectUrl,
@@ -116,8 +115,6 @@ class PaymentWebView extends StatefulWidget {
     required this.estimatedDeliveryTime,
     this.deliveryFee,
     required this.discount,
-    this.expectedPayableAmount,
-    this.merchandiseSubtotal,
     this.onPaymentComplete,
   }) : assert(
           url != null || resolveRedirectUrl != null,
@@ -136,28 +133,17 @@ class PaymentWebViewState extends State<PaymentWebView> {
   String? _loadError;
   bool _checkoutNavigationStarted = false;
   bool _webViewTornDown = false;
-  String? _portalHost;
-  int _amountVerifyAttempts = 0;
   int _expressPayScanAttempts = 0;
   String? _lastExpressPayScanUrl;
   String? _initialExpressPayCheckoutUrl;
-  static const int _maxAmountVerifyAttempts = 3;
   static const int _maxExpressPayScanAttempts = 8;
-
-  double? get _expectedPayableAmount =>
-      widget.expectedPayableAmount ??
-      tryParsePayableAmount(widget.paymentParams['amount']);
 
   void _onExpressPayUrlChanged(String url, {required String source}) {
     if (_webViewTornDown || _checkoutNavigationStarted || !mounted) return;
 
-    final host = Uri.tryParse(url)?.host;
-    if (host != null && host.isNotEmpty && host != _portalHost) {
-      setState(() => _portalHost = host);
-    }
-
     final lower = url.toLowerCase();
-    if (lower.contains('checkout.php') && _initialExpressPayCheckoutUrl == null) {
+    if (lower.contains('checkout.php') &&
+        _initialExpressPayCheckoutUrl == null) {
       _initialExpressPayCheckoutUrl = url;
     }
 
@@ -252,58 +238,6 @@ class PaymentWebViewState extends State<PaymentWebView> {
     }
   }
 
-  /// Logs checkout amount for debugging only — does not block payment.
-  Future<void> _logExpressPayAmount(String url) async {
-    if (_webViewTornDown ||
-        _amountVerifyAttempts >= _maxAmountVerifyAttempts ||
-        !mounted) {
-      return;
-    }
-
-    final expected = _expectedPayableAmount;
-    final controller = _controller;
-    if (expected == null || controller == null) return;
-
-    final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
-    if (!host.contains('expresspay')) return;
-
-    _amountVerifyAttempts++;
-
-    try {
-      await Future<void>.delayed(const Duration(milliseconds: 600));
-      if (!mounted) return;
-
-      final raw = await controller.runJavaScriptReturningResult(
-        extractExpressPayPageTextJs,
-      );
-      final normalizedText = normalizeWebViewJsString(raw);
-      final displayed = parseExpressPayDisplayedAmount(normalizedText);
-      if (displayed == null) {
-        debugPrint(
-          '[EXPRESS PAY] Could not read checkout amount '
-          '(attempt $_amountVerifyAttempts/$_maxAmountVerifyAttempts, '
-          'textLen=${normalizedText.length})',
-        );
-        return;
-      }
-
-      debugPrint(
-        '[EXPRESS PAY] Checkout display amount=$displayed; expected=$expected',
-      );
-      if (!expressPayAmountMatchesExpected(
-        expected: expected,
-        displayed: displayed,
-      )) {
-        debugPrint(
-          '[EXPRESS PAY] Amount mismatch (not blocking): '
-          'displayed=$displayed expected=$expected',
-        );
-      }
-    } catch (e) {
-      debugPrint('[EXPRESS PAY] Amount log skipped: $e');
-    }
-  }
-
   /// Scans ExpressPay pages for success/pending/failure when redirect never fires.
   Future<void> _scanExpressPayPage(String url) async {
     if (_webViewTornDown || _checkoutNavigationStarted || !mounted) return;
@@ -366,9 +300,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
     if (_checkoutNavigationStarted || !mounted) return;
 
     final outcome = classifyPaymentUrl(url);
-    debugPrint(
-      '[EXPRESS PAY] URL ($source): $url → ${outcome.name}',
-    );
+    checkoutLog('[EXPRESS PAY] URL ($source): $url → ${outcome.name}');
 
     if (outcome != _PaymentOutcome.none) {
       _handlePaymentOutcome(outcome);
@@ -582,9 +514,11 @@ class PaymentWebViewState extends State<PaymentWebView> {
       if (!mounted) return;
 
       var resolved = parsePaymentRedirectUrl(targetUrl) ?? targetUrl;
-      final expected = _expectedPayableAmount;
-      if (expected != null && expected > 0) {
-        resolved = alignExpressPayCheckoutUrl(resolved, expected);
+      final expectedAmount = double.tryParse(
+        widget.paymentParams['amount']?.toString().replaceAll(',', '') ?? '',
+      );
+      if (expectedAmount != null && expectedAmount > 0) {
+        resolved = alignExpressPayCheckoutUrl(resolved, expectedAmount);
       }
       if (resolved.isEmpty) {
         setState(() {
@@ -610,7 +544,17 @@ class PaymentWebViewState extends State<PaymentWebView> {
   }
 
   String _portalErrorMessage(Object error) {
-    final message = error.toString().toLowerCase();
+    final raw = error.toString();
+    if (raw.startsWith('Exception: ')) {
+      final detail = raw.substring('Exception: '.length).trim();
+      if (detail.isNotEmpty &&
+          (detail.contains('delivery fee') ||
+              detail.contains('ExpressPay would charge'))) {
+        return detail;
+      }
+    }
+
+    final message = raw.toLowerCase();
     if (message.contains('timeout') || message.contains('timed out')) {
       return 'The payment portal is taking longer than usual. '
           'Please check your connection and try again.';
@@ -722,38 +666,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.22),
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.lock_rounded,
-                            color: Colors.white,
-                            size: 12,
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            'SSL',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    const SizedBox(width: 36),
                   ],
                 ),
               ),
@@ -773,53 +686,6 @@ class PaymentWebViewState extends State<PaymentWebView> {
               ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPortalContextBar(AppThemeColors theme) {
-    final host = _portalHost ?? 'expresspaygh.com';
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: theme.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.22),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.verified_user_outlined,
-            size: 14,
-            color: theme.isDark ? AppColors.primaryLight : AppColors.primaryDark,
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              host,
-              style: GoogleFonts.poppins(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: theme.ink,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (_isLoading)
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: AppColors.primary.withValues(alpha: 0.8),
-              ),
-            ),
         ],
       ),
     );
@@ -946,11 +812,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
       await _tearDownWebView(forReinit: true);
     }
     _webViewTornDown = false;
-    var resolved = parsePaymentRedirectUrl(portalUrl) ?? portalUrl.trim();
-    final expected = _expectedPayableAmount;
-    if (expected != null && expected > 0) {
-      resolved = alignExpressPayCheckoutUrl(resolved, expected);
-    }
+    final resolved = parsePaymentRedirectUrl(portalUrl) ?? portalUrl.trim();
     final parsed = Uri.tryParse(resolved);
     if (parsed == null ||
         !parsed.hasScheme ||
@@ -993,7 +855,6 @@ class PaymentWebViewState extends State<PaymentWebView> {
             if (!mounted || _webViewTornDown) return;
 
             await _injectExpressPayNavigationHook();
-            unawaited(_logExpressPayAmount(url));
             _onExpressPayUrlChanged(url, source: 'page-finished');
           },
           onUrlChange: (UrlChange change) {
@@ -1076,13 +937,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
       onPopInvokedWithResult: (didPop, result) async {
         if (!mounted) return;
 
-        debugPrint('🔍 PopScope triggered - didPop: $didPop');
-
-        // only show cancel dialog if theyre actually trying to exit
-        // if didPop is true, the system handled it automatically
-        // we only want to show dialog when they manually try to exit
         if (didPop) {
-          debugPrint('🔍 PopScope handled automatically - not showing dialog');
           return;
         }
 
@@ -1093,8 +948,6 @@ class PaymentWebViewState extends State<PaymentWebView> {
         try {
           // wait a tiny bit to prevent navigation conflicts
           await Future.delayed(const Duration(milliseconds: 100));
-
-          debugPrint('🔍 Showing cancel payment dialog from PopScope');
 
           if (!context.mounted) return;
 
@@ -1135,8 +988,6 @@ class PaymentWebViewState extends State<PaymentWebView> {
           child: Column(
             children: [
               _buildHeader(context, theme),
-              if (_controller != null && _loadError == null)
-                _buildPortalContextBar(theme),
               Expanded(
                 child: Stack(
                   fit: StackFit.expand,
@@ -1290,7 +1141,7 @@ class _PaymentPortalLoadingViewState extends State<_PaymentPortalLoadingView>
                                 Padding(
                                   padding: const EdgeInsets.all(14),
                                   child: Image.asset(
-                                    'assets/images/png.png',
+                                    'assets/images/app_logo.png',
                                     fit: BoxFit.contain,
                                     errorBuilder: (_, __, ___) => Icon(
                                       Icons.local_pharmacy_rounded,

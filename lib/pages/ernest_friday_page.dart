@@ -12,7 +12,7 @@ import '../providers/theme_provider.dart';
 import '../utils/app_error_utils.dart';
 
 class ErnestFridayPage extends StatefulWidget {
-  const ErnestFridayPage({Key? key}) : super(key: key);
+  const ErnestFridayPage({super.key});
 
   @override
   State<ErnestFridayPage> createState() => _ErnestFridayPageState();

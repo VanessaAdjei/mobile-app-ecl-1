@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import '../providers/clearance_sale_provider.dart';
 
 class ClearanceAdminPage extends StatefulWidget {
-  const ClearanceAdminPage({Key? key}) : super(key: key);
+  const ClearanceAdminPage({super.key});
 
   @override
   State<ClearanceAdminPage> createState() => _ClearanceAdminPageState();

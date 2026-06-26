@@ -6,7 +6,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../config/api_config.dart';
 import '../services/category_catalog_service.dart';
 import '../services/product_image_preload_service.dart';
 import '../utils/category_utils.dart';

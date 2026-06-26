@@ -13,6 +13,7 @@ import 'package:eclapp/pages/homepage.dart';
 import 'package:eclapp/pages/main_tab_shell.dart';
 import 'package:provider/provider.dart';
 import 'providers/cart_provider.dart';
+import 'providers/profile_settings_provider.dart';
 import 'providers/theme_provider.dart';
 import 'services/banner_cache_service.dart';
 import 'dart:async';
@@ -234,13 +235,23 @@ Future<void> _initializeApp() async {
 
   debugPrint('🚀 Main: Cold start - deferred (non-blocking for first frame)');
 
-  unawaited(AuthService.clearAllGuestIds());
+  unawaited(_ensureGuestIdForAnonymousSession());
   unawaited(BannerCacheService().initialize());
   unawaited(_warmCatalogFromDisk());
   unawaited(_initBackground());
   unawaited(BannerCacheService().getBanners());
 
   debugPrint('🚀 Main: Cold start work scheduled');
+}
+
+/// Keeps the same [guest_id] across app restarts for users who never sign in.
+Future<void> _ensureGuestIdForAnonymousSession() async {
+  if (await AuthService.isLoggedIn()) return;
+  try {
+    await AuthService.generateGuestId();
+  } catch (e) {
+    debugPrint('🚀 Main: guest_id ensure failed: $e');
+  }
 }
 
 /// Launch routing flags read once before [runApp] so the white bootstrap screen is skipped.
@@ -472,6 +483,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => ProfileSettingsProvider()),
         ChangeNotifierProvider(
           create: (context) {
             final notificationProvider = NotificationProvider();
@@ -688,7 +700,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 ).copyWith(
                   surface: const Color(0xFF0F172A),
                   onSurface: Colors.white,
-                  onBackground: Colors.white,
                 ),
                 textTheme: const TextTheme(
                   bodyLarge: TextStyle(color: Colors.white),

@@ -1,84 +1,5 @@
-/// Parses monetary amounts shown on the ExpressPay checkout page.
-/// Returns the largest GHS value found (often the payable total when multiple appear).
-double? parseExpressPayDisplayedAmount(String pageText) {
-  if (pageText.trim().isEmpty) return null;
+// ExpressPay WebView helpers (page scan, navigation hooks, outcome detection).
 
-  final normalized = pageText.replaceAll('\u00a0', ' ');
-  final patterns = [
-    RegExp(
-      r'GHS\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)',
-      caseSensitive: false,
-    ),
-    RegExp(
-      r'GHC\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)',
-      caseSensitive: false,
-    ),
-    RegExp(
-      r'GH\s*₵\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)',
-      caseSensitive: false,
-    ),
-    RegExp(r'₵\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)'),
-    RegExp(
-      r'(?:total|amount\s+due|pay(?:able)?(?:\s+amount)?)\s*[:\-]?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)',
-      caseSensitive: false,
-    ),
-  ];
-
-  double? best;
-  for (final pattern in patterns) {
-    for (final match in pattern.allMatches(normalized)) {
-      final raw = match.group(1)?.replaceAll(',', '');
-      final value = double.tryParse(raw ?? '');
-      if (value == null || value <= 0) continue;
-      if (best == null || value > best) best = value;
-    }
-  }
-
-  return best;
-}
-
-bool expressPayAmountMatchesExpected({
-  required double expected,
-  required double displayed,
-  double tolerance = 0.02,
-}) {
-  return (expected - displayed).abs() <= tolerance;
-}
-
-/// True when [displayed] is materially below [expectedTotal] (e.g. delivery omitted).
-bool expressPayAmountIsUndercharged({
-  required double expectedTotal,
-  required double displayed,
-  double tolerance = 0.02,
-}) {
-  return displayed + tolerance < expectedTotal;
-}
-
-/// True when [displayed] matches merchandise subtotal but not the full total.
-bool expressPayAmountLooksLikeSubtotalOnly({
-  required double expectedTotal,
-  required double displayed,
-  required double merchandiseSubtotal,
-}) {
-  if (merchandiseSubtotal <= 0 || expectedTotal <= merchandiseSubtotal) {
-    return false;
-  }
-  return expressPayAmountMatchesExpected(
-        expected: merchandiseSubtotal,
-        displayed: displayed,
-      ) &&
-      !expressPayAmountMatchesExpected(
-        expected: expectedTotal,
-        displayed: displayed,
-      );
-}
-
-double? tryParsePayableAmount(dynamic raw) {
-  if (raw is num) return raw.toDouble();
-  return double.tryParse('${raw ?? ''}'.replaceAll(',', '').trim());
-}
-
-/// JS run in the WebView to collect visible copy (body + iframes when allowed).
 const extractExpressPayPageTextJs = r'''
 (function() {
   const parts = [];
@@ -87,6 +8,9 @@ const extractExpressPayPageTextJs = r'''
     try {
       if (root.body) parts.push(root.body.innerText || '');
       if (root.documentElement) parts.push(root.documentElement.innerText || '');
+      root.querySelectorAll('input, [data-amount], [data-total], .amount, .total, [class*="amount"], [class*="total"]').forEach((el) => {
+        parts.push(el.value || el.getAttribute('data-amount') || el.getAttribute('data-total') || el.textContent || '');
+      });
     } catch (e) {}
   };
   grab(document);
@@ -162,7 +86,6 @@ bool expressPayUrlIsCheckoutEntry(String url) {
 
 enum ExpressPayPageSignal { none, pending, success, failed }
 
-/// Reads ExpressPay in-page copy after the user submits payment.
 ExpressPayPageSignal expressPayPageSignal(String pageText, {String? pageUrl}) {
   final text = pageText.toLowerCase();
   if (text.trim().isEmpty) return ExpressPayPageSignal.none;
@@ -213,7 +136,6 @@ bool expressPayPageLooksSuccessful(String text) {
   return phrases.any(text.contains);
 }
 
-/// True when ExpressPay page copy indicates the payment is awaiting confirmation.
 bool expressPayPageLooksPending(String pageText) {
   final text = pageText.toLowerCase();
   if (text.trim().isEmpty) return false;

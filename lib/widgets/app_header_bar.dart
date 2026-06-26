@@ -180,19 +180,11 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
       ),
     );
 
-    Widget content;
+    Widget headerBackground;
     if (background == AppHeaderBackground.accent) {
-      content = ClipRect(
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            const _AccentHeaderBackground(),
-            toolbar,
-          ],
-        ),
-      );
+      headerBackground = const _AccentHeaderBackground();
     } else {
-      content = Container(
+      headerBackground = DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -211,16 +203,23 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
             ),
           ],
         ),
-        child: toolbar,
+        child: const SizedBox.expand(),
       );
     }
 
     return SizedBox(
       height: topInset + contentHeight,
-      child: Column(
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
         children: [
-          SizedBox(height: topInset),
-          SizedBox(height: contentHeight, child: content),
+          Positioned.fill(child: headerBackground),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: topInset,
+            height: contentHeight,
+            child: toolbar,
+          ),
         ],
       ),
     );

@@ -1,6 +1,5 @@
 // services/notification_service.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 
@@ -129,22 +128,6 @@ class NotificationService {
         showCloseIcon: true,
       ),
     );
-  }
-
-  // Navigate to wallet page (fallback method)
-  static void _navigateToWallet() {
-    try {
-      // Try to get the navigator from the messenger key context
-      final context = _messengerKey.currentState?.context;
-      if (context != null) {
-        // Use Navigator.of(context) which is more reliable
-        Navigator.of(context).pushNamed('/wallet');
-      }
-    } catch (e) {
-      debugPrint('❌ NotificationService: Navigation failed: $e');
-      // If navigation fails, at least hide the snackbar
-      _messengerKey.currentState?.hideCurrentSnackBar();
-    }
   }
 
   // Global navigation method that doesn't rely on specific context

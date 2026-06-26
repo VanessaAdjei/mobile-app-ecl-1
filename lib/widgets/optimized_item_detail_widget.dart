@@ -966,41 +966,4 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
       ),
     );
   }
-
-  Widget _buildRelatedProductsSkeleton() {
-    return Container(
-      margin: EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 18,
-            width: 140,
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          SizedBox(height: 12),
-          SizedBox(
-            height: 200,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: 3,
-              itemBuilder: (context, index) {
-                return Container(
-                  width: 150,
-                  margin: EdgeInsets.only(right: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

@@ -536,7 +536,7 @@ class _TermsHeaderLogoState extends State<_TermsHeaderLogo>
             child: Padding(
               padding: const EdgeInsets.all(11),
               child: Image.asset(
-                'assets/images/png.png',
+                'assets/images/app_logo.png',
                 fit: BoxFit.contain,
               ),
             ),

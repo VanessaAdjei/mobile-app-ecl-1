@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../../utils/checkout_log.dart';
+
 import '../../config/api_config.dart';
 import '../../models/category_fetch_result.dart';
 import '../../services/auth_service.dart';
@@ -35,28 +37,11 @@ void _logPaymentHttp({
   required String body,
   Map<String, dynamic>? bodyMap,
 }) {
-  if (!kDebugMode) return;
-
-  final encoder = const JsonEncoder.withIndent('  ');
-  final safeHeaders = headers.map((key, value) {
-    if (key.toLowerCase() == 'authorization' && value.length > 16) {
-      return MapEntry(key, '${value.substring(0, 14)}…(${value.length} chars)');
-    }
-    return MapEntry(key, value);
-  });
-
-  debugPrint('');
-  debugPrint('══════════════════════════════════════════════════════');
-  debugPrint('[$tag] $method $url');
-  debugPrint('── Headers ──');
-  debugPrint(encoder.convert(safeHeaders));
   if (bodyMap != null) {
-    debugPrint('── Body (map) ──');
-    debugPrint(encoder.convert(bodyMap));
+    checkoutLog('[$tag] $method $url body=$bodyMap');
+  } else {
+    checkoutLog('[$tag] $method $url');
   }
-  debugPrint('── Body (wire) ──');
-  debugPrint(body);
-  debugPrint('══════════════════════════════════════════════════════');
 }
 
 void _logPaymentHttpResponse({
@@ -64,13 +49,7 @@ void _logPaymentHttpResponse({
   required int statusCode,
   required String body,
 }) {
-  if (!kDebugMode) return;
-
-  debugPrint('[$tag] ← HTTP $statusCode');
-  debugPrint('── Response body ──');
-  debugPrint(body.isEmpty ? '(empty)' : body);
-  debugPrint('══════════════════════════════════════════════════════');
-  debugPrint('');
+  checkoutLog('[$tag] ← HTTP $statusCode');
 }
 
 class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
@@ -82,34 +61,65 @@ class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
   }) async {
     try {
       final url = ApiConfig.getEndpointUrl(ApiConfig.expressPayment);
-      final bodyMap = params.map(
-        (key, value) => MapEntry(key, value?.toString() ?? ''),
-      );
-      final formBody = params.entries
-          .map(
-            (e) =>
-                '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value.toString())}',
-          )
-          .join('&');
-      final formHeaders = <String, String>{
+
+      // Preserve numeric types in JSON (e.g. deliveryFee: 20.0) so backends
+      // that bind typed fields get both string and number representations.
+      final jsonHeaders = <String, String>{
         ...headers,
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
       };
+      final jsonBody = jsonEncode(params);
 
       _logPaymentHttp(
         tag: 'EXPRESS PAYMENT SUBMIT',
         method: 'POST',
         url: url,
-        headers: formHeaders,
-        body: formBody,
-        bodyMap: bodyMap,
+        headers: jsonHeaders,
+        body: jsonBody,
+        bodyMap: params,
       );
 
-      final response = await HttpClientService.post(
+      var response = await HttpClientService.post(
         Uri.parse(url),
-        headers: formHeaders,
-        body: formBody,
+        headers: jsonHeaders,
+        body: jsonBody,
       ).timeout(timeout);
+
+      // Some Laravel handlers only bind form fields — retry once if JSON is rejected.
+      if (response.statusCode == 415 ||
+          (response.statusCode == 422 && response.body.contains('amount'))) {
+        final formBody = params.entries
+            .map(
+              (e) =>
+                  '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value.toString())}',
+            )
+            .join('&');
+        final formHeaders = <String, String>{
+          ...headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
+        };
+        if (kDebugMode) {
+          debugPrint(
+            '[EXPRESS PAYMENT SUBMIT] JSON rejected (${response.statusCode}), '
+            'retrying as form-urlencoded',
+          );
+        }
+        _logPaymentHttp(
+          tag: 'EXPRESS PAYMENT SUBMIT (form fallback)',
+          method: 'POST',
+          url: url,
+          headers: formHeaders,
+          body: formBody,
+          bodyMap: params,
+        );
+        response = await HttpClientService.post(
+          Uri.parse(url),
+          headers: formHeaders,
+          body: formBody,
+        ).timeout(timeout);
+      }
 
       _logPaymentHttpResponse(
         tag: 'EXPRESS PAYMENT SUBMIT',

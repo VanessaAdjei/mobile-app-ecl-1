@@ -39,13 +39,12 @@ class OnboardingPermissionsSlide extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'Two quick prompts help us confirm orders and deliver to the right place.',
+                    'Allow notifications and location so we can confirm orders and deliver to the right place.',
                     textAlign: TextAlign.center,
                     style: OnboardingUi.body,
                   ),
                   const SizedBox(height: 24),
                   const _PermissionTile(
-                    step: '1',
                     icon: Icons.notifications_active_rounded,
                     iconColor: AppColors.primary,
                     title: 'Order alerts',
@@ -54,12 +53,11 @@ class OnboardingPermissionsSlide extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   const _PermissionTile(
-                    step: '2',
                     icon: Icons.near_me_rounded,
                     iconColor: _teal,
                     title: 'Delivery location',
                     description:
-                        'Provide your delivery address to show accurate delivery fees while you shop.',
+                        'Used only while you use the app to set your delivery address and show accurate delivery fees.',
                   ),
                   const SizedBox(height: 16),
                   Container(
@@ -197,14 +195,12 @@ class _IconOrb extends StatelessWidget {
 
 class _PermissionTile extends StatelessWidget {
   const _PermissionTile({
-    required this.step,
     required this.icon,
     required this.iconColor,
     required this.title,
     required this.description,
   });
 
-  final String step;
   final IconData icon;
   final Color iconColor;
   final String title;
@@ -231,24 +227,6 @@ class _PermissionTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: iconColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    'Prompt $step',
-                    style: OnboardingUi.label.copyWith(
-                      fontSize: 10,
-                      color: iconColor,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
                 Text(title,
                     style: OnboardingUi.bodyStrong.copyWith(fontSize: 15)),
                 const SizedBox(height: 4),

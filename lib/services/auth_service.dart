@@ -2,6 +2,7 @@
 // handles login, logout, tokens, and all that auth stuff
 import 'dart:async';
 import 'package:eclapp/pages/signinpage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +12,7 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 import '../models/product_model.dart';
+import '../models/user_profile.dart';
 import 'dart:io';
 import '../config/api_config.dart';
 import '../services/guest_local_order_service.dart';
@@ -78,8 +80,7 @@ class AuthService {
       // if we get that keychain error, just use regular storage
       if (e.code == '-34018' || e.message?.contains('34018') == true) {
         if (_keychainFallbackLoggedKeys.add(key)) {
-          debugPrint(
-              'Keychain access error suppressed: $key, falling back to SharedPreferences');
+          // Keychain unavailable — SharedPreferences fallback is used silently.
         }
         // try regular storage instead
         try {
@@ -111,12 +112,8 @@ class AuthService {
     bool keychainFailed = false;
     try {
       await _secureStorage.write(key: key, value: value);
-      debugPrint('[_safeWrite] Wrote to secure storage: key=$key');
     } on PlatformException catch (e) {
-      // handle keychain errors
       if (e.code == '-34018' || e.message?.contains('34018') == true) {
-        debugPrint(
-            'Keychain access error suppressed: $key, falling back to SharedPreferences');
         keychainFailed = true;
       } else {
         rethrow;
@@ -131,8 +128,6 @@ class AuthService {
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('secure_$key', value);
-        debugPrint(
-            '[_safeWrite] Wrote to SharedPreferences fallback: key=secure_$key');
       } catch (e) {
         debugPrint('SharedPreferences fallback failed for $key: $e');
       }
@@ -147,7 +142,7 @@ class AuthService {
     } on PlatformException catch (e) {
       // ignore those annoying keychain errors
       if (e.code == '-34018' || e.message?.contains('34018') == true) {
-        debugPrint('Keychain access error suppressed: $key');
+        // Keychain unavailable — ignore.
       } else {
         rethrow;
       }
@@ -172,7 +167,7 @@ class AuthService {
     } on PlatformException catch (e) {
       // ignore keychain errors
       if (e.code == '-34018' || e.message?.contains('34018') == true) {
-        debugPrint('Keychain access error suppressed: deleteAll');
+        // Keychain unavailable — ignore.
       } else {
         rethrow;
       }
@@ -199,9 +194,7 @@ class AuthService {
     try {
       return await _secureStorage.readAll();
     } on PlatformException catch (e) {
-      // ignore keychain errors
       if (e.code == '-34018' || e.message?.contains('34018') == true) {
-        debugPrint('Keychain access error suppressed: readAll');
         return {};
       }
       rethrow;
@@ -1224,12 +1217,16 @@ class AuthService {
 
     if (userData['name'] != null) {
       await _safeWrite(userNameKey, userData['name'].toString());
+    } else if (userData['fname'] != null) {
+      await _safeWrite(userNameKey, userData['fname'].toString());
     }
     if (userData['email'] != null) {
       await _safeWrite(userEmailKey, userData['email'].toString());
     }
     if (userData['phone'] != null) {
       await _safeWrite(userPhoneNumberKey, userData['phone'].toString());
+    } else if (userData['number'] != null) {
+      await _safeWrite(userPhoneNumberKey, userData['number'].toString());
     }
     if (userData['id'] != null) {
       await _safeWrite(userIdKey, userData['id'].toString());
@@ -1238,33 +1235,87 @@ class AuthService {
 
   /// When login returns a token but no user payload, load profile from API.
   static Future<void> _hydrateUserProfileAfterLogin(String email) async {
+    final refreshed =
+        await refreshUserProfileFromApi(fallbackEmail: email);
+    if (!refreshed && email.isNotEmpty) {
+      await storeUserData({'email': email});
+      await _safeWrite(userEmailKey, email);
+    }
+  }
+
+  /// `GET /profile` — refreshes cached user data when logged in.
+  static Future<bool> refreshUserProfileFromApi({String? fallbackEmail}) async {
+    final url = ApiConfig.getEndpointUrl(ApiConfig.getProfile);
     try {
+      if (!await isLoggedIn()) {
+        _logGetProfileResponse(
+          url: url,
+          statusCode: 0,
+          responseBody: '(skipped — not logged in)',
+        );
+        return false;
+      }
+
       final response = await HttpClientService.get(
-        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.userProfile)),
+        Uri.parse(url),
         headers: await getAuthHeaders(),
       ).timeout(const Duration(seconds: 15));
 
-      if (response.statusCode != 200) return;
+      _logGetProfileResponse(
+        url: url,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
+
+      if (response.statusCode != 200) return false;
 
       final map = AppErrorUtils.tryDecodeJsonMap(response.body.trim());
-      if (map == null) return;
+      if (map == null) return false;
 
-      final profile = map['data'] is Map
-          ? Map<String, dynamic>.from(map['data'] as Map)
-          : map;
-
-      if (profile['email'] == null && email.isNotEmpty) {
-        profile['email'] = email;
+      var profile = UserProfile.fromApiMap(map);
+      if (profile.email.isEmpty &&
+          fallbackEmail != null &&
+          fallbackEmail.isNotEmpty) {
+        profile = profile.copyWith(email: fallbackEmail);
       }
 
-      await _persistUserFromLogin(profile);
-    } catch (e) {
-      debugPrint('Could not load user profile after login: $e');
-      if (email.isNotEmpty) {
-        await storeUserData({'email': email});
-        await _safeWrite(userEmailKey, email);
-      }
+      await _persistUserFromLogin(profile.toAuthStorageMap());
+      return true;
+    } catch (e, st) {
+      _logGetProfileResponse(
+        url: url,
+        statusCode: 0,
+        responseBody: 'Error: $e',
+      );
+      debugPrint('AuthService.refreshUserProfileFromApi: $e\n$st');
+      return false;
     }
+  }
+
+  static void _logGetProfileResponse({
+    required String url,
+    required int statusCode,
+    String? responseBody,
+  }) {
+    if (!kDebugMode) return;
+
+    const encoder = JsonEncoder.withIndent('  ');
+    debugPrint('');
+    debugPrint('══════════════════════════════════════════════════════');
+    debugPrint('[GET-PROFILE] GET $url');
+    debugPrint('── Response HTTP $statusCode ──');
+    if (responseBody != null && responseBody.trim().isNotEmpty) {
+      try {
+        final decoded = json.decode(responseBody);
+        debugPrint(encoder.convert(decoded));
+      } catch (_) {
+        debugPrint(responseBody);
+      }
+    } else {
+      debugPrint('(empty body)');
+    }
+    debugPrint('══════════════════════════════════════════════════════');
+    debugPrint('');
   }
 
   static Future<bool> isLoggedIn() async {
@@ -1456,12 +1507,16 @@ class AuthService {
       // Also save individual fields for backward compatibility
       if (user['name'] != null) {
         await _safeWrite(userNameKey, user['name']);
+      } else if (user['fname'] != null) {
+        await _safeWrite(userNameKey, user['fname']);
       }
       if (user['email'] != null) {
         await _safeWrite(userEmailKey, user['email']);
       }
       if (user['phone'] != null) {
         await _safeWrite(userPhoneNumberKey, user['phone']);
+      } else if (user['number'] != null) {
+        await _safeWrite(userPhoneNumberKey, user['number']);
       }
       if (user['id'] != null) {
         await _safeWrite(userIdKey, user['id'].toString());
@@ -1474,8 +1529,14 @@ class AuthService {
     }
   }
 
-  static Future<Map<String, dynamic>?> getCurrentUser() async {
+  static Future<Map<String, dynamic>?> getCurrentUser({
+    bool refreshFromServer = false,
+  }) async {
     try {
+      if (refreshFromServer) {
+        await refreshUserProfileFromApi();
+      }
+
       // First check the in-memory cache
       if (_cachedUserData != null) {
         return _cachedUserData;
@@ -1797,7 +1858,7 @@ class AuthService {
     return prefs.getString('guest_id');
   }
 
-  /// Clear all guest_id keys from SharedPreferences
+  /// Clear guest_id from device (e.g. after successful login when switching to user session).
   static Future<void> clearAllGuestIds() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('guest_id');
@@ -2021,7 +2082,6 @@ class AuthService {
         return GuestLocalOrderService.instance.buildOrdersResponse();
       }
 
-      debugPrint('🔍 Fetching orders from API...');
       final response = await HttpClientService.get(
         Uri.parse('$baseUrl/orders'),
         headers: {
@@ -2031,14 +2091,11 @@ class AuthService {
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode != 200) {
-        debugPrint('Orders API response status: ${response.statusCode}');
         return {
           'status': 'error',
           'message': 'Failed to fetch orders (${response.statusCode})',
         };
       }
-
-      debugPrint('Orders API response status: ${response.statusCode}');
 
       final decoded = jsonDecode(response.body);
 

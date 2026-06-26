@@ -12,12 +12,12 @@ class ErnestFridayBanner extends StatefulWidget {
   final bool showOffers;
 
   const ErnestFridayBanner({
-    Key? key,
+    super.key,
     required this.event,
     this.onTap,
     this.showCountdown = true,
     this.showOffers = true,
-  }) : super(key: key);
+  });
 
   @override
   State<ErnestFridayBanner> createState() => _ErnestFridayBannerState();
@@ -286,10 +286,10 @@ class ErnestFridayCompactBanner extends StatelessWidget {
   final VoidCallback? onTap;
 
   const ErnestFridayCompactBanner({
-    Key? key,
+    super.key,
     required this.event,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

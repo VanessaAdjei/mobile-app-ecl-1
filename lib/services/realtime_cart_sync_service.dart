@@ -2,7 +2,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../providers/cart_provider.dart';
-import 'auth_service.dart';
+import '../services/cart_service.dart';
 import '../utils/app_error_utils.dart';
 
 /// Keeps the local cart reconciled with the server in the background (not only on add).
@@ -87,7 +87,6 @@ class RealtimeCartSyncService {
     try {
       if (_cartProvider == null) return;
       if (!await _canSyncWithServer()) return;
-      debugPrint('🛒 RealtimeCartSyncService: periodic cart check');
       await _cartProvider!.syncWithApi();
     } catch (e, st) {
       AppErrorUtils.log('RealtimeCartSyncService._performPeriodicSync', e, st);
@@ -95,11 +94,8 @@ class RealtimeCartSyncService {
   }
 
   Future<bool> _canSyncWithServer() async {
-    if (!await AuthService.isLoggedIn()) return false;
-    final token = await AuthService.getToken();
-    if (token == null || token.isEmpty) return false;
-    final hashedLink = await AuthService.getHashedLink();
-    return hashedLink != null && hashedLink.isNotEmpty;
+    final headers = await CartService.resolveGuestOrUserTokenHeaders();
+    return headers != null;
   }
 
   Future<void> forceImmediateSync() async {

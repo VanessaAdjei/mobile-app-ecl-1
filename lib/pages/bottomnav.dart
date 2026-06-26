@@ -7,10 +7,6 @@ import '../config/app_routes.dart';
 import '../config/app_colors.dart';
 import '../providers/cart_provider.dart';
 import '../widgets/cart_nav_badge_icon.dart';
-import 'homepage.dart' as home;
-import 'categories.dart';
-import 'cart.dart';
-import 'profile.dart';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 import '../services/order_notification_service.dart';
@@ -47,7 +43,7 @@ class CustomBottomNav extends StatefulWidget {
 class _CustomBottomNavState extends State<CustomBottomNav>
     with TickerProviderStateMixin {
   late int _selectedIndex;
-  bool _isNavigating = false;
+  final bool _isNavigating = false;
   bool _disposed = false;
   late AnimationController _centerButtonController;
   late Animation<double> _centerButtonScaleAnimation;
@@ -133,47 +129,6 @@ class _CustomBottomNavState extends State<CustomBottomNav>
   Future<void> _checkLoginStatus() async {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
     await cartProvider.refreshLoginStatus();
-  }
-
-  bool _isOnHomePage() {
-    try {
-      // check route name first
-      final currentRoute = ModalRoute.of(context);
-      if (currentRoute != null) {
-        final routeName = currentRoute.settings.name;
-        if (routeName == '/home') {
-          return true;
-        }
-      }
-
-      // check if we're at the root (cant go back)
-      if (Navigator.of(context).canPop() == false) {
-        return true;
-      }
-
-      // check current page by looking at the context
-      final currentPage =
-          context.findAncestorWidgetOfExactType<home.HomePage>();
-      if (currentPage != null) {
-        return true;
-      }
-
-      return false;
-    } catch (e) {
-      debugPrint('Error checking if on home page: $e');
-      return false;
-    }
-  }
-
-  // check if we're currently on a specific page type
-  bool _isOnPage<T extends Widget>() {
-    try {
-      final currentPage = context.findAncestorWidgetOfExactType<T>();
-      return currentPage != null;
-    } catch (e) {
-      debugPrint('Error checking if on page: $e');
-      return false;
-    }
   }
 
   // Tab icon with pill highlight when selected.

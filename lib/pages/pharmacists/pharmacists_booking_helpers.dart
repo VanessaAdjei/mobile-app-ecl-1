@@ -36,6 +36,37 @@ const String bookingStatusCancelled = 'Cancelled';
 
 enum BookingListSection { upcoming, notDone, completed, cancelled }
 
+bool bookingIdsMatch(dynamic a, dynamic b) {
+  if (a == null || b == null) return false;
+  return a.toString() == b.toString();
+}
+
+bool bookingMatches(
+  Map<String, dynamic> a,
+  Map<String, dynamic> b,
+) {
+  if (identical(a, b)) return true;
+  final aId = a['id'];
+  final bId = b['id'];
+  if (aId != null && bId != null) {
+    return bookingIdsMatch(aId, bId);
+  }
+  return bookingDisplayDate(a) == bookingDisplayDate(b) &&
+      bookingDisplayTime(a) == bookingDisplayTime(b) &&
+      bookingDisplayName(a) == bookingDisplayName(b) &&
+      (a['phone'] ?? '').toString() == (b['phone'] ?? '').toString();
+}
+
+int indexOfBooking(
+  List<Map<String, dynamic>> bookings,
+  Map<String, dynamic> booking,
+) {
+  for (var i = 0; i < bookings.length; i++) {
+    if (bookingMatches(bookings[i], booking)) return i;
+  }
+  return -1;
+}
+
 bool isBookingUpcoming(Map<String, dynamic> b) =>
     getBookingStatus(b) == bookingStatusUpcoming;
 
@@ -120,12 +151,11 @@ int compareBookingsNewestFirst(Map<String, dynamic> a, Map<String, dynamic> b) {
   return db.compareTo(da);
 }
 
-/// Bookings shown on the pharmacists page (excludes overdue / past due).
+/// Bookings shown on the pharmacists page (upcoming only; overdue/cancelled → My Appointments).
 List<Map<String, dynamic>> activeBookingsForPharmacistsPage(
   List<Map<String, dynamic>> bookings,
 ) {
-  final active =
-      bookings.where((b) => !isBookingPastDue(b)).toList();
+  final active = bookings.where(isBookingUpcoming).toList();
   active.sort((a, b) {
     final da = bookingDateTime(a);
     final db = bookingDateTime(b);

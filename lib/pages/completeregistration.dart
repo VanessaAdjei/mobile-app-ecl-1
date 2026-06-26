@@ -14,7 +14,7 @@ class GetStartedScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Image.asset('assets/images/png.png', height: 100),
+              Image.asset('assets/images/app_logo.png', height: 100),
               const SizedBox(height: 20),
               const Text(
                 'Getting your health needs easier and faster',

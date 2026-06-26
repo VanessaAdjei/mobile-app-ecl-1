@@ -102,7 +102,7 @@ class _ECardWidgetState extends State<ECardWidget> {
               child: Opacity(
                 opacity: 0.88,
                 child: Image.asset(
-                  'assets/images/png.png',
+                  'assets/images/app_logo.png',
                   height: 26,
                   fit: BoxFit.contain,
                   filterQuality: FilterQuality.medium,

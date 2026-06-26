@@ -49,7 +49,7 @@ class SplashScreenState extends State<SplashScreen> {
         ),
         child: Center(
           child: Image.asset(
-            'assets/images/png.png',
+            'assets/images/app_logo.png',
             height: 200,
             width: 200,
           ),

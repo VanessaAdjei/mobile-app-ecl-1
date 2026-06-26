@@ -104,6 +104,29 @@ class CartService {
     );
   }
 
+  /// Probes check-auth for the current cart snapshot (guest or logged-in).
+  Future<CategoryFetchResult> fetchCartSnapshot({
+    required Map<String, String> headers,
+    Duration timeout = cartHttpTimeout,
+  }) async {
+    const probes = <Map<String, dynamic>>[
+      {'productID': 0, 'quantity': 0},
+      <String, dynamic>{},
+    ];
+    CategoryFetchResult? last;
+    for (final body in probes) {
+      final result = await checkAuth(
+        headers: headers,
+        body: body,
+        timeout: timeout,
+      );
+      last = result;
+      if (isSuccessStatus(result.statusCode)) return result;
+    }
+    return last ??
+        CategoryFetchResult(statusCode: 0, error: StateError('fetch'));
+  }
+
   Future<CategoryFetchResult> checkAuth({
     required Map<String, String> headers,
     required Map<String, dynamic> body,

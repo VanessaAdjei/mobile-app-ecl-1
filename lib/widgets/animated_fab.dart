@@ -203,11 +203,11 @@ class _AnimatedFABWithLabelState extends State<AnimatedFABWithLabel>
           child: Opacity(
             opacity: _fadeAnimation.value,
             child: AnimatedFAB(
-              child: widget.child,
               onPressed: widget.onPressed,
               backgroundColor: widget.backgroundColor,
               foregroundColor: widget.foregroundColor,
               mini: widget.mini,
+              child: widget.child,
             ),
           ),
         );

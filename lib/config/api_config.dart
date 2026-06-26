@@ -44,11 +44,17 @@ class ApiConfig {
   static const String checkAuth = '/check-auth';
 
   // ==================== USER PROFILE ENDPOINTS ====================
-  // user profile stuff
+  // user profile & account settings
 
-  static const String userProfile = '/user-profile';
-  static const String userProfileUpdate = '/user-profile/update';
-  static const String getUserProfile = '/user/profile';
+  static const String getProfile = '/profile';
+  /// `POST /profile/update` with body: fname, email, number, addr_1, lat, lng.
+  static const String updateProfile = '/profile/update';
+  static const String changePassword = '/change-password';
+
+  /// Legacy aliases — prefer [getProfile] / [updateProfile].
+  static const String userProfile = getProfile;
+  static const String userProfileUpdate = updateProfile;
+  static const String getUserProfile = getProfile;
 
   // ==================== PRODUCT ENDPOINTS ====================
   // getting products and product info
@@ -125,7 +131,8 @@ class ApiConfig {
 
   static const String saveBillingAddress = '/save-billing-add';
   static const String getBillingAddress = '/get-billing-add';
-  static const String calculateDeliveryFee = '/calculate-delivery-fee';
+  static const String calculateDeliveryFee =
+      '/calculate-delivery-fee'; // POST { distance_text } — apply after save-billing + xpress
   static const String deliveryGeofence = '/delivery-geofence';
   static const String validateGeofence = '/validate-geofence';
   static const String regions = '/regions';
@@ -188,10 +195,6 @@ class ApiConfig {
 
   // ==================== EXTERNAL SERVICES ====================
   // third party services
-
-  // expresspay payment sdk
-  static const String expressPaySdk =
-      'https://sandbox.expresspaygh.com/api/sdk/php/server.php';
 
   // google gemini api for the ai pharmacist thing
   static const String googleGeminiApi =

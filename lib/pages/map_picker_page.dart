@@ -17,6 +17,7 @@ import '../services/delivery_service.dart';
 import '../utils/app_theme_colors.dart';
 import '../utils/point_in_polygon.dart';
 import '../services/google_places_service.dart';
+import '../services/location_service.dart';
 import '../widgets/animated_map_pin.dart';
 import '../widgets/map/map_dark_style.dart';
 import '../widgets/map/outside_delivery_area_dialog.dart';
@@ -96,17 +97,17 @@ class _MapPickerPageState extends State<MapPickerPage> {
         : _kAccraCenter;
     _selectedLocation = _initialLocation;
     _initializeMarkers();
-    _getAddressFromCoordinates(widget.initialLatitude, widget.initialLongitude);
+    unawaited(
+      _getAddressFromCoordinates(
+        _selectedLocation.latitude,
+        _selectedLocation.longitude,
+      ),
+    );
     unawaited(_loadDeliveryGeofence());
 
-    print('🗺️ [MAP] MapPickerPage initialized');
-    print(
-        '   📍 Initial location: (${widget.initialLatitude}, ${widget.initialLongitude})');
-    print(
-        '   📍 [iOS DEBUG] Widget coordinates received: (${widget.initialLatitude}, ${widget.initialLongitude})');
-    print(
-        '   📍 [iOS DEBUG] Data types: ${widget.initialLatitude.runtimeType}, ${widget.initialLongitude.runtimeType}');
-    print('   📍 [iOS DEBUG] _initialLocation created: $_initialLocation');
+    debugPrint('🗺️ [MAP] MapPickerPage initialized');
+    debugPrint(
+        '   📍 Initial location: (${_selectedLocation.latitude}, ${_selectedLocation.longitude})');
   }
 
   Future<void> _loadDeliveryGeofence() async {
@@ -517,20 +518,6 @@ class _MapPickerPageState extends State<MapPickerPage> {
 
     // Fallback: Return unknown if nothing is available
     return 'Unknown location';
-  }
-
-  void _logGoogleMapsApiDenied(String apiName, Map<String, dynamic> data) {
-    final status = data['status']?.toString() ?? '';
-    if (status != 'REQUEST_DENIED') return;
-    print(
-      '🗺️ [MAP] $apiName REQUEST_DENIED — enable the API in Google Cloud Console '
-      'and ensure the key allows it (REST calls from the app often fail when the '
-      'key is restricted to iOS/Android apps only). Using platform geocoding instead.',
-    );
-    final message = data['error_message']?.toString();
-    if (message != null && message.isNotEmpty) {
-      print('🗺️ [MAP] Google error_message: $message');
-    }
   }
 
   /// Forward geocode via OS geocoder (no Geocoding REST API / API key required).
@@ -1258,20 +1245,14 @@ class _MapPickerPageState extends State<MapPickerPage> {
                 setState(() => _isUpdatingLocation = true);
 
                 try {
-                  // Check location permissions first
-                  LocationPermission permission =
-                      await Geolocator.checkPermission();
-                  if (permission == LocationPermission.denied) {
-                    permission = await Geolocator.requestPermission();
-                    if (permission == LocationPermission.denied) {
-                      if (!context.mounted) return;
-                      AppErrorUtils.showSnack(
-                        context,
-                        'Location permission is required to use your position.',
-                        isError: true,
-                      );
-                      return;
-                    }
+                  if (!await LocationService().ensureWhenInUsePermission()) {
+                    if (!context.mounted) return;
+                    AppErrorUtils.showSnack(
+                      context,
+                      'Location permission is required to use your position.',
+                      isError: true,
+                    );
+                    return;
                   }
 
                   if (!mounted) return;

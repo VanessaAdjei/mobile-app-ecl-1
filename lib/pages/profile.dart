@@ -18,10 +18,16 @@ import '../config/app_version.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import '../widgets/logout_confirm_dialog.dart';
+import '../widgets/profile_page_tour.dart';
+import '../widgets/profile_swipe_hint.dart';
+import '../widgets/sign_in_required_dialog.dart';
 import '../providers/cart_provider.dart';
 import '../main.dart';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
+
+const Color _kProfilePageBg = Color(0xFFF6F8FA);
+const Color _kProfilePageBgMint = Color(0xFFEFFCF4);
 
 class Profile extends StatefulWidget {
   const Profile({super.key, this.showBottomNav = true});
@@ -32,47 +38,72 @@ class Profile extends StatefulWidget {
   ProfileState createState() => ProfileState();
 }
 
-class ProfileState extends State<Profile> with TickerProviderStateMixin {
+class ProfileState extends State<Profile> {
   String _userName = "User";
   String _userEmail = "No email available";
   bool _userLoggedIn = false;
-  late AnimationController _contentAnimationController;
-  late Animation<double> _contentAnimation;
   final ScrollController _scrollController = ScrollController();
   int? _wishlistCount;
+  final _swipeHint = ProfileSwipeHintController();
+  final _tourHeaderKey = GlobalKey();
+  final _tourPreferencesKey = GlobalKey();
+  final _tourAccountKey = GlobalKey();
+  final _tourHealthKey = GlobalKey();
+  final _tourSupportKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
-
-    // set up the animations
-    _contentAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
-    _contentAnimation = CurvedAnimation(
-      parent: _contentAnimationController,
-      curve: Curves.easeOutQuart,
-    );
-
+    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeUserData();
-      _startAnimations();
     });
   }
 
   @override
   void dispose() {
-    _contentAnimationController.dispose();
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
   }
 
-  void _startAnimations() {
-    Future.delayed(const Duration(milliseconds: 300), () {
-      _contentAnimationController.forward();
-    });
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final previous = _swipeHint.show;
+    _swipeHint.update(_scrollController);
+    if (previous != _swipeHint.show && mounted) {
+      setState(() {});
+    }
+  }
+
+  void _scheduleSwipeHintCheck() {
+    scheduleProfileSwipeHintCheck(
+      controller: _scrollController,
+      hint: _swipeHint,
+      onChanged: () {
+        if (mounted) setState(() {});
+      },
+    );
+  }
+
+  Future<void> _runTourThenSwipeHint() async {
+    if (!mounted) return;
+    final tourShown = await ProfilePageTour.maybeStart(
+      context: context,
+      targets: ProfilePageTourTargets(
+        headerKey: _tourHeaderKey,
+        preferencesKey: _tourPreferencesKey,
+        accountKey: _tourAccountKey,
+        healthKey: _tourHealthKey,
+        supportKey: _tourSupportKey,
+      ),
+      scrollController: _scrollController,
+    );
+    if (!mounted) return;
+    if (tourShown) {
+      _swipeHint.reset();
+    }
+    _scheduleSwipeHintCheck();
   }
 
   Future<void> _initializeUserData() async {
@@ -84,6 +115,11 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
         await _loadUserData();
       } else {
         await context.read<NotificationProvider>().clearForSignedOutUser();
+      }
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_runTourThenSwipeHint());
+        });
       }
     } catch (e) {
       if (!mounted) return;
@@ -107,6 +143,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
       if (mounted) {
         await context.read<NotificationProvider>().refreshUnreadCount();
       }
+      _scheduleSwipeHintCheck();
     } catch (e) {
       debugPrint('Profile refresh error: $e');
     }
@@ -114,18 +151,20 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
 
   Future<void> _loadUserData() async {
     try {
-      final userData = await AuthService.getCurrentUser();
+      final userData =
+          await AuthService.getCurrentUser(refreshFromServer: true);
       if (!mounted) return;
       setState(() {
-        _userName = userData?['name'] ?? "User";
-        _userEmail = userData?['email'] ?? "No email available";
+        _userName =
+            userData?['name'] ?? userData?['fname'] ?? 'User';
+        _userEmail = userData?['email'] ?? 'No email available';
       });
     } catch (e) {
       debugPrint('Error loading user data in profile: $e');
       if (!mounted) return;
       setState(() {
-        _userName = "User";
-        _userEmail = "No email available";
+        _userName = 'User';
+        _userEmail = 'No email available';
       });
     }
   }
@@ -222,138 +261,11 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
     );
   }
 
-  void _showSignInRequiredDialog(BuildContext context, {String? feature}) {
-    final theme = context.appColors;
-    final isDark = theme.isDark;
-    final accent = isDark ? AppColors.primaryLight : AppColors.primaryDark;
-    final accentFill = isDark ? AppColors.primary : Colors.green.shade700;
-
-    showDialog(
-      context: context,
-      barrierColor: isDark
-          ? Colors.black.withValues(alpha: 0.72)
-          : Colors.black.withValues(alpha: 0.45),
-      builder: (dialogContext) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-            side: BorderSide(color: theme.border),
-          ),
-          backgroundColor: theme.sheetBg,
-          surfaceTintColor: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: isDark
-                          ? [
-                              AppColors.primary.withValues(alpha: 0.85),
-                              AppColors.primaryDark,
-                            ]
-                          : [Colors.green.shade400, Colors.green.shade600],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: isDark
-                            ? Colors.black.withValues(alpha: 0.35)
-                            : Colors.green.shade200,
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.all(20),
-                  child: const Icon(
-                    Icons.lock_outline,
-                    color: Colors.white,
-                    size: 40,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Sign In Required',
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: theme.ink,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  feature != null && feature.isNotEmpty
-                      ? 'Sign in to access $feature.'
-                      : 'This feature is only for signed up users.\nSign in to upload a prescription, get refillable drugs, and track your order.',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: theme.muted,
-                    height: 1.5,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: accent,
-                          side: BorderSide(color: accent, width: 1.5),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: Text(
-                          'Cancel',
-                          style:
-                              GoogleFonts.poppins(fontWeight: FontWeight.w500),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(dialogContext).pop();
-                          Navigator.pushNamed(
-                            dialogContext,
-                            AppRoutes.signIn,
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: accentFill,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          elevation: isDark ? 0 : 4,
-                          shadowColor: isDark
-                              ? Colors.transparent
-                              : Colors.green.shade200,
-                        ),
-                        child: Text(
-                          'Sign In',
-                          style:
-                              GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+  void _requireSignIn({String? feature}) {
+    SignInRequiredDialog.showAndNavigate(
+      context,
+      feature: feature,
+      returnTo: AppRoutes.profile,
     );
   }
 
@@ -363,15 +275,9 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
     return trimmed[0].toUpperCase();
   }
 
-  void _requireSignIn({String? feature}) {
-    _showSignInRequiredDialog(context, feature: feature);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
     final theme = context.appColors;
-    final isDark = themeProvider.isDarkMode;
     final bg = theme.pageBg;
     final surface = theme.surface;
     final ink = theme.ink;
@@ -380,77 +286,79 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
 
     return Scaffold(
       backgroundColor: bg,
-      body: RefreshIndicator(
-        color: AppColors.primary,
-        onRefresh: _refreshProfile,
-        child: CustomScrollView(
-          controller: _scrollController,
-          physics: const AlwaysScrollableScrollPhysics(
-            parent: BouncingScrollPhysics(),
-          ),
-          slivers: [
-            EclExpandableSliverAppBar(
-              toolbarTitle: 'Profile',
-              heroTitle: 'Profile',
-              heroSubtitle: 'Manage your account and preferences',
-              centerTitle: true,
-              expandedTitleAlignment: Alignment.bottomCenter,
-              onBack: () {
-                if (Navigator.canPop(context)) {
-                  Navigator.pop(context);
-                } else {
-                  MainTabShell.goToTab(context, 0);
-                }
-              },
-              actions: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const CartIconButton(
-                      iconColor: Colors.white,
-                      iconSize: 22,
-                      backgroundColor: Colors.transparent,
-                    ),
-                  ),
+      body: _profileHubBackdrop(
+        context: context,
+        child: Stack(
+          children: [
+            RefreshIndicator(
+              color: AppColors.primary,
+              onRefresh: _refreshProfile,
+              child: CustomScrollView(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
                 ),
-              ],
-            ),
-            SliverToBoxAdapter(
-              child: AnimatedBuilder(
-                animation: _contentAnimation,
-                builder: (context, child) {
-                  return Transform.translate(
-                    offset: Offset(0, 24 * (1 - _contentAnimation.value)),
-                    child: Opacity(
-                      opacity: _contentAnimation.value,
-                      child: child,
-                    ),
-                  );
-                },
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _ProfileHeaderCard(
-                        isDark: isDark,
-                        loggedIn: _userLoggedIn,
-                        name: _userName,
-                        email: _userEmail,
-                        initial: _avatarInitial,
-                        onSignIn: _handleLogin,
+                slivers: [
+                  EclExpandableSliverAppBar(
+                    toolbarTitle: 'Profile',
+                    heroTitle: 'Profile',
+                    heroSubtitle: 'Manage your account and preferences',
+                    centerTitle: true,
+                    expandedTitleAlignment: Alignment.bottomCenter,
+                    onBack: () {
+                      if (Navigator.canPop(context)) {
+                        Navigator.pop(context);
+                      } else {
+                        MainTabShell.goToTab(context, 0);
+                      }
+                    },
+                    actions: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const CartIconButton(
+                            iconColor: Colors.white,
+                            iconSize: 22,
+                            backgroundColor: Colors.transparent,
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 24),
-                      _ProfileSection(
-                        title: 'Preferences',
-                        muted: muted,
-                        child: _ProfileMenuGroup(
+                    ],
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        KeyedSubtree(
+                          key: _tourHeaderKey,
+                          child: _ProfileHeaderCard(
+                            surface: surface,
+                            loggedIn: _userLoggedIn,
+                            name: _userName,
+                            email: _userEmail,
+                            initial: _avatarInitial,
+                            ink: ink,
+                            muted: muted,
+                            onSignIn: _handleLogin,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        KeyedSubtree(
+                          key: _tourPreferencesKey,
+                          child: _ProfileHubCard(
                           surface: surface,
                           border: border,
+                          fieldBg: theme.fieldBg,
+                          ink: ink,
+                          muted: muted,
+                          title: 'Preferences',
+                          subtitle: 'App appearance',
+                          icon: Icons.tune_rounded,
+                          iconTint: Colors.indigo.shade400,
                           children: [
                             Consumer<ThemeProvider>(
                               builder: (context, themeProvider, _) {
@@ -469,29 +377,38 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      _ProfileSection(
-                        title: 'Account',
-                        muted: muted,
-                        child: _ProfileMenuGroup(
+                        ),
+                        const SizedBox(height: 8),
+                        KeyedSubtree(
+                          key: _tourAccountKey,
+                          child: _ProfileHubCard(
                           surface: surface,
                           border: border,
+                          fieldBg: theme.fieldBg,
+                          ink: ink,
+                          muted: muted,
+                          title: 'Account',
+                          subtitle: 'Profile, wallet & saved items',
+                          icon: Icons.person_outline_rounded,
+                          iconTint: AppColors.primary,
                           children: [
                             _ProfileMenuTile(
                               icon: Icons.person_outline_rounded,
                               iconColor: AppColors.primary,
                               title: 'Profile information',
-                              subtitle: 'Name, email & delivery addresses',
+                              subtitle: 'Name, email & home address',
                               ink: ink,
                               muted: muted,
+                              fieldBg: theme.fieldBg,
+                              fieldBorder: border,
                               onTap: _userLoggedIn
                                   ? () => _navigateTo(AppRoutes.profileScreen)
                                   : () => _requireSignIn(
                                         feature: 'profile information',
                                       ),
                             ),
-                            if (_userLoggedIn)
+                            if (_userLoggedIn) ...[
+                              const SizedBox(height: 6),
                               Selector<NotificationProvider, int>(
                                 selector: (_, p) => p.unreadCount,
                                 builder: (context, unread, _) {
@@ -502,6 +419,8 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                                     subtitle: 'Alerts & order updates',
                                     ink: ink,
                                     muted: muted,
+                                    fieldBg: theme.fieldBg,
+                                    fieldBorder: border,
                                     badge: unread > 0 ? unread : null,
                                     badgeColor: Colors.orange.shade600,
                                     onTap: () =>
@@ -509,6 +428,8 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                                   );
                                 },
                               ),
+                            ],
+                            const SizedBox(height: 6),
                             FutureBuilder<int>(
                               future: _wishlistCount != null
                                   ? Future.value(_wishlistCount!)
@@ -527,12 +448,15 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                                   subtitle: 'Saved products',
                                   ink: ink,
                                   muted: muted,
+                                  fieldBg: theme.fieldBg,
+                                  fieldBorder: border,
                                   badge: count > 0 ? count : null,
                                   badgeColor: AppColors.primary,
                                   onTap: () => _navigateTo(AppRoutes.wishlist),
                                 );
                               },
                             ),
+                            const SizedBox(height: 6),
                             _ProfileMenuTile(
                               icon: Icons.account_balance_wallet_outlined,
                               iconColor: AppColors.primaryDark,
@@ -540,21 +464,28 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                               subtitle: 'Balance & transactions',
                               ink: ink,
                               muted: muted,
+                              fieldBg: theme.fieldBg,
+                              fieldBorder: border,
                               onTap: _userLoggedIn
                                   ? () => _navigateTo(AppRoutes.wallet)
                                   : () => _requireSignIn(feature: 'wallet'),
-                              showDivider: false,
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      _ProfileSection(
-                        title: 'Health & orders',
-                        muted: muted,
-                        child: _ProfileMenuGroup(
+                        ),
+                        const SizedBox(height: 8),
+                        KeyedSubtree(
+                          key: _tourHealthKey,
+                          child: _ProfileHubCard(
                           surface: surface,
                           border: border,
+                          fieldBg: theme.fieldBg,
+                          ink: ink,
+                          muted: muted,
+                          title: 'Health & orders',
+                          subtitle: 'Prescriptions, bookings & purchases',
+                          icon: Icons.medical_services_outlined,
+                          iconTint: AppColors.primaryDark,
                           children: [
                             _ProfileMenuTile(
                               icon: Icons.upload_file_outlined,
@@ -563,13 +494,17 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                               subtitle: 'Your prescription history',
                               ink: ink,
                               muted: muted,
+                              fieldBg: theme.fieldBg,
+                              fieldBorder: border,
                               onTap: _userLoggedIn
-                                  ? () =>
-                                      _navigateTo(AppRoutes.prescriptionHistory)
+                                  ? () => _navigateTo(
+                                        AppRoutes.prescriptionHistory,
+                                      )
                                   : () => _requireSignIn(
                                         feature: 'uploaded prescriptions',
                                       ),
                             ),
+                            const SizedBox(height: 6),
                             _ProfileMenuTile(
                               icon: Icons.calendar_month_outlined,
                               iconColor: Colors.teal.shade700,
@@ -577,11 +512,15 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                               subtitle: 'Consultations & follow-ups',
                               ink: ink,
                               muted: muted,
+                              fieldBg: theme.fieldBg,
+                              fieldBorder: border,
                               onTap: _userLoggedIn
                                   ? () => _navigateTo(AppRoutes.myAppointments)
-                                  : () =>
-                                      _requireSignIn(feature: 'appointments'),
+                                  : () => _requireSignIn(
+                                        feature: 'appointments',
+                                      ),
                             ),
+                            const SizedBox(height: 6),
                             _ProfileMenuTile(
                               icon: Icons.refresh_rounded,
                               iconColor: AppColors.primary,
@@ -589,12 +528,15 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                               subtitle: 'Reorder your medications',
                               ink: ink,
                               muted: muted,
+                              fieldBg: theme.fieldBg,
+                              fieldBorder: border,
                               onTap: _userLoggedIn
                                   ? _navigateToRefillPage
                                   : () => _requireSignIn(
                                         feature: 'refill medicines',
                                       ),
                             ),
+                            const SizedBox(height: 6),
                             _ProfileMenuTile(
                               icon: Icons.shopping_bag_outlined,
                               iconColor: AppColors.primaryDark,
@@ -604,77 +546,111 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                                   : 'Sign in to view orders',
                               ink: ink,
                               muted: muted,
+                              fieldBg: theme.fieldBg,
+                              fieldBorder: border,
                               onTap: _userLoggedIn
                                   ? () => _navigateTo(AppRoutes.purchases)
                                   : () => _requireSignIn(
                                         feature: 'order tracking and purchases',
                                       ),
-                              showDivider: false,
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      _ProfileSection(
-                        title: 'Support',
-                        muted: muted,
-                        child: _ProfileMenuGroup(
-                          surface: surface,
-                          border: border,
-                          children: [
-                            _ProfileMenuTile(
-                              icon: Icons.description_outlined,
-                              iconColor: muted,
-                              title: 'Terms & conditions',
-                              ink: ink,
-                              muted: muted,
-                              onTap: () =>
-                                  _navigateTo(AppRoutes.termsAndConditions),
-                            ),
-                            _ProfileMenuTile(
-                              icon: Icons.privacy_tip_outlined,
-                              iconColor: muted,
-                              title: 'Privacy Statement',
-                              ink: ink,
-                              muted: muted,
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const PrivacyPolicyScreen(),
-                                ),
+                        ),
+                        const SizedBox(height: 8),
+                        KeyedSubtree(
+                          key: _tourSupportKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _ProfileHubCard(
+                                surface: surface,
+                                border: border,
+                                fieldBg: theme.fieldBg,
+                                ink: ink,
+                                muted: muted,
+                                title: 'Support',
+                                subtitle: 'Policies and legal information',
+                                icon: Icons.help_outline_rounded,
+                                iconTint: muted,
+                                children: [
+                                  _ProfileMenuTile(
+                                    icon: Icons.description_outlined,
+                                    iconColor: muted,
+                                    title: 'Terms & conditions',
+                                    ink: ink,
+                                    muted: muted,
+                                    fieldBg: theme.fieldBg,
+                                    fieldBorder: border,
+                                    onTap: () => _navigateTo(
+                                      AppRoutes.termsAndConditions,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  _ProfileMenuTile(
+                                    icon: Icons.privacy_tip_outlined,
+                                    iconColor: muted,
+                                    title: 'Privacy Statement',
+                                    ink: ink,
+                                    muted: muted,
+                                    fieldBg: theme.fieldBg,
+                                    fieldBorder: border,
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const PrivacyPolicyScreen(),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  _ProfileMenuTile(
+                                    icon: Icons.assignment_return_outlined,
+                                    iconColor: muted,
+                                    title: 'Return & refund policy',
+                                    ink: ink,
+                                    muted: muted,
+                                    fieldBg: theme.fieldBg,
+                                    fieldBorder: border,
+                                    onTap: () =>
+                                        _navigateTo(AppRoutes.returnPolicy),
+                                  ),
+                                ],
                               ),
-                            ),
-                            _ProfileMenuTile(
-                              icon: Icons.assignment_return_outlined,
-                              iconColor: muted,
-                              title: 'Return & refund policy',
-                              ink: ink,
-                              muted: muted,
-                              onTap: () => _navigateTo(AppRoutes.returnPolicy),
-                              showDivider: false,
-                            ),
-                          ],
+                              const SizedBox(height: 10),
+                              if (!_userLoggedIn)
+                                _ProfilePrimaryButton(
+                                  label: 'Sign in',
+                                  icon: Icons.login_rounded,
+                                  onTap: _handleLogin,
+                                )
+                              else
+                                _ProfileDestructiveButton(
+                                  label: 'Log out',
+                                  onTap: _showLogoutDialog,
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      if (!_userLoggedIn)
-                        _ProfilePrimaryButton(
-                          label: 'Sign in',
-                          icon: Icons.login_rounded,
-                          onTap: _handleLogin,
-                        )
-                      else
-                        _ProfileDestructiveButton(
-                          label: 'Log out',
-                          onTap: _showLogoutDialog,
-                        ),
-                      const SizedBox(height: 16),
-                      const _ProfileVersionFooter(version: AppVersion.display),
-                    ],
+                        const SizedBox(height: 12),
+                        const _ProfileVersionFooter(
+                            version: AppVersion.display),
+                      ]),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
+            if (_swipeHint.show)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: ProfileSwipeHint(
+                  fadeColor: bg,
+                  mutedColor: muted,
+                ),
+              ),
           ],
         ),
       ),
@@ -684,160 +660,295 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
   }
 }
 
+Widget _profileHubBackdrop({
+  required BuildContext context,
+  required Widget child,
+}) {
+  final theme = context.appColors;
+  return DecoratedBox(
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: theme.isDark
+            ? [
+                const Color(0xFF14231C),
+                theme.pageBg,
+                theme.pageBg,
+              ]
+            : [
+                _kProfilePageBgMint,
+                _kProfilePageBg,
+                _kProfilePageBg,
+              ],
+        stops: const [0.0, 0.28, 1.0],
+      ),
+    ),
+    child: child,
+  );
+}
+
 class _ProfileHeaderCard extends StatelessWidget {
   const _ProfileHeaderCard({
-    required this.isDark,
+    required this.surface,
     required this.loggedIn,
     required this.name,
     required this.email,
     required this.initial,
+    required this.ink,
+    required this.muted,
     required this.onSignIn,
   });
 
-  final bool isDark;
+  final Color surface;
   final bool loggedIn;
   final String name;
   final String email;
   final String initial;
+  final Color ink;
+  final Color muted;
   final VoidCallback onSignIn;
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = isDark ? Colors.green.shade400 : AppColors.primaryDark;
-    final ink = isDark ? Colors.white : const Color(0xFF0F172A);
-    final muted = isDark ? Colors.white70 : const Color(0xFF64748B);
-
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: isDark
-            ? const LinearGradient(
-                colors: [Color(0xFF1E293B), Color(0xFF334155)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
-            : const LinearGradient(
-                colors: [Color(0xFFF7FAFF), Color(0xFFEEF6FF)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: primaryColor.withValues(alpha: 0.14),
-        ),
+        color: surface,
+        borderRadius: BorderRadius.circular(11),
         boxShadow: [
           BoxShadow(
-            color: primaryColor.withValues(alpha: 0.12),
-            blurRadius: 22,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
-      child: Column(
-        children: [
-          Container(
-            height: 80,
-            width: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: loggedIn
-                  ? const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [AppColors.primary, AppColors.primaryDark],
-                    )
-                  : null,
-              color: loggedIn
-                  ? null
-                  : (isDark
-                      ? Colors.white.withValues(alpha: 0.08)
-                      : Colors.white),
-              border: Border.all(
-                color: primaryColor.withValues(alpha: 0.25),
-                width: 2,
-              ),
-            ),
-            alignment: Alignment.center,
-            child: loggedIn
-                ? Text(
-                    initial,
-                    style: GoogleFonts.poppins(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  )
-                : Icon(Icons.person, size: 48, color: primaryColor),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            loggedIn ? name : 'Guest User',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: ink,
-              letterSpacing: -0.3,
-            ),
-          ),
-          const SizedBox(height: 8),
-          if (loggedIn)
-            Text(
-              email,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                color: muted,
-                fontWeight: FontWeight.w400,
-              ),
-            )
-          else ...[
-            Text(
-              'Sign in to sync orders across devices',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: muted,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 10),
-            GestureDetector(
-              onTap: onSignIn,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: primaryColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: primaryColor.withValues(alpha: 0.2),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Sign in to continue',
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        color: primaryColor,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Icon(
-                      Icons.arrow_forward_ios,
-                      size: 12,
-                      color: primaryColor,
-                    ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(11),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              height: 2,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primaryLight,
+                    AppColors.primary,
+                    AppColors.primaryDark,
                   ],
                 ),
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: loggedIn
+                          ? const LinearGradient(
+                              colors: [
+                                AppColors.primaryLight,
+                                AppColors.primary,
+                                AppColors.primaryDark,
+                              ],
+                            )
+                          : null,
+                      color: loggedIn
+                          ? null
+                          : AppColors.primary.withValues(alpha: 0.1),
+                    ),
+                    padding: const EdgeInsets.all(2),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: surface,
+                      ),
+                      alignment: Alignment.center,
+                      child: loggedIn
+                          ? Text(
+                              initial,
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primaryDark,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.person_outline_rounded,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          loggedIn ? name : 'Guest',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: ink,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          loggedIn
+                              ? email
+                              : 'Sign in to sync orders and saved details',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: muted,
+                            height: 1.3,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (!loggedIn)
+                    TextButton(
+                      onPressed: onSignIn,
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        'Sign in',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileHubCard extends StatelessWidget {
+  const _ProfileHubCard({
+    required this.surface,
+    required this.border,
+    required this.fieldBg,
+    required this.ink,
+    required this.muted,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.iconTint,
+    required this.children,
+  });
+
+  final Color surface;
+  final Color border;
+  final Color fieldBg;
+  final Color ink;
+  final Color muted;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color iconTint;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(11),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
         ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(11),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              height: 2,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primaryLight,
+                    AppColors.primary,
+                    AppColors.primaryDark,
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: iconTint.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(icon, color: iconTint, size: 16),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: GoogleFonts.poppins(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                                color: ink,
+                              ),
+                            ),
+                            Text(
+                              subtitle,
+                              style: GoogleFonts.poppins(
+                                fontSize: 10.5,
+                                color: muted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ...children,
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -887,120 +998,44 @@ class _ProfileSwitchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = context.appColors.isDark;
+    final fieldBg = context.appColors.fieldBg;
+    final border = context.appColors.border;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 18, color: iconColor),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: ink,
-                  ),
-                ),
-                Text(
-                  subtitle,
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    color: muted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // M3 on Android can render a near-white inactive switch on pale cards.
-          Switch.adaptive(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: Colors.white,
-            activeTrackColor: AppColors.primary,
-            inactiveThumbColor: Colors.white,
-            inactiveTrackColor:
-                isDark ? const Color(0xFF475569) : Colors.grey.shade600,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProfileSection extends StatelessWidget {
-  const _ProfileSection({
-    required this.title,
-    required this.muted,
-    required this.child,
-  });
-
-  final String title;
-  final Color muted;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            title.toUpperCase(),
-            style: GoogleFonts.poppins(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.8,
-              color: muted,
-            ),
-          ),
-        ),
-        child,
-      ],
-    );
-  }
-}
-
-class _ProfileMenuGroup extends StatelessWidget {
-  const _ProfileMenuGroup({
-    required this.surface,
-    required this.border,
-    required this.children,
-  });
-
-  final Color surface;
-  final Color border;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
     return Container(
+      padding: const EdgeInsets.fromLTRB(8, 2, 4, 2),
       decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(16),
+        color: fieldBg,
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: border),
       ),
-      child: Column(
+      child: Row(
         children: [
-          for (var i = 0; i < children.length; i++) ...[
-            if (i > 0)
-              Divider(height: 1, thickness: 1, color: border, indent: 56),
-            children[i],
-          ],
+          Icon(icon, size: 16, color: iconColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: ink,
+                height: 1.1,
+              ),
+            ),
+          ),
+          Transform.scale(
+            scale: 0.72,
+            child: Switch.adaptive(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: Colors.white,
+              activeTrackColor: AppColors.primary,
+              inactiveThumbColor: Colors.white,
+              inactiveTrackColor:
+                  isDark ? const Color(0xFF475569) : Colors.grey.shade600,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
         ],
       ),
     );
@@ -1014,11 +1049,12 @@ class _ProfileMenuTile extends StatelessWidget {
     required this.title,
     required this.ink,
     required this.muted,
+    required this.fieldBg,
+    required this.fieldBorder,
     required this.onTap,
     this.subtitle,
     this.badge,
     this.badgeColor,
-    this.showDivider = true,
   });
 
   final IconData icon;
@@ -1027,10 +1063,11 @@ class _ProfileMenuTile extends StatelessWidget {
   final String? subtitle;
   final Color ink;
   final Color muted;
+  final Color fieldBg;
+  final Color fieldBorder;
   final VoidCallback onTap;
   final int? badge;
   final Color? badgeColor;
-  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
@@ -1038,21 +1075,26 @@ class _ProfileMenuTile extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        borderRadius: BorderRadius.circular(9),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+          decoration: BoxDecoration(
+            color: fieldBg,
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(color: fieldBorder),
+          ),
           child: Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
                   color: iconColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, size: 18, color: iconColor),
+                child: Icon(icon, size: 16, color: iconColor),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1060,17 +1102,17 @@ class _ProfileMenuTile extends StatelessWidget {
                     Text(
                       title,
                       style: GoogleFonts.poppins(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: ink,
                       ),
                     ),
                     if (subtitle != null && subtitle!.isNotEmpty) ...[
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 1),
                       Text(
                         subtitle!,
                         style: GoogleFonts.poppins(
-                          fontSize: 11,
+                          fontSize: 10.5,
                           color: muted,
                           height: 1.3,
                         ),
@@ -1081,23 +1123,23 @@ class _ProfileMenuTile extends StatelessWidget {
               ),
               if (badge != null && badge! > 0)
                 Container(
-                  margin: const EdgeInsets.only(right: 6),
+                  margin: const EdgeInsets.only(right: 4),
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: badgeColor ?? AppColors.primary,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(7),
                   ),
                   child: Text(
                     badge! > 99 ? '99+' : '$badge',
                     style: GoogleFonts.poppins(
-                      fontSize: 10,
+                      fontSize: 9.5,
                       fontWeight: FontWeight.w700,
                       color: Colors.white,
                     ),
                   ),
                 ),
-              Icon(Icons.chevron_right_rounded, size: 20, color: muted),
+              Icon(Icons.chevron_right_rounded, size: 18, color: muted),
             ],
           ),
         ),
@@ -1121,13 +1163,13 @@ class _ProfilePrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.primary,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(12),
       elevation: 0,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 15),
+          padding: const EdgeInsets.symmetric(vertical: 13),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -1166,9 +1208,9 @@ class _ProfileDestructiveButton extends StatelessWidget {
         foregroundColor: Colors.red.shade700,
         side: BorderSide(color: Colors.red.shade200),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
         ),
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 12),
       ),
       child: Text(
         label,

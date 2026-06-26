@@ -6,10 +6,8 @@ import 'package:shimmer/shimmer.dart';
 import 'package:eclapp/pages/itemdetail.dart';
 import 'package:eclapp/pages/homepage.dart';
 import 'package:eclapp/widgets/cart_icon_button.dart';
-import 'package:eclapp/config/api_config.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import '../utils/app_error_utils.dart';
-import '../utils/category_navigation.dart';
 import '../utils/category_utils.dart';
 import '../utils/product_detail_parser.dart';
 import '../utils/product_detail_navigation.dart';
@@ -29,8 +27,6 @@ import 'search_results_page.dart';
 import '../config/app_colors.dart';
 import '../utils/app_theme_colors.dart';
 import '../cache/product_catalog_memory.dart';
-import '../cache/product_cache.dart';
-import 'package:flutter/foundation.dart';
 import '../widgets/category/category_browse_shell.dart';
 import '../widgets/category/category_page_search_bar.dart';
 import '../widgets/category/subcategory_design.dart';
@@ -178,13 +174,6 @@ class _CategoryProductPagination {
   static int pageForIndex(int index) {
     if (index < 0) return 0;
     return index ~/ pageSize;
-  }
-
-  static String rangeLabel(int total, int page) {
-    if (total <= 0) return '0 items';
-    final start = page * pageSize + 1;
-    final end = ((page + 1) * pageSize).clamp(0, total);
-    return '$start–$end of $total';
   }
 }
 
@@ -776,6 +765,7 @@ class CategoryPageState extends State<CategoryPage> {
   String _errorMessage = '';
   Timer? _highlightTimer;
   bool _showSearchDropdown = false;
+  bool _isSearchingProducts = false;
   List<Product> _searchResults = [];
   final FocusNode _searchFocusNode = FocusNode();
   Timer? _searchDebounceTimer;
@@ -932,6 +922,7 @@ class CategoryPageState extends State<CategoryPage> {
         _filteredCategories = _categories;
         _showSearchDropdown = false;
         _searchResults = [];
+        _isSearchingProducts = false;
       });
       return;
     }
@@ -1022,12 +1013,12 @@ class CategoryPageState extends State<CategoryPage> {
   }
 
   Future<void> _performSearch(String query) async {
-    if (!_showSearchDropdown || _searchResults.isNotEmpty) {
-      setState(() {
-        _showSearchDropdown = true;
-        _searchResults = [];
-      });
-    }
+    if (!mounted) return;
+    setState(() {
+      _showSearchDropdown = true;
+      _searchResults = [];
+      _isSearchingProducts = true;
+    });
 
     try {
       debugPrint('🔍 Starting typeahead search for: $query');
@@ -1037,153 +1028,17 @@ class CategoryPageState extends State<CategoryPage> {
 
       setState(() {
         _searchResults = results;
+        _isSearchingProducts = false;
       });
 
       debugPrint('🔍 Search completed: Found ${_searchResults.length} results');
     } catch (e) {
       debugPrint('🔍 Search error: $e');
+      if (!mounted) return;
       setState(() {
         _searchResults = [];
+        _isSearchingProducts = false;
       });
-    }
-  }
-
-  IconData _getCategoryIcon(String categoryName) {
-    final name = categoryName.toLowerCase();
-
-    // Pharmacy and Medicine categories
-    if (name.contains('drug') ||
-        name.contains('medicine') ||
-        name.contains('medication')) {
-      return Icons.medication;
-    } else if (name.contains('otc') || name.contains('over the counter')) {
-      return Icons.local_pharmacy;
-    } else if (name.contains('prescription') || name.contains('pom')) {
-      return Icons.medical_services;
-    }
-
-    // Health and Wellness categories
-    else if (name.contains('health') || name.contains('wellness')) {
-      return Icons.health_and_safety;
-    } else if (name.contains('vitamin') || name.contains('supplement')) {
-      return Icons.medication;
-    } else if (name.contains('nutrition') || name.contains('diet')) {
-      return Icons.restaurant;
-    }
-
-    // Personal Care categories
-    else if (name.contains('personal') || name.contains('care')) {
-      return Icons.person;
-    } else if (name.contains('beauty') || name.contains('cosmetic')) {
-      return Icons.face;
-    } else if (name.contains('skin') || name.contains('dermatology')) {
-      return Icons.face_retouching_natural;
-    } else if (name.contains('hair') || name.contains('shampoo')) {
-      return Icons.content_cut;
-    }
-
-    // Hygiene and Sanitation
-    else if (name.contains('sanitary') || name.contains('hygiene')) {
-      return Icons.cleaning_services;
-    } else if (name.contains('soap') || name.contains('wash')) {
-      return Icons.cleaning_services;
-    } else if (name.contains('toilet') || name.contains('bathroom')) {
-      return Icons.bathroom;
-    }
-
-    // Maternal and Child Care
-    else if (name.contains('baby') ||
-        name.contains('infant') ||
-        name.contains('child')) {
-      return Icons.child_care;
-    } else if (name.contains('mother') ||
-        name.contains('maternal') ||
-        name.contains('pregnancy')) {
-      return Icons.pregnant_woman;
-    } else if (name.contains('diaper') || name.contains('nappy')) {
-      return Icons.child_care;
-    }
-
-    // Sexual Health
-    else if (name.contains('sexual') ||
-        name.contains('intimate') ||
-        name.contains('condom')) {
-      return Icons.favorite;
-    }
-
-    // Fitness and Sports
-    else if (name.contains('sports') ||
-        name.contains('fitness') ||
-        name.contains('exercise')) {
-      return Icons.sports;
-    }
-
-    // Medical Equipment and Accessories
-    else if (name.contains('accessory') ||
-        name.contains('equipment') ||
-        name.contains('device')) {
-      return Icons.medical_services;
-    } else if (name.contains('thermometer') || name.contains('temperature')) {
-      return Icons.thermostat;
-    } else if (name.contains('bandage') || name.contains('plaster')) {
-      return Icons.healing;
-    }
-
-    // Specific Health Conditions
-    else if (name.contains('diabetes') || name.contains('blood')) {
-      return Icons.monitor_heart;
-    } else if (name.contains('heart') || name.contains('cardio')) {
-      return Icons.favorite;
-    } else if (name.contains('eye') ||
-        name.contains('vision') ||
-        name.contains('glasses')) {
-      return Icons.visibility;
-    } else if (name.contains('dental') ||
-        name.contains('oral') ||
-        name.contains('tooth')) {
-      return Icons.medical_services;
-    } else if (name.contains('ear') ||
-        name.contains('nose') ||
-        name.contains('throat')) {
-      return Icons.hearing;
-    }
-
-    // Pain and Relief
-    else if (name.contains('pain') ||
-        name.contains('ache') ||
-        name.contains('relief')) {
-      return Icons.healing;
-    } else if (name.contains('cough') ||
-        name.contains('cold') ||
-        name.contains('flu')) {
-      return Icons.air;
-    } else if (name.contains('fever') || name.contains('temperature')) {
-      return Icons.thermostat;
-    }
-
-    // Self Care and Wellness
-    else if (name.contains('self care') || name.contains('selfcare')) {
-      return Icons.spa;
-    } else if (name.contains('mental') || name.contains('stress')) {
-      return Icons.psychology;
-    }
-
-    // Sports Nutrition (specific category - must come before general nutrition)
-    else if (name.contains('sports nutrition') ||
-        name.contains('sportsnutrition')) {
-      return Icons.sports;
-    }
-
-    // Food and Nutrition
-    else if (name.contains('food') ||
-        name.contains('nutrition') ||
-        name.contains('diet')) {
-      return Icons.restaurant;
-    }
-
-    // Default fallback
-    else {
-      return Icons.category;
     }
   }
 
@@ -1275,6 +1130,7 @@ class CategoryPageState extends State<CategoryPage> {
                         setState(() {
                           _showSearchDropdown = false;
                           _searchResults = [];
+                          _isSearchingProducts = false;
                           _filteredCategories = _categories;
                         });
                         _searchFocusNode.unfocus();
@@ -1417,9 +1273,11 @@ class CategoryPageState extends State<CategoryPage> {
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        _searchResults.isEmpty
+                                        _isSearchingProducts
                                             ? 'Searching...'
-                                            : '${_searchResults.length} results found',
+                                            : _searchResults.isEmpty
+                                                ? "Sorry, we couldn't find your product"
+                                                : '${_searchResults.length} results found',
                                         style: TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w600,
@@ -1450,7 +1308,20 @@ class CategoryPageState extends State<CategoryPage> {
                               ),
                               // Results list or empty state
                               Flexible(
-                                child: _searchResults.isEmpty
+                                child: _isSearchingProducts
+                                    ? const Padding(
+                                        padding: EdgeInsets.all(32),
+                                        child: Center(
+                                          child: SizedBox(
+                                            width: 28,
+                                            height: 28,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2.5,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : _searchResults.isEmpty
                                     ? Container(
                                         padding: const EdgeInsets.all(30),
                                         child: Column(
@@ -1463,20 +1334,13 @@ class CategoryPageState extends State<CategoryPage> {
                                             ),
                                             const SizedBox(height: 10),
                                             Text(
-                                              'No products found',
+                                              "Sorry, we couldn't find your product.",
                                               style: TextStyle(
                                                 fontSize: 15,
                                                 fontWeight: FontWeight.w500,
                                                 color: theme.ink,
                                               ),
-                                            ),
-                                            const SizedBox(height: 3),
-                                            Text(
-                                              'Try a different search term',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                color: theme.muted,
-                                              ),
+                                              textAlign: TextAlign.center,
                                             ),
                                           ],
                                         ),

@@ -8,23 +8,28 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-    
+    <uses-permission
+        android:name="android.permission.ACCESS_BACKGROUND_LOCATION"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE_LOCATION"
+        tools:node="remove" />
+
     <!-- Notification permissions -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    <!-- Media permissions - optimized for all Android versions -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    <!-- For Android 10-12 (automatically ignored on Android 13+) -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-
-    <!-- Remove duplicate READ_MEDIA_IMAGES permission -->
-    <!-- Remove WRITE_EXTERNAL_STORAGE unless specifically needed -->
+    <!-- Gallery: system photo picker only (no READ_MEDIA_* per Google Play policy). -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+        tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
 
     <!-- Declare telephony feature as not required -->
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
@@ -36,15 +41,6 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:debuggable="false"
         tools:replace="android:label">
-
-        <!-- ExpressPay checkout WebView — not exported (prevents intent redirection). -->
-        <activity
-            android:name="com.expresspaygh.api.ExpressPayBrowserSwitchActivity"
-            android:exported="false"
-            tools:node="merge"
-            tools:replace="android:exported">
-            <intent-filter tools:node="removeAll" />
-        </activity>
 
         <!-- Google Maps API Key: set MAPS_API_KEY in android/local.properties (do not commit) -->
         <meta-data
@@ -74,6 +70,11 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Geolocator background service — app uses when-in-use location only. -->
+        <service
+            android:name="com.baseflow.geolocator.GeolocatorLocationService"
+            tools:node="remove" />
     </application>
 
     <!-- Queries -->

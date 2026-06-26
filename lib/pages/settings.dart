@@ -2,7 +2,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:eclapp/pages/privacypolicy.dart';
-import 'package:eclapp/pages/profile.dart';
 import 'package:eclapp/pages/tandc.dart';
 import 'package:eclapp/providers/theme_provider.dart';
 import 'package:flutter/material.dart';
@@ -11,13 +10,15 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'aboutus.dart';
+import 'change_password_page.dart';
+import 'edit_profile_page.dart';
 import 'loggedout.dart';
 import 'notifications.dart';
 
+import 'package:eclapp/providers/profile_settings_provider.dart';
 import 'package:eclapp/services/auth_service.dart';
 import 'package:eclapp/services/native_notification_service.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -44,9 +45,19 @@ class SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUserData();
     _loadProfileImage();
     _refreshPermissionStatuses();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadUserData());
+  }
+
+  Future<void> _openEditProfile() async {
+    final updated = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const EditProfilePage()),
+    );
+    if (updated == true && mounted) {
+      await _loadUserData();
+    }
   }
 
   Future<void> _refreshPermissionStatuses() async {
@@ -71,6 +82,21 @@ class SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadUserData() async {
+    final provider = context.read<ProfileSettingsProvider>();
+    await provider.loadProfile(forceRefresh: true);
+
+    if (!mounted) return;
+
+    final profile = provider.profile;
+    if (profile != null) {
+      setState(() {
+        _userName = profile.name;
+        _userEmail =
+            profile.email.isNotEmpty ? profile.email : 'No email available';
+      });
+      return;
+    }
+
     final secureStorage = FlutterSecureStorage();
     String name = "User";
     String email = "No email available";
@@ -80,7 +106,6 @@ class SettingsScreenState extends State<SettingsScreen> {
       email =
           await secureStorage.read(key: 'userEmail') ?? "No email available";
     } on PlatformException catch (e) {
-      // Suppress -34018 keychain entitlement errors silently
       if (e.code == '-34018' || e.message?.contains('34018') == true) {
         debugPrint('Keychain access error suppressed in settings');
       } else {
@@ -97,18 +122,21 @@ class SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _pickImage() async {
-    var status = await Permission.storage.request();
-    if (status.isGranted) {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-      if (image != null) {
-        File savedImage = await _saveImageToLocalStorage(File(image.path));
-        setState(() {
-          _profileImage = savedImage;
-          _profileImagePath = savedImage.path;
-        });
-      }
-    } else if (status.isPermanentlyDenied) {
-      openAppSettings();
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        requestFullMetadata: false,
+      );
+      if (image == null) return;
+
+      final savedImage = await _saveImageToLocalStorage(File(image.path));
+      if (!mounted) return;
+      setState(() {
+        _profileImage = savedImage;
+        _profileImagePath = savedImage.path;
+      });
+    } catch (e) {
+      debugPrint('Error picking profile image: $e');
     }
   }
 
@@ -263,11 +291,7 @@ class SettingsScreenState extends State<SettingsScreen> {
                               ),
                               const SizedBox(height: 8),
                               InkWell(
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) => Profile()),
-                                ),
+                                onTap: _openEditProfile,
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 12, vertical: 6),
@@ -321,10 +345,19 @@ class SettingsScreenState extends State<SettingsScreen> {
                       context,
                       "Profile Information",
                       Icons.person_outline,
-                      Profile(),
+                      const EditProfilePage(),
                       textColor,
                       primaryColor,
                       0),
+                  const Divider(height: 1),
+                  _buildAnimatedSettingOption(
+                      context,
+                      "Change Password",
+                      Icons.lock_outline,
+                      const ChangePasswordPage(),
+                      textColor,
+                      primaryColor,
+                      1),
                 ],
                 cardColor,
               ),

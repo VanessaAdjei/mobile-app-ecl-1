@@ -14,13 +14,13 @@ class PromotionalCodeInput extends StatefulWidget {
   final VoidCallback? onCodeRemoved;
 
   const PromotionalCodeInput({
-    Key? key,
+    super.key,
     required this.cartTotal,
     required this.cartCategories,
     required this.cartProductIds,
     this.onCodeApplied,
     this.onCodeRemoved,
-  }) : super(key: key);
+  });
 
   @override
   State<PromotionalCodeInput> createState() => _PromotionalCodeInputState();

@@ -143,6 +143,7 @@ class AppErrorUtils {
   }) {
     return {
       'success': false,
+      'offline': isTransientTransportError(error),
       'message': userMessage(error, fallback: fallback),
     };
   }
@@ -225,6 +226,8 @@ class AppErrorUtils {
         text.contains('connection reset') ||
         text.contains('clientexception') ||
         text.contains('socketexception') ||
+        text.contains('failed host lookup') ||
+        text.contains('nodename nor servname') ||
         text.contains('handshake') ||
         text.contains('broken pipe') ||
         text.contains('unable to connect') ||

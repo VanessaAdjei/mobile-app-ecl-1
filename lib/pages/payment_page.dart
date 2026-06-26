@@ -1,12 +1,14 @@
 // pages/payment_page.dart
 import 'dart:async';
 import 'package:eclapp/pages/paymentwebview.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/guest_checkout_draft.dart';
 import '../services/checkout_payment_service.dart';
 import '../services/auth_service.dart';
 import '../services/guest_checkout_draft_service.dart';
+import '../services/delivery_service.dart';
 import '../providers/cart_provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/cart_item.dart';
 import '../config/api_config.dart';
 import '../utils/checkout_order_totals.dart';
+import '../utils/checkout_log.dart';
 import '../utils/payment_redirect_url.dart';
 import '../widgets/payment/payment_bill_summary_section.dart';
 import '../widgets/payment/payment_delivery_details_card.dart';
@@ -43,9 +46,22 @@ class PaymentPage extends StatefulWidget {
   final String? estimatedDeliveryTime;
   final double? distanceKm;
   final bool isOrderUrgent;
+  /// True when delivery page already ran save-billing + fee sync before navigate.
+  final bool billingCartSynced;
+  /// Authoritative distance_text from save-billing (e.g. "0.4 km").
+  final String? feeDistanceText;
+  /// Locked fee scalars from delivery (survive hot reload / draft gaps).
+  final double? lockedDeliveryFee;
+  final double? lockedXpressFee;
+  /// Street / addr_1 from delivery page (logged-in users have no guest draft).
+  final String? streetAddress;
+  final String? deliveryCity;
+  final String? deliveryRegion;
+  final int? billingRegionId;
+  final int? billingCityId;
 
   const PaymentPage({
-    Key? key,
+    super.key,
     this.orderTotals,
     this.deliveryAddress,
     this.contactNumber,
@@ -55,8 +71,17 @@ class PaymentPage extends StatefulWidget {
     this.lng,
     this.estimatedDeliveryTime,
     this.distanceKm,
+    this.feeDistanceText,
+    this.lockedDeliveryFee,
+    this.lockedXpressFee,
     this.isOrderUrgent = false,
-  }) : super(key: key);
+    this.billingCartSynced = false,
+    this.streetAddress,
+    this.deliveryCity,
+    this.deliveryRegion,
+    this.billingRegionId,
+    this.billingCityId,
+  });
 
   bool get _isDelivery => deliveryOption.toLowerCase().trim() == 'delivery';
 
@@ -114,7 +139,7 @@ class PaymentPageState extends State<PaymentPage> {
         emergencyOrderFee: base.emergencyOrderFee,
         runningSubtotal: base.runningSubtotal,
         shippingFree: base.shippingFree,
-        isDelivery: widget._isDelivery,
+        isDelivery: base.isDelivery || widget._isDelivery,
       );
     }
     final cart = Provider.of<CartProvider>(context, listen: false);
@@ -125,6 +150,281 @@ class PaymentPageState extends State<PaymentPage> {
       emergencyOrderFee: 0,
       isDelivery: widget._isDelivery,
     );
+  }
+
+  bool _expectsDeliveryFee(CheckoutOrderTotals totals) {
+    if ((widget.lockedDeliveryFee ?? 0) > 0) return true;
+    return (totals.isDelivery || widget._isDelivery) && !totals.shippingFree;
+  }
+
+  /// Sync totals for UI + payment — merges locked fee scalars and clears stale
+  /// free-shipping when a delivery fee is actually owed.
+  CheckoutOrderTotals _paymentTotals(CheckoutOrderTotals base) {
+    final lockedDelivery = widget.lockedDeliveryFee ?? 0;
+    final isDelivery = widget._isDelivery;
+    final owedDelivery = isDelivery
+        ? (lockedDelivery > 0
+            ? lockedDelivery
+            : (base.deliveryFee > 0
+                ? base.deliveryFee
+                : (widget.orderTotals?.deliveryFee ?? 0)))
+        : 0.0;
+    final xpressFee = widget.lockedXpressFee ??
+        (base.emergencyOrderFee > 0
+            ? base.emergencyOrderFee
+            : (widget.orderTotals?.emergencyOrderFee ?? 0));
+    var shippingFree = base.shippingFree;
+    if (isDelivery && owedDelivery > 0) {
+      shippingFree = false;
+    }
+
+    return base.copyWith(
+      deliveryFee: owedDelivery,
+      emergencyOrderFee: xpressFee,
+      isDelivery: isDelivery,
+      shippingFree: shippingFree,
+    );
+  }
+
+  CheckoutOrderTotals get _displayTotals =>
+      _paymentTotals(_checkoutTotals);
+
+  /// Best-known delivery fee — locked scalars from delivery page win over API.
+  double _resolveDeliveryCharge(
+    CheckoutOrderTotals totals, {
+    Map<String, dynamic>? saveResult,
+  }) {
+    final lockedScalar = widget.lockedDeliveryFee ?? 0;
+    if (widget.billingCartSynced && lockedScalar > 0) {
+      return lockedScalar;
+    }
+
+    if (!_expectsDeliveryFee(totals)) return 0;
+    if (totals.chargedDeliveryFee > 0) return totals.chargedDeliveryFee;
+    if (totals.deliveryFee > 0) return totals.deliveryFee;
+
+    if (lockedScalar > 0) return lockedScalar;
+
+    final fromOrderTotals = widget.orderTotals?.deliveryFee ?? 0;
+    if (fromOrderTotals > 0) return fromOrderTotals;
+
+    final fromSave = DeliveryService.deliveryFeeFromSaveResult(saveResult);
+    if (fromSave != null && fromSave > 0) return fromSave;
+
+    return 0;
+  }
+
+  Future<double> _resolveDeliveryChargeAsync(
+    CheckoutOrderTotals totals, {
+    Map<String, dynamic>? saveResult,
+  }) async {
+    final syncCharge = _resolveDeliveryCharge(totals, saveResult: saveResult);
+    if (syncCharge > 0) return syncCharge;
+
+    final draft = await GuestCheckoutDraftService.load();
+    if (draft != null &&
+        draft.deliveryOption == 'delivery' &&
+        draft.deliveryFee > 0) {
+      return draft.deliveryFee;
+    }
+    return 0;
+  }
+
+  CheckoutOrderTotals _withResolvedDeliveryFee(
+    CheckoutOrderTotals totals, {
+    required double deliveryCharge,
+  }) {
+    if (deliveryCharge <= 0) return totals;
+    if (!_expectsDeliveryFee(totals) &&
+        (widget.lockedDeliveryFee ?? 0) <= 0) {
+      return totals;
+    }
+    if (totals.chargedDeliveryFee >= deliveryCharge &&
+        !totals.shippingFree) {
+      return totals;
+    }
+    return totals.copyWith(
+      deliveryFee: deliveryCharge,
+      isDelivery: true,
+      shippingFree: false,
+    );
+  }
+
+  /// Merges locked [orderTotals], widget fee scalars, and guest draft so fees
+  /// survive hot reload and logged-in checkout (no guest draft).
+  Future<CheckoutOrderTotals> _resolveCheckoutTotalsForPayment() async {
+    final draft = await GuestCheckoutDraftService.load();
+    var totals = _checkoutTotals;
+    final locked = widget.orderTotals;
+
+    double pickDeliveryFee() {
+      final lockedScalar = widget.lockedDeliveryFee ?? 0;
+      if (lockedScalar > 0) return lockedScalar;
+      if (totals.deliveryFee > 0) return totals.deliveryFee;
+      if (totals.chargedDeliveryFee > 0) return totals.deliveryFee;
+      final fromLocked = locked?.deliveryFee ?? 0;
+      if (fromLocked > 0) return fromLocked;
+      if (draft != null &&
+          draft.deliveryOption == 'delivery' &&
+          draft.deliveryFee > 0) {
+        return draft.deliveryFee;
+      }
+      return 0;
+    }
+
+    double pickXpressFee() {
+      if (totals.emergencyOrderFee > 0) return totals.emergencyOrderFee;
+      final fromLocked = locked?.emergencyOrderFee ?? 0;
+      if (fromLocked > 0) return fromLocked;
+      final fromScalar = widget.lockedXpressFee ?? 0;
+      if (fromScalar > 0) return fromScalar;
+      if (draft?.emergencyOrderFee != null && draft!.emergencyOrderFee! > 0) {
+        return draft.emergencyOrderFee!;
+      }
+      final urgent =
+          widget.isOrderUrgent || (draft?.isOrderUrgent ?? false);
+      if (urgent) return DeliveryService.defaultXpressFee;
+      return 0;
+    }
+
+    final deliveryFee = pickDeliveryFee();
+    final xpressFee = pickXpressFee();
+    final isDelivery = totals.isDelivery ||
+        widget._isDelivery ||
+        (draft?.deliveryOption == 'delivery');
+    var shippingFree = locked?.shippingFree ??
+        draft?.apiShippingFree ??
+        totals.shippingFree;
+    // Any owed delivery fee overrides stale free-shipping flags from save-billing.
+    if (isDelivery && deliveryFee > 0) {
+      shippingFree = false;
+    }
+
+    if (deliveryFee > 0 ||
+        xpressFee > 0 ||
+        isDelivery != totals.isDelivery ||
+        shippingFree != totals.shippingFree) {
+      totals = totals.copyWith(
+        deliveryFee: deliveryFee > 0 ? deliveryFee : totals.deliveryFee,
+        emergencyOrderFee:
+            xpressFee > 0 ? xpressFee : totals.emergencyOrderFee,
+        isDelivery: isDelivery,
+        shippingFree: shippingFree,
+      );
+    }
+
+    return totals;
+  }
+
+  /// Payable amount — always merchandise + delivery line + xpress (never rely on
+  /// stale [shippingFree] alone).
+  String _expressPayGrandTotal({
+    required CheckoutOrderTotals totals,
+    required double deliveryCharge,
+  }) {
+    final merchandise = totals.merchandiseAfterDiscount;
+    final delivery = widget._isDelivery
+        ? (deliveryCharge > 0 ? deliveryCharge : totals.chargedDeliveryFee)
+        : 0.0;
+    final xpress = totals.emergencyOrderFee;
+    return (merchandise + delivery + xpress).toStringAsFixed(2);
+  }
+
+  bool _isUrgentCheckout(CheckoutOrderTotals totals) =>
+      widget.isOrderUrgent || totals.emergencyOrderFee > 0;
+
+  /// Re-sync delivery fee to the server cart immediately before ExpressPay.
+  Future<void> _syncServerCartBeforeExpressPay(double deliveryCharge) async {
+    if (!widget._isDelivery || deliveryCharge <= 0) return;
+
+    final distanceText = await DeliveryService.resolveDistanceTextForDeliveryFee(
+      feeDistanceText: widget.feeDistanceText,
+      knownDistanceKm: widget.distanceKm,
+      lat: widget.lat,
+      lng: widget.lng,
+    );
+
+    final email = _userEmail.trim().isNotEmpty &&
+            _userEmail != 'No email available'
+        ? _userEmail.trim()
+        : (widget.guestEmail?.trim() ?? '');
+    final phone = widget.contactNumber?.trim() ?? _phoneNumber.trim();
+    final xpressFee = widget.lockedXpressFee ??
+        widget.orderTotals?.emergencyOrderFee ??
+        0.0;
+
+    checkoutLog(
+      '[PAYMENT] Pre-ExpressPay cart sync — delivery=$deliveryCharge, '
+      'distance=$distanceText',
+    );
+
+    await DeliveryService.saveDeliveryInfo(
+      name: _userName.trim().isNotEmpty ? _userName.trim() : 'Customer',
+      email: email.isNotEmpty ? email : 'guest@checkout.local',
+      phone: phone,
+      deliveryOption: 'delivery',
+      region: widget.deliveryRegion,
+      city: widget.deliveryCity,
+      address: widget.streetAddress ?? widget.deliveryAddress,
+      regionId: widget.billingRegionId,
+      cityId: widget.billingCityId,
+      lat: widget.lat,
+      lng: widget.lng,
+      deliveryFee: deliveryCharge,
+      distanceText: distanceText,
+      orderUrgent: _isUrgentCheckout(
+        widget.orderTotals ??
+            CheckoutOrderTotals(
+              merchandiseSubtotal: 0,
+              discount: 0,
+              deliveryFee: deliveryCharge,
+              emergencyOrderFee: xpressFee,
+            ),
+      ),
+      emergencyOrderFee: xpressFee > 0 ? xpressFee : null,
+      clearStaleUrgentFee: !widget.isOrderUrgent,
+    );
+
+    if (distanceText != null && distanceText.isNotEmpty) {
+      await DeliveryService.applyDeliveryFeeToCart(
+        distanceText: distanceText,
+        forceRefresh: true,
+        knownDeliveryFee: deliveryCharge,
+      );
+    }
+
+    if (widget.isOrderUrgent && xpressFee > 0) {
+      await DeliveryService.addXpressFee();
+    }
+  }
+
+  Map<String, dynamic> _buildExpressPaySubmitParams({
+    required String totalAmountDue,
+    required String orderId,
+    required String orderDesc,
+    required String firstName,
+    required String lastName,
+    required String accountNumber,
+    required double deliveryCharge,
+  }) {
+    final deliveryOpt = widget.deliveryOption.toLowerCase().trim();
+    final params = <String, dynamic>{
+      'request': 'submit',
+      'order_id': orderId,
+      'currency': 'GHS',
+      'amount': totalAmountDue,
+      'order_desc': orderDesc,
+      'first_name': firstName,
+      'last_name': lastName,
+      'email': _userEmail,
+      'redirect_url': ApiConfig.paymentRedirectUrl,
+      'account_number': accountNumber,
+      'shipping_type': deliveryOpt,
+    };
+    if (deliveryOpt == 'delivery' && deliveryCharge > 0) {
+      params['delivery_fee'] = deliveryCharge.toStringAsFixed(2);
+    }
+    return params;
   }
 
   @override
@@ -284,12 +584,15 @@ class PaymentPageState extends State<PaymentPage> {
       pickupSiteLabel: existing?.pickupSiteLabel ?? '',
       lat: widget.lat ?? existing?.lat,
       lng: widget.lng ?? existing?.lng,
-      deliveryFee: widget.orderTotals?.chargedDeliveryFee ?? 0,
+      deliveryFee: widget.lockedDeliveryFee ??
+          widget.orderTotals?.deliveryFee ??
+          0,
       isOrderUrgent: widget.isOrderUrgent,
       emergencyOrderFee: widget.orderTotals?.emergencyOrderFee,
       estimatedDeliveryTime:
           widget.estimatedDeliveryTime ?? existing?.estimatedDeliveryTime,
       distanceKm: widget.distanceKm ?? existing?.distanceKm,
+      feeDistanceText: widget.feeDistanceText ?? existing?.feeDistanceText,
       apiSubtotal: widget.orderTotals?.merchandiseSubtotal ??
           _effectiveSubtotalFromApiOrCart,
       apiDiscountAmount: _effectiveDiscountFromApiOrPromo > 0
@@ -303,31 +606,13 @@ class PaymentPageState extends State<PaymentPage> {
     await GuestCheckoutDraftService.save(draft);
   }
 
-  void queryPayment(String token) {
-    setState(() {
-      _paymentError = kUserFacingPaymentFailureMessage;
-    });
-  }
-
   Future<Map<String, dynamic>> _verifyPayment(
       String token, String transactionId) async {
-    debugPrint('[DEBUG] Using token for payment verification: $token');
+    checkoutLog('[DEBUG] Using token for payment verification: $token');
     return _checkoutPaymentService.verifyPayment();
   }
 
-  Future<String?> getAuthHeader() async {
-    final isLoggedIn = await AuthService.isLoggedIn();
-    String? token = await AuthService.getToken();
-    if (isLoggedIn && token != null && token.isNotEmpty) {
-      return 'Bearer $token';
-    } else if (!isLoggedIn && token != null && token.isNotEmpty) {
-      return 'Guest $token';
-    }
-    return null;
-  }
-
   Future<void> processPayment(CartProvider cart) async {
-    debugPrint('[DEBUG] Entered processPayment');
     if (!mounted) return;
 
     setState(() {
@@ -341,7 +626,6 @@ class PaymentPageState extends State<PaymentPage> {
       final selectedItems = cart.getSelectedItems();
 
       if (selectedItems.isEmpty) {
-        debugPrint('[DEBUG] Returning early: no items selected');
         throw Exception(
             'Please select at least one item to proceed with payment.');
       }
@@ -370,24 +654,26 @@ class PaymentPageState extends State<PaymentPage> {
         throw Exception('Please provide a valid contact number for delivery.');
       }
 
-      final totals = _checkoutTotals;
-      final payableAmount = totals.payableAmount;
+      var totals = _paymentTotals(await _resolveCheckoutTotalsForPayment());
 
-      if (widget._isDelivery &&
-          !totals.shippingFree &&
-          totals.deliveryFee > 0 &&
-          totals.chargedDeliveryFee <= 0) {
-        debugPrint(
-          '[PAYMENT] ⚠️ Delivery fee lost in totals — raw=${totals.deliveryFee}, '
-          'isDelivery=${totals.isDelivery}, shippingFree=${totals.shippingFree}',
+      var deliveryCharge = await _resolveDeliveryChargeAsync(totals);
+      totals = _withResolvedDeliveryFee(
+        totals,
+        deliveryCharge: deliveryCharge,
+      );
+      totals = _paymentTotals(totals);
+
+      if (_expectsDeliveryFee(totals) && deliveryCharge <= 0) {
+        throw Exception(
+          'Delivery fee is missing. Please go back to delivery details and try again.',
         );
       }
 
-      debugPrint(
-        '[PAYMENT] Bill breakdown — merchandise=${totals.merchandiseSubtotal}, '
-        'discount=${totals.discount}, delivery=${totals.chargedDeliveryFee}, '
-        'xpress=${totals.emergencyOrderFee}; ExpressPay amount=$payableAmount',
-      );
+      if (_isUrgentCheckout(totals) && totals.emergencyOrderFee <= 0) {
+        throw Exception(
+          'Urgent order fee is missing. Please go back to delivery details and try again.',
+        );
+      }
 
       String orderDesc = selectedItems
           .map((item) => '${item.quantity}x ${item.name}')
@@ -408,35 +694,51 @@ class PaymentPageState extends State<PaymentPage> {
       final orderId = 'ORDER_${DateTime.now().millisecondsSinceEpoch}';
       final accountNumber = widget.contactNumber ?? _phoneNumber;
 
-      debugPrint(
-        '[PAYMENT] ExpressPay submit only (no save-billing) — '
-        'amount=$payableAmount',
+      if (!mounted) return;
+
+      final totalAmountDue = _expressPayGrandTotal(
+        totals: totals,
+        deliveryCharge: deliveryCharge,
       );
 
-      // ExpressPay API — only these fields are sent to /api/expresspayment.
-      final expressPayParams = <String, dynamic>{
-        'request': 'submit',
-        'order_id': orderId,
-        'currency': 'GHS',
-        'amount': payableAmount,
-        'order_desc': orderDesc,
-        'first_name': firstName,
-        'last_name': lastName,
-        'email': _userEmail,
-        'redirect_url': ApiConfig.paymentRedirectUrl,
-        'account_number': accountNumber,
-      };
+      if (kDebugMode) {
+        debugPrint(
+          '[PAYMENT] ExpressPay amount=$totalAmountDue '
+          '(merchandise=${totals.merchandiseAfterDiscount}, '
+          'delivery=$deliveryCharge, xpress=${totals.emergencyOrderFee}, '
+          'shippingFree=${totals.shippingFree})',
+        );
+      }
+
+      checkoutLog(
+        '[PAYMENT] ExpressPay amount=$totalAmountDue '
+        '(items=${totals.merchandiseAfterDiscount}, delivery=$deliveryCharge, '
+        'xpress=${totals.emergencyOrderFee})',
+      );
+
+      final expressPayParams = _buildExpressPaySubmitParams(
+        totalAmountDue: totalAmountDue,
+        orderId: orderId,
+        orderDesc: orderDesc,
+        firstName: firstName,
+        lastName: lastName,
+        accountNumber: accountNumber,
+        deliveryCharge: deliveryCharge,
+      );
 
       // Local order metadata (WebView / post-checkout — not sent to ExpressPay).
       final paymentParams = <String, dynamic>{
         ...expressPayParams,
-        'delivery_fee': totals.chargedDeliveryFee,
-        'deliveryFee': totals.chargedDeliveryFee,
+        'merchandise_subtotal': totals.merchandiseAfterDiscount,
+        'delivery_fee': deliveryCharge,
+        'deliveryFee': deliveryCharge,
         'discount_amount': totals.discount,
         'phone_number': accountNumber,
         'address': widget.deliveryAddress ?? '',
         'shipping_type': widget.deliveryOption,
-        'order_urgent': widget.isOrderUrgent,
+        'order_urgent': _isUrgentCheckout(totals),
+        if (totals.emergencyOrderFee > 0)
+          'emergency_order_fee': totals.emergencyOrderFee,
         if (widget.lat != null) 'lat': widget.lat,
         if (widget.lng != null) 'lng': widget.lng,
       };
@@ -444,9 +746,6 @@ class PaymentPageState extends State<PaymentPage> {
       final purchasedItems = List<CartItem>.from(selectedItems);
       final transactionId = orderId;
 
-      if (!mounted) return;
-
-      // Open the payment screen immediately; portal URL resolves in the background.
       setState(() => _isProcessingPayment = false);
 
       unawaited(_persistGuestCheckoutDraft());
@@ -456,12 +755,10 @@ class PaymentPageState extends State<PaymentPage> {
         MaterialPageRoute(
           builder: (context) => PaymentWebView(
             resolveRedirectUrl: () async {
+              await _syncServerCartBeforeExpressPay(deliveryCharge);
               final responseBody = await _checkoutPaymentService
                   .submitExpressPayment(params: expressPayParams);
-              final redirectUrl = prepareExpressPayPortalUrl(
-                responseBody,
-                totals.total,
-              );
+              final redirectUrl = prepareExpressPayPortalUrl(responseBody);
               if (redirectUrl == null || redirectUrl.isEmpty) {
                 throw Exception(
                   'Could not read a payment page URL from the server. '
@@ -470,8 +767,6 @@ class PaymentPageState extends State<PaymentPage> {
               }
               return redirectUrl;
             },
-            expectedPayableAmount: totals.total,
-            merchandiseSubtotal: totals.merchandiseSubtotal,
             paymentParams: paymentParams,
             purchasedItems: purchasedItems,
             paymentMethod: selectedPaymentMethod,
@@ -480,7 +775,7 @@ class PaymentPageState extends State<PaymentPage> {
             deliveryOption: widget.deliveryOption,
             estimatedDeliveryTime:
                 widget.estimatedDeliveryTime ?? 'Calculating ETA',
-            deliveryFee: totals.chargedDeliveryFee,
+            deliveryFee: deliveryCharge,
             discount: totals.discount,
             onPaymentComplete: (success, token) async {
               if (success && token != null) {
@@ -529,10 +824,14 @@ class PaymentPageState extends State<PaymentPage> {
     } catch (e, st) {
       debugPrint('[Payment] Online payment failed: $e\n$st');
       if (mounted) {
+        var message = e.toString().replaceFirst('Exception: ', '').trim();
+        if (message.isEmpty) {
+          message = kUserFacingPaymentFailureMessage;
+        }
         setState(() {
-          _paymentError = kUserFacingPaymentFailureMessage;
+          _paymentError = message;
         });
-        _showPaymentFailureDialog(e, st);
+        _showPaymentFailureDialog(e, st, message);
       }
     } finally {
       if (mounted) {
@@ -632,7 +931,8 @@ class PaymentPageState extends State<PaymentPage> {
                     children: [
                       Consumer<CartProvider>(
                         builder: (context, cart, child) {
-                          final totals = _checkoutTotals;
+                          final totals = _displayTotals;
+                          final displayDeliveryFee = totals.deliveryFee;
                           return RefreshIndicator(
                             color: AppColors.primary,
                             onRefresh: _refreshPaymentPage,
@@ -670,8 +970,9 @@ class PaymentPageState extends State<PaymentPage> {
                                     widget._isDelivery ? 2 : 1,
                                     PaymentBillSummarySection(
                                       subtotal: totals.merchandiseSubtotal,
-                                      deliveryFee: totals.deliveryFee,
-                                      showDeliveryFee: totals.isDelivery,
+                                      deliveryFee: displayDeliveryFee,
+                                      showDeliveryFee:
+                                          totals.isDelivery || widget._isDelivery,
                                       emergencyOrderFee:
                                           totals.emergencyOrderFee,
                                       discountAmount: totals.discount,
@@ -866,32 +1167,14 @@ class PaymentPageState extends State<PaymentPage> {
           14,
           payBarBottomPadding,
         ),
-        child: Selector<CartProvider, double>(
-          selector: (_, cart) {
-            final base = widget.orderTotals;
-            if (base != null) {
-              final subtotal = base.merchandiseSubtotal > 0
-                  ? base.merchandiseSubtotal
-                  : cart.calculateSubtotal();
-              return CheckoutOrderTotals(
-                merchandiseSubtotal: subtotal,
-                discount: _effectiveDiscountFromApiOrPromo,
-                deliveryFee: base.deliveryFee,
-                emergencyOrderFee: base.emergencyOrderFee,
-                runningSubtotal: base.runningSubtotal,
-                shippingFree: base.shippingFree,
-                isDelivery: widget._isDelivery,
-              ).total;
-            }
-            return CheckoutOrderTotals(
-              merchandiseSubtotal: cart.calculateSubtotal(),
-              discount: _discountAmount,
-              deliveryFee: 0,
-              emergencyOrderFee: 0,
-              isDelivery: widget._isDelivery,
-            ).total;
-          },
-          builder: (context, total, slideChild) {
+        child: Selector<CartProvider, int>(
+          selector: (_, cart) => Object.hash(
+            cart.calculateSubtotal(),
+            _displayTotals.payableAmount,
+            _effectiveDiscountFromApiOrPromo,
+          ),
+          builder: (context, _, slideChild) {
+            final total = _displayTotals.total;
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1302,11 +1585,17 @@ class PaymentPageState extends State<PaymentPage> {
     unawaited(_persistGuestCheckoutDraft());
   }
 
-  void _showPaymentFailureDialog(Object error, [StackTrace? stackTrace]) {
+  void _showPaymentFailureDialog(
+    Object error, [
+    StackTrace? stackTrace,
+    String? message,
+  ]) {
     debugPrint('[Payment] Failure dialog (details above): $error');
     if (stackTrace != null) {
       debugPrint('$stackTrace');
     }
+
+    final body = message ?? _paymentError ?? kUserFacingPaymentFailureMessage;
 
     showDialog(
       context: context,
@@ -1376,7 +1665,7 @@ class PaymentPageState extends State<PaymentPage> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  kUserFacingPaymentFailureMessage,
+                  body,
                   style: TextStyle(
                     fontSize: 15,
                     color: dialogTheme.muted,

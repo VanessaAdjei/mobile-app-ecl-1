@@ -11,7 +11,7 @@ abstract final class PostCheckoutDesign {
   static const double radiusMd = 14;
   static const double radiusSm = 10;
 
-  static const String logoAsset = 'assets/images/png.png';
+  static const String logoAsset = 'assets/images/app_logo.png';
 
   static AppThemeColors _t(BuildContext context) => context.appColors;
 

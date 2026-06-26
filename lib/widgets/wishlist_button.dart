@@ -6,6 +6,7 @@ import '../models/product.dart';
 import '../services/auth_service.dart';
 import '../pages/signinpage.dart';
 import '../utils/app_error_utils.dart';
+import 'sign_in_required_dialog.dart';
 
 class WishlistButton extends StatefulWidget {
   final Product product;
@@ -55,23 +56,11 @@ class _WishlistButtonState extends State<WishlistButton> {
     if (!mounted) return;
     
     if (!isLoggedIn) {
-      // Show login prompt
-      final shouldLogin = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Sign In Required'),
-          content: const Text('Please sign in to add items to your wishlist.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Sign In'),
-            ),
-          ],
-        ),
+      final shouldLogin = await SignInRequiredDialog.show(
+        context,
+        feature: 'your wishlist',
+        message: 'Sign in to save products to your wishlist and access them '
+            'from any device.',
       );
 
       if (shouldLogin == true && mounted) {

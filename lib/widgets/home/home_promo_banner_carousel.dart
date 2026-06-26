@@ -1,10 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 
-/// Home promo carousel — local banner assets with headline overlays (previous design).
+/// Home promo carousel — local banner assets.
 class HomePromoBannerCarousel extends StatefulWidget {
   const HomePromoBannerCarousel({super.key});
 
@@ -146,56 +145,6 @@ class _HomePromoBannerCarouselState extends State<HomePromoBannerCarousel> {
                             ),
                           ),
                         ),
-                        if (data.hasTextOverlay)
-                          Positioned(
-                            left: 20,
-                            bottom: 22,
-                            right: 20,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (data.headline.isNotEmpty)
-                                  Text(
-                                    data.headline,
-                                    style: GoogleFonts.poppins(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: isTablet ? 18 : 14.5,
-                                      shadows: [
-                                        Shadow(
-                                          color: Colors.black
-                                              .withValues(alpha: 0.4),
-                                          blurRadius: 6,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                if (data.headline.isNotEmpty &&
-                                    data.subtitle.isNotEmpty)
-                                  const SizedBox(height: 5),
-                                if (data.subtitle.isNotEmpty)
-                                  Text(
-                                    data.subtitle,
-                                    style: GoogleFonts.poppins(
-                                      color: Colors.white
-                                          .withValues(alpha: 0.92),
-                                      fontWeight: FontWeight.w400,
-                                      fontSize: isTablet ? 13 : 10.5,
-                                      height: 1.3,
-                                      shadows: [
-                                        Shadow(
-                                          color: Colors.black
-                                              .withValues(alpha: 0.3),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 1),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
                       ],
                     ),
                   ),
@@ -231,15 +180,9 @@ class _HomePromoBannerCarouselState extends State<HomePromoBannerCarousel> {
 class _BannerData {
   const _BannerData({
     required this.image,
-    this.headline = '',
-    this.subtitle = '',
   });
 
   final String image;
-  final String headline;
-  final String subtitle;
-
-  bool get hasTextOverlay => headline.isNotEmpty || subtitle.isNotEmpty;
 }
 
 /// Shimmer placeholder matching the previous banner layout.

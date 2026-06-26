@@ -79,7 +79,7 @@ final filteredItemsProvider = Provider<List<Item>>((ref) {
 
 // --- Debounced Search Widget ---
 class CategorySearchPage extends ConsumerStatefulWidget {
-  const CategorySearchPage({Key? key}) : super(key: key);
+  const CategorySearchPage({super.key});
   @override
   ConsumerState<CategorySearchPage> createState() => _CategorySearchPageState();
 }

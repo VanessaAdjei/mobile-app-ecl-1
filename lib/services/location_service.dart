@@ -6,6 +6,7 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:flutter/foundation.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../config/api_config.dart';
 import 'google_places_service.dart';
@@ -20,6 +21,17 @@ class LocationService {
   DateTime? _lastLocationUpdate;
   static const Duration _locationCacheDuration = Duration(minutes: 5);
 
+  /// When-in-use only — never requests background location (Google Play policy).
+  Future<bool> ensureWhenInUsePermission({bool requestIfDenied = true}) async {
+    final perm = Permission.locationWhenInUse;
+    var status = await perm.status;
+    if (status.isGranted) return true;
+    if (!requestIfDenied) return false;
+    if (status.isPermanentlyDenied) return false;
+    status = await perm.request();
+    return status.isGranted;
+  }
+
   // get user's current location (uses cache)
   Future<Position?> getCurrentLocation() async {
     try {
@@ -33,16 +45,12 @@ class LocationService {
         }
       }
 
-      // check location permissions
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          debugPrint('❌ Location permission denied');
-          return null;
-        }
+      if (!await ensureWhenInUsePermission()) {
+        debugPrint('❌ Location permission denied');
+        return null;
       }
 
+      final permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.deniedForever) {
         debugPrint('❌ Location permission permanently denied');
         return null;
@@ -177,16 +185,13 @@ class LocationService {
         return false;
       }
 
-      // then check permissions
-      LocationPermission permission = await Geolocator.checkPermission();
-      debugPrint('📍 Current location permission: $permission');
-
-      // if permission is denied, ask for it
-      if (permission == LocationPermission.denied) {
-        debugPrint('📍 Requesting location permission...');
-        permission = await Geolocator.requestPermission();
-        debugPrint('📍 Permission after request: $permission');
+      if (!await ensureWhenInUsePermission()) {
+        debugPrint('❌ Location permission denied');
+        return false;
       }
+
+      final permission = await Geolocator.checkPermission();
+      debugPrint('📍 Current location permission: $permission');
 
       return permission == LocationPermission.whileInUse ||
           permission == LocationPermission.always;

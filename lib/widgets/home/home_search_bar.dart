@@ -87,6 +87,29 @@ class HomeSearchBarState extends State<HomeSearchBar> {
     });
   }
 
+  Widget _buildNoResultsDropdown(BuildContext context) {
+    final theme = context.appColors;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.search_off_rounded, size: 32, color: theme.muted),
+          const SizedBox(height: 8),
+          Text(
+            "Sorry, we couldn't find your product.",
+            style: _poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: theme.ink,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
   void _openProduct(Product suggestion) {
     if (!mounted) return;
     final matching = _matchingProduct(suggestion);
@@ -290,14 +313,8 @@ class HomeSearchBarState extends State<HomeSearchBar> {
                   _openProduct(suggestion);
                 }
               },
-              emptyBuilder: (context) => Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(
-                  'No products found',
-                  style: TextStyle(color: context.appColors.muted),
-                ),
-              ),
-              hideOnEmpty: true,
+              emptyBuilder: (context) => _buildNoResultsDropdown(context),
+              hideOnEmpty: _controller.text.trim().isEmpty,
               hideOnLoading: false,
               debounceDuration: const Duration(milliseconds: 250),
               boxStyle: TypeAheadBoxStyle(

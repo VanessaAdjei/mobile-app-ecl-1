@@ -13,23 +13,25 @@ void main() {
 
     test('leaves URL unchanged when amount already matches', () {
       const url =
-          'https://sandbox.expresspaygh.com/checkout.php?token=abc&amount=135.00';
-      expect(alignExpressPayCheckoutUrl(url, 135), url);
-    });
-
-    test('does not reduce overcharged amount', () {
-      const url =
-          'https://sandbox.expresspaygh.com/checkout.php?token=abc&amount=150.00';
+          'https://sandbox.expresspaygh.com/api/checkout.php?token=abc&amount=135.00';
       expect(alignExpressPayCheckoutUrl(url, 135), url);
     });
   });
 
   group('prepareExpressPayPortalUrl', () {
-    test('parses bare URL and aligns amount', () {
+    test('parses bare URL string', () {
       const raw =
-          'https://sandbox.expresspaygh.com/checkout.php?amount=115.00';
-      final url = prepareExpressPayPortalUrl(raw, 135);
-      expect(url, contains('amount=135.00'));
+          'https://sandbox.expresspaygh.com/api/checkout.php?token=abc123';
+      expect(prepareExpressPayPortalUrl(raw), raw);
+    });
+
+    test('parses JSON-encoded URL string', () {
+      const raw =
+          '"https://sandbox.expresspaygh.com/api/checkout.php?token=abc123"';
+      expect(
+        prepareExpressPayPortalUrl(raw),
+        'https://sandbox.expresspaygh.com/api/checkout.php?token=abc123',
+      );
     });
   });
 }

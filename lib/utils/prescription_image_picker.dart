@@ -7,34 +7,18 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image_picker_android/image_picker_android.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 
-/// Gallery picks with Android retries + optional [file_picker] fallback.
+/// Gallery picks via the Android system photo picker (no READ_MEDIA_* permissions).
 class PrescriptionImagePicker {
   PrescriptionImagePicker._();
 
   static final ImagePicker _picker = ImagePicker();
 
-  static void _setAndroidPhotoPicker(bool enabled) {
+  static void _ensureAndroidPhotoPicker() {
     if (kIsWeb || !Platform.isAndroid) return;
     final impl = ImagePickerPlatform.instance;
     if (impl is ImagePickerAndroid) {
-      impl.useAndroidPhotoPicker = enabled;
-    }
-  }
-
-  static Future<void> _ensureGalleryAccess() async {
-    if (kIsWeb || !Platform.isAndroid) return;
-
-    final photos = await Permission.photos.request();
-    if (photos.isGranted || photos.isLimited) return;
-
-    final storage = await Permission.storage.request();
-    if (!storage.isGranted && !photos.isGranted && !photos.isLimited) {
-      throw PlatformException(
-        code: 'photo_access_denied',
-        message: 'Photo library access is required to choose an image.',
-      );
+      impl.useAndroidPhotoPicker = true;
     }
   }
 
@@ -43,44 +27,22 @@ class PrescriptionImagePicker {
     double maxHeight = 1080,
     int imageQuality = 85,
   }) async {
-    await _ensureGalleryAccess();
+    _ensureAndroidPhotoPicker();
 
     PlatformException? lastUriError;
 
-    if (!kIsWeb && Platform.isAndroid) {
-      for (final usePhotoPicker in [true, false]) {
-        _setAndroidPhotoPicker(usePhotoPicker);
-        try {
-          final file = await _pickWithImagePicker(
-            maxWidth: maxWidth,
-            maxHeight: maxHeight,
-            imageQuality: imageQuality,
-          );
-          if (file != null) return file;
-          return null;
-        } on PlatformException catch (e) {
-          if (e.code == 'photo_access_denied') rethrow;
-          if (e.code == 'no_valid_image_uri') {
-            lastUriError = e;
-            continue;
-          }
-          rethrow;
-        }
-      }
-    } else {
-      try {
-        final file = await _pickWithImagePicker(
-          maxWidth: maxWidth,
-          maxHeight: maxHeight,
-          imageQuality: imageQuality,
-        );
-        if (file != null) return file;
-        return null;
-      } on PlatformException catch (e) {
-        if (e.code == 'photo_access_denied') rethrow;
-        if (e.code != 'no_valid_image_uri') rethrow;
-        lastUriError = e;
-      }
+    try {
+      final file = await _pickWithImagePicker(
+        maxWidth: maxWidth,
+        maxHeight: maxHeight,
+        imageQuality: imageQuality,
+      );
+      if (file != null) return file;
+      return null;
+    } on PlatformException catch (e) {
+      if (e.code == 'photo_access_denied') rethrow;
+      if (e.code != 'no_valid_image_uri') rethrow;
+      lastUriError = e;
     }
 
     try {
@@ -90,12 +52,7 @@ class PrescriptionImagePicker {
       // Hot restart without native rebuild — ignore and use message below.
     }
 
-    throw lastUriError ??
-        PlatformException(
-          code: 'gallery_pick_failed',
-          message:
-              'Could not read the selected image. Try Camera or fully restart the app.',
-        );
+    throw lastUriError;
   }
 
   static Future<File?> _pickWithImagePicker({

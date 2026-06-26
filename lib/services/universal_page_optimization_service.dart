@@ -402,18 +402,6 @@ class UniversalPageOptimizationService {
     }, pageName: 'categories', forceRefresh: forceRefresh);
   }
 
-  /// Optimize payment page
-  Future<Map<String, dynamic>> optimizePaymentPage({
-    required Future<Map<String, dynamic>> Function() fetchPaymentMethods,
-    required Future<Map<String, dynamic>> Function() fetchOrderDetails,
-    bool forceRefresh = false,
-  }) async {
-    return fetchMultipleData({
-      'payment_methods': fetchPaymentMethods,
-      'order_details': fetchOrderDetails,
-    }, pageName: 'payment', forceRefresh: forceRefresh);
-  }
-
   // ==================== DISPOSE ====================
 
   /// Dispose the service

@@ -363,7 +363,7 @@ class _OnboardingLogoBadge extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(10),
             child: Image.asset(
-              'assets/images/png.png',
+              'assets/images/app_logo.png',
               fit: BoxFit.contain,
             ),
           ),

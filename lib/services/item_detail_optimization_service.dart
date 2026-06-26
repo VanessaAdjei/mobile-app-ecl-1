@@ -41,6 +41,7 @@ class ItemDetailOptimizationService implements ItemDetailServiceInterface {
   final Map<String, List<String>> _productImagesMemoryCache = {};
 
   // Initialize the service
+  @override
   Future<void> initialize() async {
     if (_isInitialized) return;
 
@@ -62,6 +63,7 @@ class ItemDetailOptimizationService implements ItemDetailServiceInterface {
   }
 
   // Get product details with comprehensive caching
+  @override
   Future<Product> getProductDetails(String urlName,
       {bool forceRefresh = false}) async {
     await _ensureInitialized();
@@ -111,6 +113,7 @@ class ItemDetailOptimizationService implements ItemDetailServiceInterface {
   }
 
   // Get related products with optimization
+  @override
   Future<List<Product>> getRelatedProducts(String urlName,
       {bool forceRefresh = false}) async {
     await _ensureInitialized();
@@ -162,6 +165,7 @@ class ItemDetailOptimizationService implements ItemDetailServiceInterface {
   }
 
   // Get product images with optimization
+  @override
   Future<List<String>> getProductImages(String urlName,
       {bool forceRefresh = false}) async {
     await _ensureInitialized();

@@ -2,9 +2,6 @@
 
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../config/api_config.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
@@ -26,7 +23,6 @@ import '../services/product_image_preload_service.dart';
 import '../services/homepage_optimization_service.dart';
 import '../widgets/empty_state.dart';
 import 'section_products_page.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/native_notification_service.dart';
 
@@ -37,7 +33,6 @@ import '../utils/product_tap_guard.dart';
 import '../services/category_optimization_service.dart';
 import '../services/product_catalog_service.dart';
 import '../utils/app_theme_colors.dart';
-import '../utils/category_navigation.dart';
 import '../utils/category_utils.dart';
 import '../utils/app_error_utils.dart';
 import 'categories.dart';
@@ -234,6 +229,8 @@ class _HomeHeaderSearchFlexibleSpace extends StatelessWidget {
   Widget build(BuildContext context) {
     final top = MediaQuery.viewPaddingOf(context).top;
     final collapsedHeight = top + _kHomeSearchPinnedTopExtra + searchExtent;
+    final headerControlExtent = isTablet ? 44.0 : 40.0;
+    final logoHeight = isTablet ? 24.0 : 18.0;
 
     return Material(
       color: AppThemeColors.headerBackground,
@@ -242,63 +239,81 @@ class _HomeHeaderSearchFlexibleSpace extends StatelessWidget {
           final showToolbar = constraints.maxHeight > collapsedHeight + 1;
 
           return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (showToolbar)
-              ColoredBox(
-                color: AppThemeColors.headerBackground,
-                child: SafeArea(
-                  bottom: false,
-                  child: SizedBox(
-                    height: toolbarHeight,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Padding(
-                          padding: EdgeInsets.only(left: isTablet ? 16 : 1),
-                          child: Image.asset(
-                            'assets/images/png.png',
-                            height: isTablet ? 26 : 17,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (showToolbar)
+                ColoredBox(
+                  color: AppThemeColors.headerBackground,
+                  child: SafeArea(
+                    bottom: false,
+                    child: SizedBox(
+                      height: toolbarHeight,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Padding(
+                            padding: EdgeInsets.only(left: isTablet ? 16 : 12),
+                            child: SizedBox(
+                              height: headerControlExtent,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Image.asset(
+                                  'assets/images/png.png',
+                                  height: logoHeight,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                        CartIconButton(
-                          key: tourCartKey,
-                          iconColor: Colors.white,
-                          iconSize: isTablet ? 24 : 22,
-                          backgroundColor: Colors.transparent,
-                        ),
-                      ],
+                          const Spacer(),
+                          SizedBox(
+                            height: headerControlExtent,
+                            child: CartIconButton(
+                              key: tourCartKey,
+                              iconColor: Colors.white,
+                              iconSize: isTablet ? 24 : 22,
+                              backgroundColor: Colors.transparent,
+                              margin: EdgeInsets.only(right: isTablet ? 12 : 8),
+                              padding: EdgeInsets.zero,
+                              visualDensity: VisualDensity.compact,
+                              constraints: BoxConstraints.tightFor(
+                                width: headerControlExtent,
+                                height: headerControlExtent,
+                              ),
+                              splashRadius: headerControlExtent * 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              else
+                ColoredBox(
+                  color: AppThemeColors.headerBackground,
+                  child: SizedBox(height: top + _kHomeSearchPinnedTopExtra),
+                ),
+              Expanded(
+                child: ColoredBox(
+                  color: showToolbar
+                      ? Theme.of(context).scaffoldBackgroundColor
+                      : AppThemeColors.headerBackground,
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: SizedBox(
+                      height: searchExtent,
+                      child: skeleton
+                          ? _HomeSearchSkeleton(isTablet: isTablet)
+                          : HomeSearchBar(
+                              key: searchBarKey,
+                              isTablet: isTablet,
+                              catalogProducts: products,
+                            ),
                     ),
                   ),
                 ),
-              )
-            else
-              ColoredBox(
-                color: AppThemeColors.headerBackground,
-                child: SizedBox(height: top + _kHomeSearchPinnedTopExtra),
               ),
-            Expanded(
-              child: ColoredBox(
-                color: showToolbar
-                    ? Theme.of(context).scaffoldBackgroundColor
-                    : AppThemeColors.headerBackground,
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: SizedBox(
-                    height: searchExtent,
-                    child: skeleton
-                        ? _HomeSearchSkeleton(isTablet: isTablet)
-                        : HomeSearchBar(
-                            key: searchBarKey,
-                            isTablet: isTablet,
-                            catalogProducts: products,
-                          ),
-                  ),
-                ),
-              ),
-            ),
-          ],
+            ],
           );
         },
       ),
@@ -331,7 +346,6 @@ class HomePageState extends State<HomePage>
         WidgetsBindingObserver,
         AutomaticKeepAliveClientMixin {
   // ─── State ────────────────────────────────────────────────────────────────
-  bool _isLoading = true;
   bool _isLoadingPopular = true;
   String? _error;
   String? _popularError;
@@ -513,7 +527,6 @@ class HomePageState extends State<HomePage>
     _products = priorityProducts;
     filteredProducts = List<Product>.from(priorityProducts);
     _applySectionBuckets(priorityProducts);
-    _isLoading = false;
     _error = null;
     _isPartialCatalog = true;
 
@@ -553,7 +566,6 @@ class HomePageState extends State<HomePage>
     _products = cachedAll;
     filteredProducts = List<Product>.from(cachedAll);
     _applySectionBuckets(cachedAll);
-    _isLoading = false;
     _error = null;
     final cachedPopular = ProductCache.cachedPopularProducts;
     ProductCache.warmPopularFromCatalog();
@@ -682,7 +694,6 @@ class HomePageState extends State<HomePage>
       _topUpMedicationSectionFromCatalog(cachedAll);
       _fillNonDrugSectionsFromCatalog(cachedAll);
       _isPartialCatalog = false;
-      _isLoading = false;
       _hasBeenLoaded = true;
       _error = null;
       if (cachedPopular.isNotEmpty) {
@@ -704,7 +715,6 @@ class HomePageState extends State<HomePage>
         _products = List<Product>.from(_lastKnownProducts);
         filteredProducts = List<Product>.from(_lastKnownProducts);
         _seedSectionsFromProducts(_products);
-        _isLoading = false;
       }
       if (popularProducts.isEmpty && _lastKnownPopularProducts.isNotEmpty) {
         popularProducts = List<Product>.from(_lastKnownPopularProducts);
@@ -768,13 +778,11 @@ class HomePageState extends State<HomePage>
           _fillNonDrugSectionsFromCatalog(_products);
         }
         _isPartialCatalog = false;
-        _isLoading = false;
         _hasBeenLoaded = true;
       } else if (_products.isEmpty && ProductCache.hasPriorityProducts) {
         _hydrateFromPriorityProducts();
         _hasBeenLoaded = true;
       } else if (_products.isEmpty) {
-        _isLoading = true;
       }
 
       if (cachedPopular.isNotEmpty) {
@@ -985,7 +993,7 @@ class HomePageState extends State<HomePage>
   }
 
   /// Warms thumbnails for the exact products in each visible home section row.
-  Future<void> _startHomeImageWarm({bool skipMedicationRow = false}) async {
+  Future<void> _startHomeImageWarm() async {
     if (_products.isEmpty || !mounted) return;
     await _warmMedicationRowThenRest();
   }
@@ -1001,7 +1009,7 @@ class HomePageState extends State<HomePage>
     bool isTablet, {
     bool skeleton = false,
   }) {
-    final toolbarHeight = isTablet ? 64.0 : 48.0;
+    final toolbarHeight = isTablet ? 68.0 : 52.0;
     final searchExtent = HomeSearchBar.headerExtent(isTablet: isTablet);
     final top = MediaQuery.viewPaddingOf(context).top;
     final expandedHeight = top + toolbarHeight + searchExtent;
@@ -1284,7 +1292,6 @@ class HomePageState extends State<HomePage>
           unawaited(_ensureHomeGridImages());
           if (mounted) {
             setState(() {
-              _isLoading = false;
               _isLoadingPopular = popularProducts.isEmpty;
             });
             _schedulePostInitHomeWork();
@@ -1304,7 +1311,6 @@ class HomePageState extends State<HomePage>
         unawaited(_ensureHomeGridImages());
         if (mounted) {
           setState(() {
-            _isLoading = false;
             _isLoadingPopular = popularProducts.isEmpty;
           });
           _schedulePostInitHomeWork();
@@ -1329,8 +1335,7 @@ class HomePageState extends State<HomePage>
       if (mounted) setState(() => _error = 'Failed to load content');
     } finally {
       _isLoadingContent = false;
-      if (mounted) setState(() => _isLoading = false);
-      if (mounted) {
+      if (mounted)       if (mounted) {
         _schedulePostInitHomeWork();
         _scheduleSpotlightTour();
       }
@@ -1349,7 +1354,6 @@ class HomePageState extends State<HomePage>
           _products = cached;
           filteredProducts = cached;
           _seedSectionsFromProducts(cached);
-          _isLoading = false;
           _error = null;
         });
         _persistSnapshot();
@@ -1366,7 +1370,6 @@ class HomePageState extends State<HomePage>
         setState(() {
           _products = List<Product>.from(cached);
           filteredProducts = List<Product>.from(cached);
-          _isLoading = false;
           _error = null;
         });
         _persistSnapshot();
@@ -1392,7 +1395,6 @@ class HomePageState extends State<HomePage>
             if (!reshufflePending) {
               _seedSectionsFromProducts(allProducts);
             }
-            _isLoading = false;
           });
           _persistSnapshot();
         }
@@ -1423,7 +1425,6 @@ class HomePageState extends State<HomePage>
           _products = cached;
           filteredProducts = cached;
           _seedSectionsFromProducts(cached);
-          _isLoading = false;
           _error = null;
         });
         _persistSnapshot();
@@ -1434,7 +1435,6 @@ class HomePageState extends State<HomePage>
       // offline start can't hang on an infinite spinner.
       setState(() {
         _error = error ?? 'No internet connection';
-        _isLoading = false;
       });
     }
   }
@@ -1631,7 +1631,6 @@ class HomePageState extends State<HomePage>
           setState(() {
             _products = List<Product>.from(cached);
             filteredProducts = List<Product>.from(cached);
-            _isLoading = false;
             _error = null;
           });
         }
@@ -1670,7 +1669,6 @@ class HomePageState extends State<HomePage>
       _isLoadingContent = false;
       if (mounted) {
         setState(() {
-          _isLoading = false;
           _isLoadingPopular = false;
         });
       }
@@ -1762,52 +1760,6 @@ class HomePageState extends State<HomePage>
     return result ?? false;
   }
 
-  // ─── Contact helpers ───────────────────────────────────────────────────────
-  _launchPhoneDialer(String phoneNumber) async {
-    if (!mounted) return;
-    final status = await Permission.phone.request();
-    if (!mounted) return;
-    if (status.isGranted) {
-      final uri = Uri.parse('tel:$phoneNumber');
-      if (await canLaunchUrl(uri)) await launchUrl(uri);
-    }
-  }
-
-  _launchWhatsApp(String phoneNumber, String message) async {
-    if (phoneNumber.isEmpty || message.isEmpty) return;
-    if (!phoneNumber.startsWith('+')) return;
-    final url =
-        'whatsapp://send?phone=$phoneNumber&text=${Uri.encodeComponent(message)}';
-    if (await canLaunchUrl(Uri.parse(url))) {
-      await launchUrl(Uri.parse(url));
-      return;
-    }
-    if (!mounted) return;
-    showTopSnackBar(
-        context, 'Could not open WhatsApp. Please ensure it is installed.');
-  }
-
-  void _launchEmail(String email, String subject) async {
-    try {
-      final body =
-          'Hello,\n\nI would like to contact Ernest Chemists Limited for support.\n\nBest regards,';
-      final uri = Uri.parse(
-          'mailto:$email?subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent(body)}');
-      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        _showEmailAlternatives(email);
-      }
-    } catch (_) {
-      _showEmailAlternatives(email);
-    }
-  }
-
-  void makePhoneCall(String phoneNumber) async {
-    final uri = Uri.parse('tel:$phoneNumber');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
-  }
-
   void _clearSearch() {
     _homeSearchBarKey.currentState?.clear();
   }
@@ -1823,268 +1775,6 @@ class HomePageState extends State<HomePage>
     );
   }
 
-  // ─── Contact bottom sheet ──────────────────────────────────────────────────
-  void _showContactOptions(String phoneNumber) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, -5))
-            ]),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Colors.green.shade50, Colors.blue.shade50]),
-                  borderRadius: BorderRadius.circular(10)),
-              child:
-                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.green.shade200,
-                            blurRadius: 6,
-                            offset: const Offset(0, 1))
-                      ]),
-                  child: Image.asset('assets/images/png.png',
-                      width: 20, height: 20, fit: BoxFit.contain),
-                ),
-                const SizedBox(width: 8),
-                Column(children: [
-                  Text("We're Here to Help!",
-                      style: _homePoppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade800)),
-                  Text('Choose your preferred way to get in touch',
-                      style: _homePoppins(
-                          fontSize: 11,
-                          color: Colors.grey.shade600,
-                          height: 1.1)),
-                ]),
-              ]),
-            ),
-            const SizedBox(height: 16),
-            _buildModernContactOption(
-              icon: Icons.phone_rounded,
-              title: 'Call Us',
-              subtitle: 'Speak directly with our team',
-              phone: '0302908674',
-              color: Colors.green.shade600,
-              onTap: () {
-                Navigator.pop(context);
-                _launchPhoneDialer(phoneNumber);
-                makePhoneCall(phoneNumber);
-              },
-            ),
-            const SizedBox(height: 8),
-            _buildModernContactOption(
-              icon: Icons.message_rounded,
-              title: 'WhatsApp',
-              subtitle: 'Chat with us instantly',
-              phone: 'Chat Now',
-              color: const Color(0xFF25D366),
-              onTap: () {
-                Navigator.pop(context);
-                _launchWhatsApp(phoneNumber,
-                    "Hello! I need help with the Ernest Chemists Ltd app. Can you assist me?");
-              },
-            ),
-            const SizedBox(height: 8),
-            _buildModernContactOption(
-              icon: Icons.email_rounded,
-              title: 'Email Us',
-              subtitle: 'Send us a detailed message',
-              phone: 'support@ernestchemists.com',
-              color: Colors.blue.shade600,
-              onTap: () {
-                Navigator.pop(context);
-                _launchEmail('support@ernestchemists.com',
-                    'Ernest Chemists Ltd Support & Inquiry');
-              },
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildModernContactOption({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required String phone,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: color.withValues(alpha: 0.2)),
-            boxShadow: [
-              BoxShadow(
-                  color: color.withValues(alpha: 0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2))
-            ]),
-        child: Row(children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-                gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      color.withValues(alpha: 0.1),
-                      color.withValues(alpha: 0.05)
-                    ]),
-                borderRadius: BorderRadius.circular(8)),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title,
-                  style: _homePoppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey.shade800)),
-              const SizedBox(height: 2),
-              Text(subtitle,
-                  style: _homePoppins(
-                      fontSize: 12, color: Colors.grey.shade600, height: 1.2)),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6)),
-                child: Text(phone,
-                    style: _homePoppins(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: color)),
-              ),
-            ]),
-          ),
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
-            child:
-                Icon(Icons.arrow_forward_ios_rounded, color: color, size: 12),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  void _showEmailAlternatives(String email) {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (BuildContext context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(children: [
-          Icon(Icons.email_outlined, color: Colors.green.shade600),
-          const SizedBox(width: 8),
-          Text('Email Not Available',
-              style: _homePoppins(fontSize: 18, fontWeight: FontWeight.w600)),
-        ]),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(
-              'No email app found on your device. Here are alternative ways to contact us:',
-              style: _homePoppins(fontSize: 14, color: Colors.grey.shade700)),
-          const SizedBox(height: 16),
-          Text('Email Address:',
-              style: _homePoppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade800)),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade200)),
-            child: Row(children: [
-              Expanded(
-                  child: Text(email,
-                      style: _homePoppins(
-                          fontSize: 14,
-                          color: Colors.green.shade700,
-                          fontWeight: FontWeight.w500))),
-              GestureDetector(
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: email));
-                  Navigator.pop(context);
-                  AppErrorUtils.showSnack(
-                    context,
-                    'Email copied to clipboard',
-                    isError: false,
-                    duration: const Duration(seconds: 2),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                      color: Colors.green.shade600,
-                      borderRadius: BorderRadius.circular(6)),
-                  child: const Icon(Icons.copy, color: Colors.white, size: 16),
-                ),
-              ),
-            ]),
-          ),
-          const SizedBox(height: 12),
-          Text(
-              'You can copy the email address and use it in your preferred email app.',
-              style: _homePoppins(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                  fontStyle: FontStyle.italic)),
-        ]),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('OK',
-                style: _homePoppins(
-                    color: Colors.green.shade600, fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
-  }
-
   // ─── Categories ────────────────────────────────────────────────────────────
   Future<void> _loadCategories() async {
     if (_categories.isNotEmpty || _isLoadingCategories || !mounted) return;
@@ -2093,11 +1783,12 @@ class HomePageState extends State<HomePage>
     try {
       await _categoryService.initialize();
       final categories = await _categoryService.getCategories();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _categories = categories;
           _isLoadingCategories = false;
         });
+      }
     } catch (e) {
       if (mounted) setState(() => _isLoadingCategories = false);
     }
@@ -2639,14 +2330,12 @@ class HomePageState extends State<HomePage>
   }
 
   List<Product> _popularProductsForFeatured({int count = 9}) {
-    final eligible =
-        ProductCache.withoutPrescriptionProducts(popularProducts);
+    final eligible = ProductCache.withoutPrescriptionProducts(popularProducts);
     return eligible.take(count).toList();
   }
 
   List<Product> _popularProductsForStrip({int start = 9, int count = 12}) {
-    final eligible =
-        ProductCache.withoutPrescriptionProducts(popularProducts);
+    final eligible = ProductCache.withoutPrescriptionProducts(popularProducts);
     if (eligible.length <= start) {
       return eligible.take(count).toList();
     }

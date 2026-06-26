@@ -589,11 +589,11 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         originalProductId: product.id.toString(),
         name: product.name,
         price: double.tryParse(product.price) ?? 0.0,
-        quantity: this.quantity,
+        quantity: quantity,
         image: image,
         batchNo: product.batch_no,
         urlName: product.urlName,
-        totalPrice: (double.tryParse(product.price) ?? 0.0) * this.quantity,
+        totalPrice: (double.tryParse(product.price) ?? 0.0) * quantity,
       );
 
       // reset quantity to 1 before adding to cart
@@ -1838,17 +1838,17 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         if (cartQuantity <= 0) return const SizedBox.shrink();
 
         final cartProvider = Provider.of<CartProvider>(context, listen: false);
-        final line = CartProvider.findLineForSku(
+        final itemIndex = CartProvider.findLineIndexForSku(
           cartProvider,
           productName: product.name,
           batchNo: product.batch_no,
           catalogProductId: product.id.toString(),
         );
-        if (line == null) {
+        if (itemIndex == -1) {
           return _buildInCartFallbackBar(context, cartQuantity, price);
         }
 
-        final itemIndex = cartProvider.cartItems.indexOf(line);
+        final line = cartProvider.cartItems[itemIndex];
 
         return Column(
           mainAxisSize: MainAxisSize.min,
@@ -1898,10 +1898,18 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                   return;
                                 }
                                 _lastQuantityUpdateTime = now;
+                                final idx = CartProvider.findLineIndexForSku(
+                                  cartProvider,
+                                  productName: product.name,
+                                  batchNo: product.batch_no,
+                                  catalogProductId: product.id.toString(),
+                                );
+                                if (idx == -1) return;
+                                final currentLine = cartProvider.cartItems[idx];
                                 cartProvider.updateQuantityById(
-                                  line.id,
+                                  currentLine.id,
                                   cartQuantity - 1,
-                                  rowIndex: itemIndex,
+                                  rowIndex: idx,
                                 );
                               }
                             : null,
@@ -1935,9 +1943,17 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                 if (context.mounted) {
                                   unawaited(_flyToCartAnimation(context));
                                 }
+                                final idx = CartProvider.findLineIndexForSku(
+                                  cartProvider,
+                                  productName: product.name,
+                                  batchNo: product.batch_no,
+                                  catalogProductId: product.id.toString(),
+                                );
+                                if (idx == -1) return;
+                                final currentLine = cartProvider.cartItems[idx];
                                 await cartProvider.incrementCartLine(
-                                  line.id,
-                                  rowIndex: itemIndex,
+                                  currentLine.id,
+                                  rowIndex: idx,
                                 );
                                 if (context.mounted && mounted) {
                                   _scaleController.forward().then((_) {

@@ -52,6 +52,74 @@ void main() {
       expect(item.totalPrice, 30.0);
     });
 
+    test('fromServerJson uses unit_price when price is missing', () {
+      final item = CartItem.fromServerJson({
+        'id': '1',
+        'product_id': '100',
+        'product_name': 'Item',
+        'unit_price': 12.5,
+        'qty': 2,
+        'total_price': 25.0,
+        'product_img': '',
+        'batch_no': '',
+        'url_name': '',
+      });
+
+      expect(item.price, 12.5);
+      expect(item.totalPrice, 25.0);
+    });
+
+    test('fromServerJson parses is_selected explicitly', () {
+      expect(
+        CartItem.fromServerJson({
+          'id': '1',
+          'product_id': '1',
+          'product_name': 'A',
+          'price': 5,
+          'qty': 1,
+        }).isSelected,
+        isTrue,
+      );
+      expect(
+        CartItem.fromServerJson({
+          'id': '1',
+          'product_id': '1',
+          'product_name': 'A',
+          'price': 5,
+          'qty': 1,
+          'is_selected': 0,
+        }).isSelected,
+        isFalse,
+      );
+      expect(
+        CartItem.fromServerJson({
+          'id': '1',
+          'product_id': '1',
+          'product_name': 'A',
+          'price': 5,
+          'qty': 1,
+          'is_selected': false,
+        }).isSelected,
+        isFalse,
+      );
+    });
+
+    test('lineCharge uses total_price when unit price is zero', () {
+      final item = CartItem(
+        id: '1',
+        productId: 'p1',
+        name: 'P',
+        price: 0,
+        image: '',
+        batchNo: 'B1',
+        urlName: '',
+        totalPrice: 18,
+        quantity: 2,
+      );
+
+      expect(CartItem.lineCharge(item), 18);
+    });
+
     test('fromServerJson parses served_by for quantity lock', () {
       final unlocked = CartItem.fromServerJson({
         'id': '1',

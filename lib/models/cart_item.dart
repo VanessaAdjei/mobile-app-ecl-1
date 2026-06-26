@@ -51,6 +51,50 @@ class CartItem {
     return 0.0;
   }
 
+  /// Cart checkout treats lines as selected unless the API explicitly opts out.
+  static bool _parseIsSelected(dynamic value) {
+    if (value == null) return true;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized.isEmpty) return true;
+      return normalized == 'true' ||
+          normalized == '1' ||
+          normalized == 'yes';
+    }
+    return true;
+  }
+
+  static double _resolveUnitPrice(Map<String, dynamic> json) {
+    const priceKeys = <String>[
+      'price',
+      'unit_price',
+      'selling_price',
+      'product_price',
+      'sale_price',
+      'retail_price',
+    ];
+    for (final key in priceKeys) {
+      final parsed = _parseDouble(json[key]);
+      if (parsed > 0) return parsed;
+    }
+
+    final totalPrice = _parseDouble(json['total_price']);
+    final quantity = _parseInt(json['qty'] ?? json['quantity']);
+    if (totalPrice > 0 && quantity > 0) {
+      return totalPrice / quantity;
+    }
+    return 0.0;
+  }
+
+  /// Charge for one cart line (unit price × qty, or line total when unit is missing).
+  static double lineCharge(CartItem item) {
+    if (item.price > 0) return item.price * item.quantity;
+    if (item.totalPrice > 0) return item.totalPrice;
+    return 0.0;
+  }
+
   static int _parseInt(dynamic value) {
     if (value is int) return value;
     if (value is String) return int.tryParse(value) ?? 1;
@@ -94,7 +138,7 @@ class CartItem {
   }
 
   factory CartItem.fromJson(Map<String, dynamic> json) {
-    final price = _parseDouble(json['price']);
+    final price = _resolveUnitPrice(json);
     final quantity = _parseInt(json['qty'] ?? json['quantity']);
     return CartItem(
       id: json['id']?.toString() ?? '',
@@ -115,13 +159,13 @@ class CartItem {
       lastModified: _parseDate(json['last_modified']),
       urlName: json['url_name'] ?? '',
       totalPrice: price * quantity,
-      isSelected: json['is_selected'] ?? true,
+      isSelected: _parseIsSelected(json['is_selected']),
       servedBy: _parseNullableInt(json['served_by']),
     );
   }
 
   factory CartItem.fromServerJson(Map<String, dynamic> json) {
-    final price = _parseDouble(json['price']);
+    final price = _resolveUnitPrice(json);
     final totalPrice = _parseDouble(json['total_price']);
     var quantity = _parseInt(json['qty'] ?? json['quantity']);
     if (price > 0 && totalPrice > 0) {
@@ -145,7 +189,7 @@ class CartItem {
       batchNo: json['batch_no']?.toString() ?? '',
       urlName: json['url_name']?.toString() ?? '',
       totalPrice: totalPrice > 0 ? totalPrice : price * resolvedQty,
-      isSelected: json['is_selected'] ?? true,
+      isSelected: _parseIsSelected(json['is_selected']),
       servedBy: _parseNullableInt(json['served_by']),
     );
   }

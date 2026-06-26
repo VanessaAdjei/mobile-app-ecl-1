@@ -100,9 +100,9 @@ class StockUtilityService {
     if (stockLevel == 0) {
       return 'Out of Stock';
     } else if (stockLevel <= 5) {
-      return 'Only ${stockLevel} left';
+      return 'Only $stockLevel left';
     } else {
-      return '${stockLevel} in stock';
+      return '$stockLevel in stock';
     }
   }
 
@@ -111,9 +111,9 @@ class StockUtilityService {
     if (stockLevel == 0) {
       return 'Out of Stock';
     } else if (stockLevel <= 5) {
-      return 'Only ${stockLevel} left';
+      return 'Only $stockLevel left';
     } else {
-      return '${stockLevel} in stock';
+      return '$stockLevel in stock';
     }
   }
 }

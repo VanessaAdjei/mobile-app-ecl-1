@@ -62,12 +62,8 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>We need access to your camera to take profile pictures.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app needs background location access.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Older iOS support</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>We use your location to show accurate delivery options, distances, and address suggestions.</string>
+	<string>We use your location while you use the app to show accurate delivery options, distances, and address suggestions.</string>
 	<key>NSPhoneUsageDescription</key>
 	<string>This app needs access to make phone calls.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

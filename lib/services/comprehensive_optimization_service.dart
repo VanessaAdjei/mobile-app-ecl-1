@@ -413,55 +413,6 @@ class ComprehensiveOptimizationService {
     });
   }
 
-  Future<void> _loadAllFromStorage() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-
-      // Load homepage cache
-      final homepageJson = prefs.getString(_homepageCacheKey);
-      final homepageTimeString = prefs.getString(_homepageCacheTimeKey);
-      if (homepageJson != null && homepageTimeString != null) {
-        _homepageCache = json.decode(homepageJson);
-        _homepageCacheTime = DateTime.parse(homepageTimeString);
-      }
-
-      // Load products cache
-      final productsJson = prefs.getString(_productsCacheKey);
-      final productsTimeString = prefs.getString(_productsCacheTimeKey);
-      if (productsJson != null && productsTimeString != null) {
-        _productsCache = json.decode(productsJson) as List;
-        _productsCacheTime = DateTime.parse(productsTimeString);
-      }
-
-      // Load user data cache
-      final userDataJson = prefs.getString(_userDataCacheKey);
-      final userDataTimeString = prefs.getString(_userDataCacheTimeKey);
-      if (userDataJson != null && userDataTimeString != null) {
-        _userDataCache = json.decode(userDataJson);
-        _userDataCacheTime = DateTime.parse(userDataTimeString);
-      }
-
-      // Load notifications cache
-      final notificationsJson = prefs.getString(_notificationsCacheKey);
-      final notificationsTimeString =
-          prefs.getString(_notificationsCacheTimeKey);
-      if (notificationsJson != null && notificationsTimeString != null) {
-        _notificationsCache = json.decode(notificationsJson) as List;
-        _notificationsCacheTime = DateTime.parse(notificationsTimeString);
-      }
-
-      // Load cart cache
-      final cartJson = prefs.getString(_cartCacheKey);
-      final cartTimeString = prefs.getString(_cartCacheTimeKey);
-      if (cartJson != null && cartTimeString != null) {
-        _cartCache = json.decode(cartJson);
-        _cartCacheTime = DateTime.parse(cartTimeString);
-      }
-    } catch (e) {
-      debugPrint('Failed to load comprehensive cache: $e');
-    }
-  }
-
   // ==================== IMAGE PRELOADING ====================
 
   Future<void> preloadImages(

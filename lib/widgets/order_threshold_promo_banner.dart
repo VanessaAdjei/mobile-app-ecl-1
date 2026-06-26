@@ -27,6 +27,52 @@ class OrderThresholdPromoBanner extends StatelessWidget {
   static bool qualifiesForDiscountPromo(double subtotal) =>
       subtotal >= discountThresholdAmount;
 
+  /// Parses API booleans that may arrive as `true`, `1`, or `"true"`.
+  static bool isTruthy(dynamic value) {
+    if (value == true || value == 1) return true;
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      return normalized == 'true' || normalized == '1' || normalized == 'yes';
+    }
+    return false;
+  }
+
+  static double? _parseAmount(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse('${value ?? ''}');
+  }
+
+  static double _deliveryThresholdFromPromo(dynamic value) =>
+      _parseAmount(value) ?? freeDeliveryThresholdAmount;
+
+  /// Whether save/get-billing `promo_details` qualifies for free delivery.
+  static bool shippingFreeFromPromo(
+    Map<String, dynamic>? promo, {
+    double? fallbackSubtotal,
+  }) {
+    if (promo == null) return false;
+    if (isTruthy(promo['shipping_free'])) return true;
+
+    final threshold = _deliveryThresholdFromPromo(promo['delivery_threshold']);
+    final subtotal = _parseAmount(promo['subtotal']) ??
+        _parseAmount(promo['running_subtotal']) ??
+        fallbackSubtotal;
+    if (subtotal != null && subtotal >= threshold) return true;
+    return false;
+  }
+
+  /// Free shipping from API flag and/or cart subtotal threshold (GHS 150+).
+  static bool effectiveShippingFree({
+    required bool apiShippingFree,
+    required double merchandiseSubtotal,
+    required bool isDelivery,
+  }) {
+    if (!isDelivery) return false;
+    if (apiShippingFree) return true;
+    if (merchandiseSubtotal <= 0) return false;
+    return qualifiesForFreeDelivery(merchandiseSubtotal);
+  }
+
   /// Delivery fee shown in summaries; zero when free delivery applies (GHS 150+).
   static double displayDeliveryFee(double subtotal, double deliveryFee) =>
       qualifiesForFreeDelivery(subtotal) ? 0.0 : deliveryFee;

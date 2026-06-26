@@ -132,7 +132,6 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
   Future<void> _loadUserData() async {
     try {
       final userData = await AuthService.getCurrentUser();
-      debugPrint('🔍 Loaded user data: $userData');
       if (userData != null) {
         setState(() {
           _userName = userData['name'] ?? 'ECL USER';
@@ -140,10 +139,6 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
           _userPhone = userData['phone'] ?? '';
           _userId = userData['id'];
         });
-        debugPrint(
-            '👤 User details - ID: $_userId, Name: $_userName, Email: $_userEmail, Phone: $_userPhone');
-      } else {
-        debugPrint('❌ No user data found');
       }
     } catch (e) {
       debugPrint('Error loading user data: $e');
@@ -426,10 +421,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
               );
             },
           ),
-        )
-            .animate()
-            .fadeIn(duration: 450.ms, curve: Curves.easeOutCubic)
-            .scale(
+        ).animate().fadeIn(duration: 450.ms, curve: Curves.easeOutCubic).scale(
               begin: const Offset(0.9, 0.9),
               duration: 520.ms,
               curve: Curves.easeOutCubic,
@@ -468,7 +460,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
             _buildComingSoonCardShowcase(wallet, primaryColor),
             const SizedBox(height: 28),
             Text(
-              'Wallet is on the way',
+              'ECL Wallet is on the way',
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
                 fontSize: 24,
@@ -770,8 +762,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
                 ),
                 _buildPagedTransactionTab(
                   transactions
-                      .where((t) =>
-                          t.type == 'refund' || t.type == 'return')
+                      .where((t) => t.type == 'refund' || t.type == 'return')
                       .toList(),
                   textColor,
                   _refundsController,
@@ -936,8 +927,8 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
         icon: emptyIcon ?? Icons.receipt_long_outlined,
       );
     }
-    final totalPages =
-        (transactions.length + _kTransactionsPerPage - 1) ~/ _kTransactionsPerPage;
+    final totalPages = (transactions.length + _kTransactionsPerPage - 1) ~/
+        _kTransactionsPerPage;
     final safePage = storedPage.clamp(0, totalPages - 1);
     if (safePage != storedPage) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -968,8 +959,8 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
                     child: IconButton(
                       visualDensity: VisualDensity.compact,
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                          minWidth: 40, minHeight: 36),
+                      constraints:
+                          const BoxConstraints(minWidth: 40, minHeight: 36),
                       icon: Icon(
                         Icons.chevron_left_rounded,
                         color: safePage > 0
@@ -1004,8 +995,8 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
                     child: IconButton(
                       visualDensity: VisualDensity.compact,
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                          minWidth: 40, minHeight: 36),
+                      constraints:
+                          const BoxConstraints(minWidth: 40, minHeight: 36),
                       icon: Icon(
                         Icons.chevron_right_rounded,
                         color: safePage < totalPages - 1

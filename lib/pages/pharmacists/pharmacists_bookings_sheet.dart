@@ -256,15 +256,7 @@ class BookingsListSheet extends StatelessWidget {
                         separatorBuilder: (_, __) => const SizedBox(height: 14),
                         itemBuilder: (context, i) => BookingAppointmentCard(
                           booking: bookings[i],
-                          onCancel: onCancelBooking == null
-                              ? null
-                              : (b) async {
-                                  final ok = await onCancelBooking!(b);
-                                  if (context.mounted && ok) {
-                                    Navigator.pop(context);
-                                  }
-                                  return ok;
-                                },
+                          onCancel: onCancelBooking,
                         ),
                       ),
               ),

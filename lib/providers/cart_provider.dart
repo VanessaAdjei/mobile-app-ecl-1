@@ -15,14 +15,10 @@ class CartProvider with ChangeNotifier {
 
   final CartService _cartService = CartService();
 
-  // Map to store carts for different users
-  Map<String, List<CartItem>> _userCarts = {};
-  // Current user's cart items
+  // In-memory cart for the current session (server is source of truth).
   List<CartItem> _cartItems = [];
   List<CartItem> _purchasedItems = [];
   String? _currentUserId;
-  // Flag to prevent loading guest cart after logout - cart should stay empty until login
-  bool _shouldLoadGuestCart = true;
   bool _isDisposed = false;
 
   /// Blocks background/full cart fetch while a delete is in flight (avoids re-adding rows).
@@ -122,17 +118,33 @@ class CartProvider with ChangeNotifier {
     required String batchNo,
     String? catalogProductId,
   }) {
-    for (final item in cart.cartItems) {
+    final index = findLineIndexForSku(
+      cart,
+      productName: productName,
+      batchNo: batchNo,
+      catalogProductId: catalogProductId,
+    );
+    if (index == -1) return null;
+    return cart.cartItems[index];
+  }
+
+  static int findLineIndexForSku(
+    CartProvider cart, {
+    required String productName,
+    required String batchNo,
+    String? catalogProductId,
+  }) {
+    for (var i = 0; i < cart.cartItems.length; i++) {
       if (linesMatchSku(
-        item,
+        cart.cartItems[i],
         productName: productName,
         batchNo: batchNo,
         catalogProductId: catalogProductId,
       )) {
-        return item;
+        return i;
       }
     }
-    return null;
+    return -1;
   }
 
   bool _sameCartProduct(CartItem a, CartItem b) {
@@ -169,7 +181,6 @@ class CartProvider with ChangeNotifier {
     }
     if (merged.length != _cartItems.length) {
       _cartItems = merged.values.toList();
-      unawaited(_saveUserCarts());
       notifyListeners();
     }
   }
@@ -180,6 +191,31 @@ class CartProvider with ChangeNotifier {
     return data['status']?.toString() == 'success' || added.contains('updated');
   }
 
+  /// Completed / historical rows must not affect the live cart UI.
+  static bool _isActiveCartServerLine(Map<String, dynamic> raw) {
+    final status = raw['status']?.toString().trim().toLowerCase() ?? '';
+    if (status.isEmpty) return true;
+    const inactive = {
+      'order placed',
+      'delivered',
+      'completed',
+      'cancelled',
+      'canceled',
+    };
+    return !inactive.contains(status);
+  }
+
+  List<dynamic> _activeServerCartItems(List<dynamic>? items) {
+    if (items == null) return const [];
+    return items
+        .where(
+          (raw) =>
+              raw is Map &&
+              _isActiveCartServerLine(Map<String, dynamic>.from(raw)),
+        )
+        .toList();
+  }
+
   /// Local cart qty/price/ids come only from check-auth `items` (field `qty`).
   bool _applyCheckAuthCartResponse(
     Map<String, dynamic>? data, {
@@ -188,7 +224,7 @@ class CartProvider with ChangeNotifier {
   }) {
     if (!_isCheckAuthSuccess(data)) return false;
 
-    final items = data!['items'] as List? ?? [];
+    final items = _activeServerCartItems(data!['items'] as List? ?? []);
     if (items.isNotEmpty) {
       if (productHint != null) {
         _pendingOriginalProductId =
@@ -202,7 +238,6 @@ class CartProvider with ChangeNotifier {
 
     if (wasDecrease && productHint != null) {
       _cartItems.removeWhere((line) => _sameCartProduct(line, productHint));
-      unawaited(_saveUserCarts());
       notifyListeners();
       return true;
     }
@@ -212,10 +247,11 @@ class CartProvider with ChangeNotifier {
 
   /// Replaces local cart with the full `items` list from check-auth (server is billing source).
   void _mergeFullServerCartFromCheckAuthItems(List<dynamic> serverItems) {
-    if (serverItems.isEmpty) return;
+    final activeItems = _activeServerCartItems(serverItems);
+    if (activeItems.isEmpty) return;
 
     final mergedItems = <String, CartItem>{};
-    for (final raw in serverItems) {
+    for (final raw in activeItems) {
       if (raw is! Map) continue;
       var cartItem = CartItem.fromServerJson(Map<String, dynamic>.from(raw));
       final mergeKey =
@@ -270,10 +306,9 @@ class CartProvider with ChangeNotifier {
     _cartItems = items;
     _consolidateDuplicateCartLines();
     debugPrint(
-      '✅ Local cart synced from check-auth (${_cartItems.length} line(s), '
+      '✅ Cart updated from check-auth (${_cartItems.length} line(s), '
       'subtotal ${_cartItems.fold<double>(0, (s, i) => s + i.totalPrice).toStringAsFixed(2)})',
     );
-    unawaited(_saveUserCarts());
     notifyListeners();
   }
 
@@ -294,8 +329,22 @@ class CartProvider with ChangeNotifier {
   }
 
   Future<void> _initializeCart() async {
-    await _loadUserCarts();
+    await _clearLegacyLocalCartStorage();
     await _checkCurrentUser();
+    await syncWithApi();
+  }
+
+  /// Removes deprecated on-device cart cache (`user_carts`).
+  Future<void> _clearLegacyLocalCartStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.containsKey('user_carts')) {
+        await prefs.remove('user_carts');
+        debugPrint('🛒 Removed legacy local cart storage (user_carts)');
+      }
+    } catch (e) {
+      debugPrint('🛒 Could not clear legacy cart storage: $e');
+    }
   }
 
   Future<void> _initializeRealtimeSync() async {
@@ -317,81 +366,41 @@ class CartProvider with ChangeNotifier {
   }
 
   Future<void> _checkCurrentUser() async {
-    bool isLoggedIn = await AuthService.isLoggedIn();
+    final isLoggedIn = await AuthService.isLoggedIn();
     if (isLoggedIn) {
-      String userId = (await AuthService.getCurrentUserID()) as String;
-      _currentUserId = userId;
-      _loadCurrentUserCart();
+      _currentUserId = (await AuthService.getCurrentUserID()) as String;
+      await _loadPurchasedItems();
     } else {
       _currentUserId = null;
-      _loadCurrentUserCart(); // Load guest cart when not logged in
+      _purchasedItems = [];
     }
+    _cartItems = [];
     notifyListeners();
-    _scheduleBackgroundCartSync();
   }
 
-  Future<void> _loadUserCarts() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final cartJson = prefs.getString('user_carts');
-      if (cartJson != null) {
-        final Map<String, dynamic> userCartsMap = jsonDecode(cartJson);
-        _userCarts = {};
-
-        userCartsMap.forEach((userId, cartData) {
-          final cartList = (cartData as List).cast<Map<String, dynamic>>();
-          _userCarts[userId] =
-              cartList.map((item) => CartItem.fromJson(item)).toList();
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading user carts: $e');
+  Future<void> _syncGuestCartFromApi(String guestToken) async {
+    final headers = _cartAuthHeaders(guestToken, false);
+    final response = await _cartService.fetchCartSnapshot(headers: headers);
+    if (!CartService.isSuccessStatus(response.statusCode)) {
+      debugPrint(
+        '⚠️ Guest cart sync failed: status ${response.statusCode}',
+      );
+      return;
     }
-  }
 
-  void _loadCurrentUserCart() {
-    if (_currentUserId != null && _userCarts.containsKey(_currentUserId)) {
-      _cartItems = _userCarts[_currentUserId]!;
-    } else if (_currentUserId == null &&
-        _shouldLoadGuestCart &&
-        _userCarts.containsKey('guest_id')) {
-      // Load guest cart for non-logged-in users (only if allowed)
-      _cartItems = _userCarts['guest_id']!;
-    } else {
+    final data = CartService.decodeBody(response);
+    if (data == null) return;
+
+    final rawItems = data['items'] as List? ?? data['cart_items'] as List?;
+    if (rawItems == null) return;
+
+    if (rawItems.isEmpty) {
       _cartItems = [];
+      notifyListeners();
+      return;
     }
 
-    // Ensure all items are selected by default (for backward compatibility)
-    _cartItems = _cartItems.map((item) {
-      if (!item.isSelected) {
-        return item.copyWith(isSelected: true);
-      }
-      return item;
-    }).toList();
-
-    _loadPurchasedItems();
-  }
-
-  Future<void> _saveUserCarts() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-
-      if (_currentUserId != null) {
-        _userCarts[_currentUserId!] = _cartItems;
-      } else {
-        _userCarts['guest_id'] = _cartItems;
-      }
-
-      // Convert user carts to JSON
-      final Map<String, dynamic> userCartsJson = {};
-      _userCarts.forEach((userId, cartItems) {
-        userCartsJson[userId] = cartItems.map((item) => item.toJson()).toList();
-      });
-
-      await prefs.setString('user_carts', jsonEncode(userCartsJson));
-    } catch (e) {
-      debugPrint('Error saving user carts: $e');
-    }
+    _mergeFullServerCartFromCheckAuthItems(rawItems);
   }
 
   Future<void> syncWithApi() async {
@@ -400,10 +409,13 @@ class CartProvider with ChangeNotifier {
       return;
     }
     try {
-      if (!await AuthService.isLoggedIn()) return;
+      final auth = await _resolveCartAuth();
+      if (auth.token == null) return;
 
-      final token = await AuthService.getToken();
-      if (token == null) return;
+      if (!auth.isLoggedIn) {
+        await _syncGuestCartFromApi(auth.token!);
+        return;
+      }
 
       final hashedLink = await AuthService.getHashedLink();
       if (hashedLink == null || hashedLink.isEmpty) return;
@@ -411,7 +423,7 @@ class CartProvider with ChangeNotifier {
       final response = await _cartService.fetchLoggedInCart(
         hashedLink: hashedLink,
         headers: {
-          'Authorization': 'Bearer $token',
+          'Authorization': 'Bearer ${auth.token}',
           'Accept': 'application/json',
         },
         timeout: const Duration(seconds: 5),
@@ -427,7 +439,8 @@ class CartProvider with ChangeNotifier {
         if (data['cart_items'] != null) {
           final rawItems = data['cart_items'] as List;
 
-          if (rawItems.isEmpty && _cartItems.isNotEmpty) {
+          if (rawItems.isEmpty) {
+            _cartItems = [];
             notifyListeners();
             return;
           }
@@ -560,7 +573,6 @@ class CartProvider with ChangeNotifier {
           _consolidateDuplicateCartLines();
 
           notifyListeners();
-          await _saveUserCarts();
         } else {
           debugPrint(
               '⚠️ Cart sync failed: Missing "cart_items" in server response');
@@ -583,42 +595,26 @@ class CartProvider with ChangeNotifier {
 
     _currentUserId ??= await AuthService.getCurrentUserID();
 
-    final unitsToAdd = item.quantity > 0 ? item.quantity : 1;
-    final existingIndex =
-        _cartItems.indexWhere((cartItem) => _sameCartProduct(cartItem, item));
-    final targetQty = existingIndex != -1
-        ? _cartItems[existingIndex].quantity + unitsToAdd
-        : unitsToAdd;
-
     // Update UI immediately; reconcile with check-auth response below.
     await _addToLocalCart(item);
 
-    final isLoggedIn = await AuthService.isLoggedIn();
-    if (!isLoggedIn) {
-      _shouldLoadGuestCart = true;
-      final prefs = await SharedPreferences.getInstance();
-      String? guestId = prefs.getString('guest_id');
-      if (guestId == null || guestId.isEmpty) {
-        try {
-          await AuthService.generateGuestId();
-        } catch (e) {
-          debugPrint('[CartProvider] guest_id unavailable: $e');
-          return;
-        }
-      }
-    }
-
     try {
-      final token = await AuthService.getToken();
-      if (token == null) {
-        debugPrint('No auth token — local cart only');
+      final auth = await _resolveCartAuth();
+      if (auth.token == null) {
+        debugPrint('No auth token — cannot save cart to server');
         return;
       }
 
       _inhibitRemoteCartSync = true;
       _holdRemoteCartSync(const Duration(seconds: 5));
       try {
-        final synced = await _syncAddToServer(item, quantity: targetQty);
+        final line = _cartItems.firstWhere((c) => _sameCartProduct(c, item));
+        final synced = await _syncAddToServer(
+          line,
+          quantity: line.quantity,
+          token: auth.token!,
+          isLoggedIn: auth.isLoggedIn,
+        );
         if (!synced) {
           _showSyncError(
             'Could not add to cart on server. The product may be unavailable.',
@@ -636,16 +632,22 @@ class CartProvider with ChangeNotifier {
   }
 
   /// POST /check-auth; local cart is updated only from the response `items`.
-  Future<bool> _syncAddToServer(CartItem item, {required int quantity}) async {
+  Future<bool> _syncAddToServer(
+    CartItem item, {
+    required int quantity,
+    String? token,
+    bool? isLoggedIn,
+  }) async {
     try {
-      String? token = await AuthService.getToken();
-      final isLoggedIn = await AuthService.isLoggedIn();
-      if (token == null) {
+      final auth = token != null && isLoggedIn != null
+          ? (token: token, isLoggedIn: isLoggedIn)
+          : await _resolveCartAuth();
+      if (auth.token == null) {
         debugPrint('Cannot sync add to server — missing auth token');
         return false;
       }
 
-      final headers = _cartAuthHeaders(token, isLoggedIn);
+      final headers = _cartAuthHeaders(auth.token!, auth.isLoggedIn);
       final candidates = _productIdCandidatesForCheckAuth(item);
       if (candidates.isEmpty) {
         debugPrint('❌ No valid product ID — cannot add to cart');
@@ -688,7 +690,7 @@ class CartProvider with ChangeNotifier {
     }
   }
 
-  // Helper method to add item to local cart with proper quantity handling
+  // Optimistic in-memory update until check-auth response arrives.
   Future<void> _addToLocalCart(CartItem item) async {
     // Check if item already exists in local cart by product ID, batch number, and name
     final existingIndex =
@@ -717,7 +719,6 @@ class CartProvider with ChangeNotifier {
       _cartItems.add(item);
     }
 
-    await _saveUserCarts();
     notifyListeners();
   }
 
@@ -731,7 +732,6 @@ class CartProvider with ChangeNotifier {
     // Remove selected items from cart (keep unselected items)
     _cartItems.removeWhere((item) => item.isSelected);
 
-    await _saveUserCarts();
     await _savePurchasedItems();
     notifyListeners();
   }
@@ -752,7 +752,6 @@ class CartProvider with ChangeNotifier {
     debugPrint('========================');
 
     _cartItems.removeAt(itemIndex);
-    await _saveUserCarts();
     notifyListeners();
 
     if (!hasServerCartLineId(target.id)) {
@@ -760,21 +759,16 @@ class CartProvider with ChangeNotifier {
       return;
     }
 
-    final isLoggedIn = await AuthService.isLoggedIn();
-    String? token = await AuthService.getToken();
-    if (!isLoggedIn && token == null) {
-      final prefs = await SharedPreferences.getInstance();
-      token = prefs.getString('guest_id');
-    }
-    if (token == null) return;
+    final auth = await _resolveCartAuth();
+    if (auth.token == null) return;
 
     _inhibitRemoteCartSync = true;
     _holdRemoteCartSync(const Duration(seconds: 5));
     try {
       final ok = await _removeCartLineById(
         target.id,
-        token,
-        isLoggedIn,
+        auth.token!,
+        auth.isLoggedIn,
         reason: 'user remove',
       );
       if (!ok && !_remoteSyncPaused) {
@@ -878,16 +872,15 @@ class CartProvider with ChangeNotifier {
     if (targetQty < 0) return;
     if (targetQty == currentQty) return;
 
-    final loaderKey = rowIndex != null ? '${itemId}_$rowIndex' : itemId;
-
-    final isLoggedIn = await AuthService.isLoggedIn();
-    String? token = await AuthService.getToken();
-    if (!isLoggedIn && token == null) {
-      final prefs = await SharedPreferences.getInstance();
-      token = prefs.getString('guest_id');
+    if (targetQty < 1) {
+      await removeFromCart(itemId, rowIndex: rowIndex);
+      return;
     }
 
-    if (token == null) {
+    final loaderKey = rowIndex != null ? '${itemId}_$rowIndex' : itemId;
+
+    final auth = await _resolveCartAuth();
+    if (auth.token == null) {
       debugPrint('⚠️ No token — cannot update quantity on server');
       return;
     }
@@ -903,11 +896,11 @@ class CartProvider with ChangeNotifier {
       await _withLoader(
         loaderKey,
         () async {
-          final synced = await _adjustQuantityViaCheckAuth(
+          final synced = await _setQuantityViaCheckAuth(
             item,
             targetQty,
-            token!,
-            isLoggedIn,
+            auth.token!,
+            auth.isLoggedIn,
             previousQuantity: currentQty,
           );
           if (!synced) {
@@ -928,14 +921,12 @@ class CartProvider with ChangeNotifier {
   }
 
   int _resolveCartLineIndex(String itemId, {int? rowIndex}) {
-    if (rowIndex != null &&
-        rowIndex >= 0 &&
-        rowIndex < _cartItems.length &&
-        (itemId.isEmpty || _cartItems[rowIndex].id == itemId)) {
+    if (rowIndex != null && rowIndex >= 0 && rowIndex < _cartItems.length) {
       return rowIndex;
     }
     if (itemId.isNotEmpty) {
-      return _cartItems.indexWhere((item) => item.id == itemId);
+      final byId = _cartItems.indexWhere((item) => item.id == itemId);
+      if (byId != -1) return byId;
     }
     return -1;
   }
@@ -962,8 +953,7 @@ class CartProvider with ChangeNotifier {
     );
   }
 
-  /// IDs to try for check-auth — catalog id first, then other known ids.
-  /// Server cart `product_id` is last; it often 404s while catalog id works.
+  /// Catalog `productID` first — check-auth rejects server `product_id` (404).
   List<int> _productIdCandidatesForCheckAuth(CartItem item) {
     final ids = <int>[];
     void add(int? value) {
@@ -981,20 +971,43 @@ class CartProvider with ChangeNotifier {
   Map<String, String> _cartAuthHeaders(String token, bool isLoggedIn) =>
       CartService.cartAuthHeaders(token, isLoggedIn);
 
-  /// POST /check-auth for +/- stepper — `quantity` is the new line total (not a delta).
-  Future<bool> _adjustQuantityViaCheckAuth(
+  Future<({String? token, bool isLoggedIn})> _resolveCartAuth() async {
+    var isLoggedIn = await AuthService.isLoggedIn();
+    if (!isLoggedIn) {
+      final prefs = await SharedPreferences.getInstance();
+      var guestId = prefs.getString('guest_id');
+      if (guestId == null || guestId.isEmpty) {
+        try {
+          guestId = await AuthService.generateGuestId();
+        } catch (e) {
+          debugPrint('[CartProvider] guest_id unavailable: $e');
+        }
+      }
+    }
+
+    isLoggedIn = await AuthService.isLoggedIn();
+    var token = await AuthService.getToken();
+    if (!isLoggedIn && (token == null || token.isEmpty)) {
+      final prefs = await SharedPreferences.getInstance();
+      token = prefs.getString('guest_id');
+    }
+    return (token: token, isLoggedIn: isLoggedIn);
+  }
+
+  /// POST /check-auth with the **absolute** line quantity (not a delta).
+  Future<bool> _setQuantityViaCheckAuth(
     CartItem item,
     int targetQuantity,
     String token,
     bool isLoggedIn, {
     required int previousQuantity,
   }) async {
-    final candidates = _productIdCandidatesForCheckAuth(item);
-    if (candidates.isEmpty) return false;
     if (targetQuantity < 1) return false;
 
-    final headers = _cartAuthHeaders(token, isLoggedIn);
+    final candidates = _productIdCandidatesForCheckAuth(item);
+    if (candidates.isEmpty) return false;
 
+    final headers = _cartAuthHeaders(token, isLoggedIn);
     final response = await _cartService.checkAuthWithProductCandidates(
       headers: headers,
       productIds: candidates,
@@ -1073,36 +1086,30 @@ class CartProvider with ChangeNotifier {
   }
 
   void clearCart() async {
-    // Clear cart regardless of login status
     await GuestCheckoutDraftService.clearAfterSuccessfulCheckout();
     _cartItems.clear();
-
-    // Also clear from user carts map
-    if (_currentUserId != null) {
-      _userCarts[_currentUserId!] = [];
-    } else {
-      _userCarts['guest_id'] = [];
-    }
-
-    await _saveUserCarts();
     notifyListeners();
 
     debugPrint('🛒 CartProvider: Cart cleared successfully');
   }
 
   double calculateTotal() {
-    return _cartItems.fold(
-        0,
-        (total, item) =>
-            item.isSelected ? total + (item.price * item.quantity) : total);
+    return _chargeableLines.fold(0.0, (total, item) => total + CartItem.lineCharge(item));
   }
 
   double calculateSubtotal() {
-    return _cartItems.fold(
-        0,
-        (subtotal, item) => item.isSelected
-            ? subtotal + (item.price * item.quantity)
-            : subtotal);
+    return _chargeableLines.fold(
+      0.0,
+      (subtotal, item) => subtotal + CartItem.lineCharge(item),
+    );
+  }
+
+  /// Lines included in checkout totals. If nothing is marked selected (common when
+  /// the API omits or zeroes `is_selected`), all lines count so the total matches the list.
+  Iterable<CartItem> get _chargeableLines {
+    final selected = _cartItems.where((item) => item.isSelected);
+    if (selected.isNotEmpty) return selected;
+    return _cartItems;
   }
 
   // Toggle selection for a cart item
@@ -1120,7 +1127,33 @@ class CartProvider with ChangeNotifier {
 
   // Get only selected items
   List<CartItem> getSelectedItems() {
-    return _cartItems.where((item) => item.isSelected).toList();
+    final selected = _cartItems.where((item) => item.isSelected).toList();
+    if (selected.isNotEmpty) return selected;
+    return List<CartItem>.from(_cartItems);
+  }
+
+  /// Re-asserts each selected line on the API cart via [/check-auth].
+  Future<void> reaffirmSelectedItemsOnServer() async {
+    if (_remoteSyncPaused) return;
+    final selected = getSelectedItems();
+    if (selected.isEmpty) return;
+
+    final auth = await _resolveCartAuth();
+    final token = auth.token;
+    if (token == null || token.isEmpty) return;
+
+    debugPrint(
+      '[CartProvider] Reaffirming ${selected.length} selected item(s) on server cart',
+    );
+    for (final item in selected) {
+      await _setQuantityViaCheckAuth(
+        item,
+        item.quantity,
+        token,
+        auth.isLoggedIn,
+        previousQuantity: item.quantity,
+      );
+    }
   }
 
   // Get count of selected items
@@ -1162,44 +1195,25 @@ class CartProvider with ChangeNotifier {
 
   Future<void> handleUserLogin(String userId) async {
     _currentUserId = userId;
-    // Re-enable guest cart loading after login (in case user logs out again)
-    _shouldLoadGuestCart = true;
+    _cartItems = [];
 
-    // Load this user's cart if it exists
-    if (_userCarts.containsKey(userId)) {
-      _cartItems = _userCarts[userId]!;
-    } else {
-      _cartItems = [];
-      _userCarts[userId] = _cartItems;
-    }
-
-    // Load purchased items for this user
     await _loadPurchasedItems();
-    // Don't sync immediately on login - let the protection mechanism handle it
-    // The local cart is the source of truth
     notifyListeners();
 
     debugPrint(
-        '🛒 CartProvider: User logged in - cart loaded for user: $userId');
+        '🛒 CartProvider: User logged in — loading cart from server: $userId');
+    await syncWithApi();
     _scheduleBackgroundCartSync();
   }
 
   Future<void> handleUserLogout() async {
-    // Save current cart before logout if user is logged in
-    if (_currentUserId != null) {
-      _userCarts[_currentUserId!] = _cartItems;
-      await _saveUserCarts();
-    }
-
     _currentUserId = null;
     _cartItems = [];
     _purchasedItems = [];
-    // Prevent loading guest cart after logout - cart should stay empty until login
-    _shouldLoadGuestCart = false;
     notifyListeners();
 
-    debugPrint(
-        '🛒 CartProvider: User logged out - cart cleared and guest cart loading disabled');
+    debugPrint('🛒 CartProvider: User logged out — cart cleared');
+    await syncWithApi();
   }
 
   Future<void> refreshLoginStatus() async {
@@ -1268,16 +1282,19 @@ class CartProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Merge guest cart into user cart after login - OPTIMIZED VERSION
+  // Merge in-session guest cart into the logged-in user's server cart.
   Future<void> mergeGuestCartOnLogin(String userId) async {
-    debugPrint('🔄 Starting fast cart merge for user: $userId');
+    debugPrint('🔄 Starting cart merge for user: $userId');
 
-    final guestCart = _userCarts['guest_id'] ?? [];
-    final userCart = _userCarts[userId] ?? [];
+    final guestCart = List<CartItem>.from(_cartItems);
+    _currentUserId = userId;
+    _cartItems = [];
+    notifyListeners();
 
-    // Merge logic: combine items, summing quantities for duplicates
+    await syncWithApi();
+
     final Map<String, CartItem> merged = {};
-    for (final item in [...userCart, ...guestCart]) {
+    for (final item in [..._cartItems, ...guestCart]) {
       final String uniqueKey = '${item.urlName}_${item.batchNo}';
       if (merged.containsKey(uniqueKey)) {
         merged[uniqueKey] = merged[uniqueKey]!.copyWith(
@@ -1288,16 +1305,10 @@ class CartProvider with ChangeNotifier {
       }
     }
 
-    // Update local cart immediately for instant UI feedback
-    _userCarts[userId] = merged.values.toList();
-    _cartItems = _userCarts[userId]!;
-    _userCarts.remove('guest_id');
-
-    // Save to local storage and notify UI immediately
-    await _saveUserCarts();
+    _cartItems = merged.values.toList();
     notifyListeners();
 
-    debugPrint('✅ Local cart merge completed. Items: ${_cartItems.length}');
+    debugPrint('✅ Cart merge completed. Items: ${_cartItems.length}');
 
     _syncMergedCartInBackground();
     _scheduleBackgroundCartSync();
@@ -1424,7 +1435,6 @@ class CartProvider with ChangeNotifier {
 
     if (cleanedItems.length != _cartItems.length) {
       _cartItems = uniqueItems.values.toList();
-      await _saveUserCarts();
       notifyListeners();
       debugPrint(
           '✅ Cleaned up ${_cartItems.length - cleanedItems.length} duplicate items');

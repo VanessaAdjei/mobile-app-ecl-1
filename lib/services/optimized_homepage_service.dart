@@ -35,7 +35,6 @@ class OptimizedHomepageService {
   static const Duration _bannersCacheDuration = Duration(minutes: 30);
 
   // API endpoints
-  static String get _baseUrl => ApiConfig.baseUrl;
   static String get _productsUrl => ApiConfig.getEndpointUrl(ApiConfig.getAllProducts);
   static String get _bannersUrl => ApiConfig.getEndpointUrl(ApiConfig.banners);
 

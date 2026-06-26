@@ -264,34 +264,6 @@ class BackgroundInventoryMonitorService {
     }
   }
 
-  // Preload stock information for popular products
-  static Future<void> _preloadPopularProductStock() async {
-    try {
-      // This could be expanded to preload stock for frequently viewed products
-      final popularProductIds = await _getPopularProductIds();
-
-      for (final productId in popularProductIds) {
-        final stockInfo = await _getProductStockInfo(productId);
-        if (stockInfo != null) {
-          _inventoryCache[productId] = stockInfo;
-        }
-      }
-
-
-    } catch (e) {
-
-    }
-  }
-
-  // Get popular product IDs (this could be based on user behavior or predefined list)
-  static Future<List<String>> _getPopularProductIds() async {
-    // For now, return an empty list. This could be expanded based on:
-    // - User's browsing history
-    // - Most viewed products
-    // - Frequently purchased items
-    return [];
-  }
-
   // Get service status
   static bool get isRunning => _isRunning;
   static DateTime? get lastMonitorTime => _lastMonitorTime;

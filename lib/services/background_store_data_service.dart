@@ -112,66 +112,6 @@ class BackgroundStoreDataService {
     return null;
   }
 
-  // Preload popular store locations
-  static Future<void> _preloadPopularStores() async {
-    try {
-      final storeData = await getCachedStoreData();
-      if (storeData == null) return;
-
-      final stores = storeData['data'] as List;
-      final popularStores = <Map<String, dynamic>>[];
-
-      // Identify popular stores (e.g., by region, city, or activity)
-      for (final store in stores) {
-        final region = store['region_name']?.toString() ?? '';
-        final city = store['city_name']?.toString() ?? '';
-
-        // Consider stores in major cities as popular
-        if (_isPopularLocation(region, city)) {
-          popularStores.add(store);
-        }
-      }
-
-      // Cache popular stores separately for faster access
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('popular_stores', json.encode(popularStores));
-
-   
-    } catch (e) {
-
-    }
-  }
-
-  // Check if location is popular
-  static bool _isPopularLocation(String region, String city) {
-    final popularCities = [
-      'Accra',
-      'Kumasi',
-      'Tamale',
-      'Sekondi-Takoradi',
-      'Ashaiman',
-      'Sunyani',
-      'Cape Coast',
-      'Obuasi',
-      'Tema',
-      'Koforidua'
-    ];
-
-    final popularRegions = [
-      'Greater Accra',
-      'Ashanti',
-      'Northern',
-      'Western',
-      'Central',
-      'Eastern',
-      'Volta',
-      'Upper East',
-      'Upper West'
-    ];
-
-    return popularCities.contains(city) || popularRegions.contains(region);
-  }
-
   // Get popular stores for quick access
   static Future<List<Map<String, dynamic>>> getPopularStores() async {
     try {
@@ -186,28 +126,6 @@ class BackgroundStoreDataService {
 
     }
     return [];
-  }
-
-  // Preload store data for specific region
-  static Future<void> _preloadRegionStores(String regionName) async {
-    try {
-      final storeData = await getCachedStoreData();
-      if (storeData == null) return;
-
-      final stores = storeData['data'] as List;
-      final regionStores = stores
-          .where((store) => store['region_name']?.toString() == regionName)
-          .toList();
-
-      // Cache region stores
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-          'region_stores_$regionName', json.encode(regionStores));
-
-
-    } catch (e) {
-    
-    }
   }
 
   // Get stores for specific region

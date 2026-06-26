@@ -1,14 +1,15 @@
 // pages/delivery_page.dart
 import 'dart:async';
-import 'dart:convert';
 import 'package:eclapp/pages/payment_page.dart';
 import 'package:eclapp/models/guest_checkout_draft.dart';
 import 'package:eclapp/services/auth_service.dart';
 import 'package:eclapp/services/delivery_service.dart';
 import 'package:eclapp/services/guest_checkout_draft_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
+import '../utils/checkout_log.dart';
 import 'bottomnav.dart';
-import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,6 +17,8 @@ import 'package:geocoding/geocoding.dart';
 import 'package:eclapp/pages/map_picker_page.dart';
 import '../utils/app_error_utils.dart';
 import '../utils/checkout_order_totals.dart';
+import '../providers/cart_provider.dart';
+import '../widgets/order_threshold_promo_banner.dart';
 import '../widgets/checkout_flow_header.dart';
 import '../config/app_colors.dart';
 import '../utils/app_theme_colors.dart';
@@ -29,8 +32,6 @@ class DeliveryPage extends StatefulWidget {
 
 class DeliveryPageState extends State<DeliveryPage> {
   bool _isNavigatingToNextPage = false;
-  Future<void>? _initialDeliveryDataLoad;
-  bool _isInitialDeliveryDataLoading = true;
 
   Future<T?> _pushPageOnce<T>(Route<T> route) async {
     if (!mounted || _isNavigatingToNextPage) return null;
@@ -61,11 +62,9 @@ class DeliveryPageState extends State<DeliveryPage> {
   String deliveryOption = 'delivery';
   double deliveryFee = 0.00;
   double? _distanceKm; // actual distance in km from closest store
-  bool _isUpdatingDeliveryFee = false;
   bool _isProceedingToPayment = false;
   int _suppressAddressDrivenFeeRefresh = 0;
   int _feeUpdateGeneration = 0;
-  Future<void>? _activeDeliveryFeeRefresh;
   Timer? _addressFeeDebounceTimer;
   static const Duration _addressFeeDebounce = Duration(milliseconds: 650);
   final TextEditingController _nameController = TextEditingController();
@@ -79,7 +78,6 @@ class DeliveryPageState extends State<DeliveryPage> {
   // where on the map they picked
   double? _latitude;
   double? _longitude;
-  bool _isGeocoding = false;
 
   // how long delivery will take (from the api)
   String? _apiDeliveryTime;
@@ -90,21 +88,38 @@ class DeliveryPageState extends State<DeliveryPage> {
   /// True when [deliveryFee] came from `/calculate-delivery-fee` (or its local formula fallback).
   bool _deliveryFeeFromApi = false;
 
-  /// Order summary amounts — populated only from save-billing-add responses.
-  bool _apiOrderSummaryReady = false;
+  /// Order summary amounts — from get-billing-add or save-billing-add.
   double? _apiSubtotal;
   double _apiDiscount = 0;
   double? _apiRunningSubtotal;
   bool _apiShippingFree = false;
   double _apiDeliveryFeeAmount = 0;
 
+  /// Cart subtotal until billing [promo_details] arrives.
+  double _cartMerchandiseSubtotal = 0;
+
+  double get _merchandiseSubtotalForSummary =>
+      (_apiSubtotal != null && _apiSubtotal! > 0)
+          ? _apiSubtotal!
+          : _cartMerchandiseSubtotal;
+
+  bool get _hasMerchandiseSubtotalForSummary =>
+      _merchandiseSubtotalForSummary > 0;
+
+  bool get _effectiveShippingFree =>
+      OrderThresholdPromoBanner.effectiveShippingFree(
+        apiShippingFree: _apiShippingFree,
+        merchandiseSubtotal: _merchandiseSubtotalForSummary,
+        isDelivery: deliveryOption == 'delivery',
+      );
+
   CheckoutOrderTotals get _checkoutTotals => CheckoutOrderTotals(
-        merchandiseSubtotal: _apiSubtotal ?? 0,
+        merchandiseSubtotal: _merchandiseSubtotalForSummary,
         discount: _apiDiscount,
         deliveryFee: deliveryOption == 'delivery' ? deliveryFee : 0,
         emergencyOrderFee: _emergencyOrderFee ?? 0,
         runningSubtotal: _apiRunningSubtotal,
-        shippingFree: _apiShippingFree,
+        shippingFree: _effectiveShippingFree,
         isDelivery: deliveryOption == 'delivery',
       );
 
@@ -115,9 +130,6 @@ class DeliveryPageState extends State<DeliveryPage> {
   int? _cachedBillingRegionId;
   int? _cachedBillingCityId;
   Future<void>? _regionsLoadFuture;
-  String? _lastBillingSyncFingerprint;
-  Map<String, dynamic>? _lastBillingSyncResult;
-  bool _lastBillingSyncHadLocationIds = false;
 
   bool _highlightPhoneField = false;
   bool _highlightPickupField = false;
@@ -190,30 +202,51 @@ class DeliveryPageState extends State<DeliveryPage> {
     _regionController.addListener(_onAddressFieldsChanged);
     _cityController.addListener(_onAddressFieldsChanged);
     _addressController.addListener(_onAddressFieldsChanged);
-    unawaited(DeliveryService.getStoresForFeeEstimate());
-    _initialDeliveryDataLoad = _loadUserData().whenComplete(() {
-      if (!mounted) return;
-      setState(() => _isInitialDeliveryDataLoading = false);
-    });
-    _regionsLoadFuture = _loadRegions();
+    unawaited(_loadUserData());
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshCartMerchandiseSubtotal();
       if (mounted) _updateScrollHint();
     });
   }
 
-  Future<void> _ensureInitialDeliveryDataLoaded() async {
-    final pending = _initialDeliveryDataLoad;
-    if (pending == null) {
-      if (mounted && _isInitialDeliveryDataLoading) {
-        setState(() => _isInitialDeliveryDataLoading = false);
+  void _refreshCartMerchandiseSubtotal() {
+    if (!mounted) return;
+    try {
+      final cart = Provider.of<CartProvider>(context, listen: false);
+      final fromCart = cart.calculateSubtotal();
+      if (fromCart <= 0) return;
+      setState(() {
+        _cartMerchandiseSubtotal = fromCart;
+      });
+    } catch (e) {
+      debugPrint('[DELIVERY] Cart subtotal unavailable: $e');
+    }
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final isLoggedIn = await AuthService.isLoggedIn();
+      GuestCheckoutDraft? localDraft;
+
+      if (!isLoggedIn) {
+        localDraft = await GuestCheckoutDraftService.load();
+        if (localDraft != null && mounted) {
+          unawaited(_applyGuestCheckoutDraft(localDraft));
+        }
+      } else {
+        unawaited(_loadBasicUserData());
       }
-      return;
+
+      final mergeOnly = !isLoggedIn && localDraft != null;
+      unawaited(_fetchGetBillingAndApply(mergeOnly: mergeOnly));
+    } catch (e) {
+      debugPrint('[DELIVERY] _loadUserData error: $e');
     }
-    await pending;
-    _initialDeliveryDataLoad = null;
-    if (mounted && _isInitialDeliveryDataLoading) {
-      setState(() => _isInitialDeliveryDataLoading = false);
-    }
+  }
+
+  void _ensurePickupRegionsLoaded() {
+    if (regions.isNotEmpty || isLoadingRegions) return;
+    _regionsLoadFuture ??= _loadRegions();
   }
 
   void _runWithSuppressedAddressFeeRefresh(void Function() action) {
@@ -265,37 +298,103 @@ class DeliveryPageState extends State<DeliveryPage> {
     double lng,
     int generation,
   ) async {
-    try {
-      final stores = await DeliveryService.getStoresForFeeEstimate();
-      if (!_isFeeGenerationCurrent(generation)) return;
+    if (_effectiveShippingFree) return;
 
-      final estimate = DeliveryService.estimateFeeFromCoordinates(
-        lat: lat,
-        lng: lng,
-        stores: stores,
+    final cached = DeliveryService.cachedStoresForFeeEstimate;
+    if (cached != null && cached.isNotEmpty) {
+      _applyProvisionalFeeFromStores(lat, lng, generation, cached);
+      return;
+    }
+
+    // Never block the UI on getAllStores — load in background, then refresh.
+    unawaited(
+      DeliveryService.getStoresForFeeEstimate().then((stores) {
+        if (!_isFeeGenerationCurrent(generation) || stores.isEmpty) return;
+        _applyProvisionalFeeFromStores(lat, lng, generation, stores);
+      }),
+    );
+  }
+
+  void _applyProvisionalFeeFromStores(
+    double lat,
+    double lng,
+    int generation,
+    List<Map<String, dynamic>> stores,
+  ) {
+    if (!_isFeeGenerationCurrent(generation) || _effectiveShippingFree) return;
+
+    final estimate = DeliveryService.estimateFeeFromCoordinates(
+      lat: lat,
+      lng: lng,
+      stores: stores,
+    );
+    if (estimate == null) return;
+
+    final parsedFee = _toDouble(estimate['delivery_fee']);
+    if (parsedFee == null) return;
+
+    final distanceKm = _toDouble(estimate['distance_km']);
+    final distanceText = estimate['distance_text']?.toString();
+
+    _applyInstantDeliveryFee(
+      fee: parsedFee,
+      distanceText: distanceText,
+      distanceKm: distanceKm,
+    );
+  }
+
+  void _applyInstantDeliveryFee({
+    required double fee,
+    String? distanceText,
+    double? distanceKm,
+  }) {
+    if (_effectiveShippingFree) return;
+    _setStateIfMounted(() {
+      deliveryFee = fee;
+      _apiDeliveryFeeAmount = fee;
+      _deliveryFeeFromApi = true;
+      if (distanceKm != null) {
+        _distanceKm = distanceKm;
+      }
+      final trimmed = distanceText?.trim() ?? '';
+      if (trimmed.isNotEmpty) {
+        _lastFeeDistanceText = trimmed;
+      }
+    });
+  }
+
+  /// Applies delivery fee from get-billing fields without network calls.
+  void _applyDeliveryFeeFromBillingFields({
+    double? fee,
+    String? distanceText,
+  }) {
+    if (!mounted ||
+        deliveryOption != 'delivery' ||
+        _effectiveShippingFree) {
+      return;
+    }
+
+    final trimmedDistance = distanceText?.trim() ?? '';
+    if (trimmedDistance.isNotEmpty) {
+      _lastFeeDistanceText = trimmedDistance;
+    }
+
+    var resolvedFee = fee;
+    if ((resolvedFee == null || resolvedFee <= 0) && trimmedDistance.isNotEmpty) {
+      final local = DeliveryService.localDeliveryFeeResult(trimmedDistance);
+      resolvedFee = _toDouble(local?['delivery_fee']);
+      final km = local?['distance'];
+      if (km is num) {
+        _distanceKm = km.toDouble();
+      }
+    }
+
+    if (resolvedFee != null && resolvedFee >= 0) {
+      _applyInstantDeliveryFee(
+        fee: resolvedFee,
+        distanceText: trimmedDistance.isNotEmpty ? trimmedDistance : null,
+        distanceKm: _distanceKm,
       );
-      if (estimate == null || !_isFeeGenerationCurrent(generation)) return;
-
-      final feeRaw = estimate['delivery_fee'];
-      final parsedFee =
-          feeRaw is num ? feeRaw.toDouble() : double.tryParse('$feeRaw');
-      if (parsedFee == null) return;
-
-      final distanceKmRaw = estimate['distance_km'];
-      final distanceKm = distanceKmRaw is num
-          ? distanceKmRaw.toDouble()
-          : double.tryParse('$distanceKmRaw');
-
-      _setStateIfMounted(() {
-        if (!_deliveryFeeFromApi) {
-          deliveryFee = parsedFee;
-          if (distanceKm != null) {
-            _distanceKm = distanceKm;
-          }
-        }
-      });
-    } catch (e) {
-      debugPrint('📦 [DELIVERY] Provisional fee estimate failed: $e');
     }
   }
 
@@ -306,128 +405,23 @@ class DeliveryPageState extends State<DeliveryPage> {
     return left.isNotEmpty && left == right;
   }
 
-  /// Fetches delivery fee from save-billing (distance) + calculate-delivery-fee only.
+  /// Local fee estimate only — `/save-billing-add` runs on Continue.
   Future<void> _refreshDeliveryFeeForCoordinates(
     double lat,
-    double lng, {
-    bool fullLocationLookup = false,
-  }) async {
+    double lng,
+  ) async {
     if (deliveryOption == 'pickup' || !mounted) return;
 
     final generation = ++_feeUpdateGeneration;
-
-    setState(() {
-      _isUpdatingDeliveryFee = true;
-      _deliveryFeeFromApi = false;
-    });
-
-    unawaited(_applyProvisionalFeeEstimate(lat, lng, generation));
-
-    final refresh = _runDeliveryFeeRefresh(
-      generation,
-      fullLocationLookup: fullLocationLookup,
-    );
-    _activeDeliveryFeeRefresh = refresh;
-    try {
-      await refresh;
-    } finally {
-      if (_activeDeliveryFeeRefresh == refresh) {
-        _activeDeliveryFeeRefresh = null;
-      }
-    }
+    await _applyProvisionalFeeEstimate(lat, lng, generation);
   }
 
-  /// Fee refresh after region/city/address are known (resolves billing location ids).
-  Future<void> _refreshDeliveryFeeAfterCoordinatesResolved(
-    double lat,
-    double lng,
-  ) =>
-      _refreshDeliveryFeeForCoordinates(
-        lat,
-        lng,
-        fullLocationLookup: true,
-      );
-
-  /// Whether save-billing-add has enough data to succeed (avoids 422 on map pick).
-  bool _canSyncBillingForFeeRefresh() {
-    if (deliveryOption != 'delivery') return false;
-    if (_latitude == null || _longitude == null) return false;
-    if (_regionController.text.trim().isEmpty ||
-        _cityController.text.trim().isEmpty ||
-        _addressController.text.trim().isEmpty) {
-      return false;
-    }
-    final name = _nameController.text.trim();
-    final email = _emailController.text.trim();
-    final phone = _phoneController.text.trim();
-    if (name.isEmpty || email.isEmpty || phone.isEmpty) return false;
-    return RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
-        .hasMatch(email);
-  }
-
-  Future<void> _runDeliveryFeeRefresh(
-    int generation, {
-    bool fullLocationLookup = false,
-  }) async {
-    try {
-      if (_isProceedingToPayment) {
-        debugPrint(
-          '📦 [DELIVERY] Skipping save-billing — proceeding to payment',
-        );
-        return;
-      }
-      if (!_canSyncBillingForFeeRefresh()) {
-        debugPrint(
-          '📦 [DELIVERY] Skipping save-billing until name, contact, and address are complete',
-        );
-        return;
-      }
-
-      final ok = await _syncDeliveryAddressToServer(
-        generation,
-        fullLocationLookup: fullLocationLookup,
-      );
-      if (!ok &&
-          mounted &&
-          generation == _feeUpdateGeneration &&
-          deliveryOption == 'delivery') {
-        _showDeliverySnack(
-          _lastDeliveryErrorMessage ??
-              'Could not update delivery fee. Reselect your location or try again.',
-        );
-      }
-    } catch (e, st) {
-      debugPrint('❌ [DELIVERY] Fee refresh error: $e\n$st');
-      if (mounted && generation == _feeUpdateGeneration) {
-        _showDeliverySnack(
-          'Could not update delivery fee. Check your connection and try again.',
-        );
-      }
-    } finally {
-      if (mounted && generation == _feeUpdateGeneration) {
-        setState(() => _isUpdatingDeliveryFee = false);
-      }
-    }
-  }
-
-  Future<bool> _syncDeliveryAddressToServer(
-    int generation, {
-    bool fullLocationLookup = false,
-  }) async {
-    return _safelyCallDeliveryAPI(
-      generation: generation,
-      skipFeeWhenAlreadySet: false,
-      skipLocationIdLookup: !fullLocationLookup,
-    );
-  }
-
-  /// Map pick / coords update: reverse-geocode first, then sync billing when ready.
+  /// Map pick / coords update: reverse-geocode first (no save-billing until Continue).
   void _onDeliveryLocationSelected(
     double lat,
     double lng, {
     String? address,
   }) {
-    if (!mounted) return;
     if (!mounted) return;
     final preferredAddress = (address != null &&
             address.isNotEmpty &&
@@ -441,7 +435,6 @@ class DeliveryPageState extends State<DeliveryPage> {
         _latitude = lat;
         _longitude = lng;
         if (deliveryOption == 'delivery') {
-          _isUpdatingDeliveryFee = true;
           _deliveryFeeFromApi = false;
           if (preferredAddress != null) {
             _addressController.text = preferredAddress;
@@ -465,11 +458,7 @@ class DeliveryPageState extends State<DeliveryPage> {
       preferredAddress: preferredAddress,
     );
     if (!mounted || deliveryOption != 'delivery') return;
-    await _refreshDeliveryFeeForCoordinates(
-      lat,
-      lng,
-      fullLocationLookup: true,
-    );
+    await _refreshDeliveryFeeForCoordinates(lat, lng);
   }
 
   String? _distanceTextFromSaveResult(Map<String, dynamic> result) {
@@ -513,7 +502,10 @@ class DeliveryPageState extends State<DeliveryPage> {
     final promo = _promoDetailsFromSaveResult(result);
     if (promo == null) return;
 
-    final shippingFree = promo['shipping_free'] == true;
+    final shippingFree = OrderThresholdPromoBanner.shippingFreeFromPromo(
+      promo,
+      fallbackSubtotal: _cartMerchandiseSubtotal,
+    );
     final subtotal =
         _toDouble(promo['subtotal']) ?? _toDouble(promo['running_subtotal']);
     final discount = _toDouble(promo['discount_amount']) ??
@@ -522,7 +514,6 @@ class DeliveryPageState extends State<DeliveryPage> {
     final runningSubtotal = _toDouble(promo['running_subtotal']);
 
     _setStateIfMounted(() {
-      _apiOrderSummaryReady = subtotal != null;
       _apiSubtotal = subtotal;
       _apiDiscount = discount;
       _apiRunningSubtotal = runningSubtotal;
@@ -535,7 +526,7 @@ class DeliveryPageState extends State<DeliveryPage> {
       // Keep calculated fee visible until calculate-delivery-fee returns an update.
     });
 
-    debugPrint(
+    checkoutLog(
       '📊 [DELIVERY] Order summary from save-billing — subtotal=$_apiSubtotal, '
       'discount=$_apiDiscount, shippingFree=$_apiShippingFree, '
       'running=$_apiRunningSubtotal',
@@ -550,7 +541,7 @@ class DeliveryPageState extends State<DeliveryPage> {
     String? prefetchedDistanceText,
   }) async {
     if (!_isFeeGenerationCurrent(generation)) return;
-    if (deliveryOption != 'delivery' || _apiShippingFree) return;
+    if (deliveryOption != 'delivery' || _effectiveShippingFree) return;
 
     final distanceText = _distanceTextFromSaveResult(result);
     final feeFromSave = _deliveryFeeFromSaveResult(result);
@@ -577,7 +568,7 @@ class DeliveryPageState extends State<DeliveryPage> {
           fromApi: fromApi,
           generation: generation,
         );
-        debugPrint(
+        checkoutLog(
           '📊 [DELIVERY] Reused parallel calculate-delivery-fee for '
           '"$trimmedDistance"',
         );
@@ -587,7 +578,7 @@ class DeliveryPageState extends State<DeliveryPage> {
 
     if (_distanceTextsMatch(_lastFeeDistanceText, trimmedDistance) &&
         _deliveryFeeFromApi) {
-      debugPrint(
+      checkoutLog(
         '📊 [DELIVERY] Skipping duplicate calculate-delivery-fee for '
         '"$trimmedDistance"',
       );
@@ -600,9 +591,8 @@ class DeliveryPageState extends State<DeliveryPage> {
     );
     if (!_isFeeGenerationCurrent(generation)) return;
 
-    final resolvedFee = calcResult != null
-        ? _toDouble(calcResult['delivery_fee'])
-        : null;
+    final resolvedFee =
+        calcResult != null ? _toDouble(calcResult['delivery_fee']) : null;
     if (resolvedFee == null) {
       debugPrint(
         '❌ [DELIVERY] calculate-delivery-fee returned no fee for '
@@ -622,7 +612,7 @@ class DeliveryPageState extends State<DeliveryPage> {
       _lastFeeDistanceText = trimmedDistance;
     });
 
-    debugPrint(
+    checkoutLog(
       '📊 [DELIVERY] Delivery fee from $source: $_apiDeliveryFeeAmount '
       '(save-billing had ${feeFromSave ?? 'n/a'})',
     );
@@ -631,6 +621,27 @@ class DeliveryPageState extends State<DeliveryPage> {
   double? _toDouble(dynamic value) {
     if (value is num) return value.toDouble();
     return double.tryParse('${value ?? ''}');
+  }
+
+  /// Coordinates sent to save-billing-add (delivery address or pickup store).
+  ({double? lat, double? lng}) _billingCoordinates() {
+    if (deliveryOption == 'delivery') {
+      return (lat: _latitude, lng: _longitude);
+    }
+    if (selectedPickupSite != null) {
+      final site = selectedPickupSite!;
+      return (
+        lat: _toDouble(site['lat']) ??
+            _toDouble(site['latitude']) ??
+            _toDouble(site['store_lat']) ??
+            _toDouble(site['store_latitude']),
+        lng: _toDouble(site['lng']) ??
+            _toDouble(site['longitude']) ??
+            _toDouble(site['store_lng']) ??
+            _toDouble(site['store_longitude']),
+      );
+    }
+    return (lat: _latitude, lng: _longitude);
   }
 
   /// Applies ETA and delivery fee from a save-billing-add response.
@@ -655,6 +666,7 @@ class DeliveryPageState extends State<DeliveryPage> {
 
     if (deliveryOption != 'delivery') return;
     if (!_isFeeGenerationCurrent(generation)) return;
+    if (_effectiveShippingFree) return;
 
     await _resolveDeliveryFeeFromApis(
       result,
@@ -670,7 +682,7 @@ class DeliveryPageState extends State<DeliveryPage> {
     required bool fromApi,
     required int generation,
   }) {
-    if (!_isFeeGenerationCurrent(generation)) return;
+    if (!_isFeeGenerationCurrent(generation) || _effectiveShippingFree) return;
     final rawFee = feeResult['delivery_fee'];
     final parsedFee =
         rawFee is num ? rawFee.toDouble() : double.tryParse('$rawFee');
@@ -695,8 +707,10 @@ class DeliveryPageState extends State<DeliveryPage> {
   Future<double?> _applyDeliveryFeeFromDistanceText(
     String distanceText, {
     required int generation,
+    bool forceRefresh = false,
   }) async {
     if (!_isFeeGenerationCurrent(generation)) return null;
+    if (_effectiveShippingFree) return 0;
 
     final trimmed = distanceText.trim();
     if (trimmed.isEmpty) return null;
@@ -705,6 +719,7 @@ class DeliveryPageState extends State<DeliveryPage> {
       final feeResult = await DeliveryService.fetchDeliveryFeeFromApi(
         distanceText: trimmed,
         fallbackToLocalEstimate: true,
+        forceRefresh: forceRefresh,
       );
       if (!_isFeeGenerationCurrent(generation)) return null;
 
@@ -747,22 +762,21 @@ class DeliveryPageState extends State<DeliveryPage> {
   /// Ensures [deliveryFee] is set via calculate-delivery-fee before payment.
   Future<double> _ensureDeliveryFeeForPayment({
     Map<String, dynamic>? saveResult,
+    bool forceRefreshBeforePayment = false,
   }) async {
     if (deliveryOption == 'pickup') return 0;
+    if (_effectiveShippingFree) return 0;
 
     try {
-      final pendingRefresh = _activeDeliveryFeeRefresh;
-      if (pendingRefresh != null) {
-        await pendingRefresh;
-      }
-
       if (saveResult != null && saveResult['success'] == true) {
         await _applySaveBillingSideEffects(
           saveResult,
           generation: _feeUpdateGeneration,
         );
       }
-      if (_deliveryFeeFromApi) return deliveryFee;
+      if (_deliveryFeeFromApi && !forceRefreshBeforePayment) {
+        return deliveryFee;
+      }
 
       final distanceText = saveResult != null
           ? _distanceTextFromSaveResult(saveResult)
@@ -771,6 +785,7 @@ class DeliveryPageState extends State<DeliveryPage> {
         await _applyDeliveryFeeFromDistanceText(
           distanceText,
           generation: _feeUpdateGeneration,
+          forceRefresh: forceRefreshBeforePayment,
         );
       }
     } catch (e, st) {
@@ -787,7 +802,6 @@ class DeliveryPageState extends State<DeliveryPage> {
     if (address.trim().isEmpty || !mounted) return;
 
     _setStateIfMounted(() {
-      _isGeocoding = true;
     });
 
     try {
@@ -804,23 +818,12 @@ class DeliveryPageState extends State<DeliveryPage> {
 
       // add city and region to the address so it works better
       final fullAddress =
-          '${cleanAddress}, ${_cityController.text.trim()}, ${_regionController.text.trim()}, Ghana';
-
-      print('🌍 [GEOCODING] Starting geocoding process...');
-      print('📍 [GEOCODING] Original address: "$address"');
-      print('📍 [GEOCODING] Cleaned address: "$cleanAddress"');
-      print('📍 [GEOCODING] Full address to geocode: "$fullAddress"');
-      print('🏙️ [GEOCODING] City: ${_cityController.text.trim()}');
-      print('🏛️ [GEOCODING] Region: ${_regionController.text.trim()}');
-      print(
-          '🔄 [GEOCODING] Previous coordinates: Lat: ${_latitude ?? "None"}, Lng: ${_longitude ?? "None"}');
+          '$cleanAddress, ${_cityController.text.trim()}, ${_regionController.text.trim()}, Ghana';
 
       final locations = await locationFromAddress(fullAddress);
 
       if (locations.isNotEmpty) {
         final location = locations.first;
-        final oldLat = _latitude;
-        final oldLng = _longitude;
 
         if (!mounted) return;
         _setStateIfMounted(() {
@@ -828,42 +831,13 @@ class DeliveryPageState extends State<DeliveryPage> {
           _longitude = location.longitude;
         });
 
-        print('✅ [GEOCODING] SUCCESS! New coordinates obtained:');
-        print('   📍 New Latitude: ${_latitude}');
-        print('   📍 New Longitude: ${_longitude}');
-        print('   📍 New coordinates: (${_latitude}, ${_longitude})');
-
-        // print the geocoding stuff so we can see what we got
-        print('🗺️ [MAP COORDINATES] ===== GEOCODING RESPONSE DETAILS =====');
-        print('🗺️ [MAP COORDINATES] Location object: $location');
-        print('🗺️ [MAP COORDINATES] Latitude: ${location.latitude}');
-        print('🗺️ [MAP COORDINATES] Longitude: ${location.longitude}');
-        print('🗺️ [MAP COORDINATES] ======================================');
-
         await _getAddressFromCoordinates(_latitude!, _longitude!);
         if (!mounted) return;
         if (!_isProceedingToPayment) {
-          await _refreshDeliveryFeeAfterCoordinatesResolved(
-            _latitude!,
-            _longitude!,
-          );
+          await _refreshDeliveryFeeForCoordinates(_latitude!, _longitude!);
         }
-
-        if (oldLat != null && oldLng != null) {
-          print('   📍 Previous coordinates: ($oldLat, $oldLng)');
-          print(
-              '   📍 Coordinates changed: ${oldLat != _latitude || oldLng != _longitude ? "YES" : "NO"}');
-        }
-
-        // Also log to debug for Flutter inspector
-        debugPrint(
-            '✅ Coordinates obtained: Lat: ${_latitude}, Lng: ${_longitude}');
       } else {
-        print(
-            '⚠️ [GEOCODING] No coordinates found for address: "$fullAddress"');
-
         // if the full address didnt work, try just city and region
-        print('🔄 [GEOCODING] Trying fallback with just city and region...');
         try {
           final fallbackAddress =
               '${_cityController.text.trim()}, ${_regionController.text.trim()}, Ghana';
@@ -876,32 +850,22 @@ class DeliveryPageState extends State<DeliveryPage> {
               _latitude = location.latitude;
               _longitude = location.longitude;
             });
-            print(
-                '✅ [GEOCODING] Fallback SUCCESS! Using city center coordinates: (${_latitude}, ${_longitude})');
 
             await _getAddressFromCoordinates(_latitude!, _longitude!);
             if (!mounted) return;
             if (!_isProceedingToPayment) {
-              await _refreshDeliveryFeeAfterCoordinatesResolved(
+              await _refreshDeliveryFeeForCoordinates(
                 _latitude!,
                 _longitude!,
               );
             }
-          } else {
-            print('❌ [GEOCODING] Fallback also failed for: "$fallbackAddress"');
           }
-        } catch (fallbackError) {
-          print('❌ [GEOCODING] Fallback error: $fallbackError');
-        }
+        } catch (_) {}
 
-        debugPrint('⚠️ No coordinates found for address: $fullAddress');
+        checkoutLog('⚠️ No coordinates found for address: $fullAddress');
       }
     } catch (e) {
-      print('❌ [GEOCODING] ERROR occurred: $e');
-      print('❌ [GEOCODING] Error type: ${e.runtimeType}');
-
       // try again with just city and region
-      print('🔄 [GEOCODING] Trying fallback after error...');
       try {
         final fallbackAddress =
             '${_cityController.text.trim()}, ${_regionController.text.trim()}, Ghana';
@@ -914,64 +878,113 @@ class DeliveryPageState extends State<DeliveryPage> {
             _latitude = location.latitude;
             _longitude = location.longitude;
           });
-          print(
-              '✅ [GEOCODING] Fallback SUCCESS after error! Using city center: (${_latitude}, ${_longitude})');
-
           await _getAddressFromCoordinates(_latitude!, _longitude!);
           if (!mounted) return;
           if (!_isProceedingToPayment) {
-            await _refreshDeliveryFeeAfterCoordinatesResolved(
+            await _refreshDeliveryFeeForCoordinates(
               _latitude!,
               _longitude!,
             );
           }
         }
-      } catch (fallbackError) {
-        print('❌ [GEOCODING] Fallback also failed: $fallbackError');
-      }
+      } catch (_) {}
 
-      debugPrint('❌ Geocoding error: $e');
+      checkoutLog('❌ Geocoding error: $e');
     } finally {
       _setStateIfMounted(() {
-        _isGeocoding = false;
       });
-      print('🔄 [GEOCODING] Geocoding process completed');
     }
   }
 
-  Future<void> _loadUserData() async {
+  Future<void> _fetchGetBillingAndApply({required bool mergeOnly}) async {
     try {
-      final isLoggedIn = await AuthService.isLoggedIn();
-      GuestCheckoutDraft? localDraft;
+      final deliveryResult = await DeliveryService.getLastDeliveryInfo()
+          .timeout(const Duration(seconds: 8));
 
-      if (!isLoggedIn) {
-        localDraft = await GuestCheckoutDraftService.load();
-        if (localDraft != null && mounted) {
-          await _applyGuestCheckoutDraft(localDraft);
-        }
-      } else {
-        await _loadBasicUserData();
+      if (deliveryResult['success'] == true && mounted) {
+        _applyGetBillingResponse(
+          Map<String, dynamic>.from(deliveryResult),
+          mergeOnly: mergeOnly,
+        );
       }
+    } catch (apiError) {
+      // Local guest draft (if any) remains on screen.
+    }
+  }
 
-      // API billing address (guest + logged-in). For guests, only overwrite when
-      // the server returns usable fields so a failed payment does not wipe draft.
-      try {
-        final deliveryResult = await DeliveryService.getLastDeliveryInfo()
-            .timeout(const Duration(seconds: 8));
+  void _applyGetBillingResponse(
+    Map<String, dynamic> result, {
+    bool mergeOnly = false,
+  }) {
+    final data = result['data'];
+    final checkout = result['checkout'];
 
-        if (deliveryResult['success'] &&
-            deliveryResult['data'] != null &&
-            mounted) {
-          _applyDeliveryApiData(
-            Map<String, dynamic>.from(deliveryResult['data'] as Map),
-            mergeOnly: !isLoggedIn && localDraft != null,
-          );
+    if (data is Map) {
+      final map = Map<String, dynamic>.from(data);
+      _applyDeliveryApiData(map, mergeOnly: mergeOnly);
+    }
+
+    if (checkout is Map) {
+      _applyBillingCheckoutFromServer(
+        Map<String, dynamic>.from(checkout),
+      );
+    } else if (data is Map) {
+      final map = Map<String, dynamic>.from(data);
+      _applyDeliveryFeeFromBillingFields(
+        fee: _toDouble(map['delivery_fee']),
+        distanceText: map['distance_text']?.toString(),
+      );
+    }
+
+    if (deliveryOption == 'delivery' &&
+        !_effectiveShippingFree &&
+        !_deliveryFeeFromApi &&
+        deliveryFee <= 0 &&
+        _latitude != null &&
+        _longitude != null) {
+      unawaited(
+        _refreshDeliveryFeeForCoordinates(_latitude!, _longitude!),
+      );
+    }
+  }
+
+  /// Applies order summary, delivery fee, and ETA from get-billing-add checkout payload.
+  void _applyBillingCheckoutFromServer(Map<String, dynamic> checkout) {
+    if (!mounted) return;
+
+    final normalized = Map<String, dynamic>.from(checkout);
+    _applyOrderSummaryFromSaveResult(normalized);
+
+    final distanceText = DeliveryService.distanceTextFromSaveResult(normalized) ??
+        checkout['distance_text']?.toString();
+    if (distanceText != null && distanceText.trim().isNotEmpty) {
+      _lastFeeDistanceText = distanceText.trim();
+    }
+
+    final closestStore = normalized['closest_store'];
+    if (closestStore is Map && closestStore['duration_text'] != null) {
+      _setStateIfMounted(() {
+        _apiDeliveryTime = closestStore['duration_text']?.toString();
+      });
+    }
+
+    final urgent = checkout['order_urgent'] == true ||
+        checkout['is_urgent'] == true;
+    final xpressFee = _toDouble(checkout['xpress_fee']) ??
+        _toDouble(checkout['emergency_order_fee']);
+
+    _applyDeliveryFeeFromBillingFields(
+      fee: DeliveryService.deliveryFeeFromSaveResult(normalized),
+      distanceText: distanceText,
+    );
+
+    if (urgent || (xpressFee != null && xpressFee > 0)) {
+      _setStateIfMounted(() {
+        _isOrderUrgent = urgent || (xpressFee ?? 0) > 0;
+        if (xpressFee != null && xpressFee > 0) {
+          _emergencyOrderFee = xpressFee;
         }
-      } catch (apiError) {
-        // Local guest draft (if any) remains on screen.
-      }
-    } catch (e) {
-      // if loading failed, just start with empty fields
+      });
     }
   }
 
@@ -993,78 +1006,73 @@ class DeliveryPageState extends State<DeliveryPage> {
 
     double? loadedLat;
     double? loadedLng;
-    var loadedAddress = '';
 
-    setState(() {
-      applyText(_nameController, deliveryData['name']);
-      applyText(_emailController, deliveryData['email']);
-      applyText(_phoneController, deliveryData['phone']);
+    _runWithSuppressedAddressFeeRefresh(() {
+      setState(() {
+        applyText(_nameController, deliveryData['name']);
+        applyText(_emailController, deliveryData['email']);
+        applyText(_phoneController, deliveryData['phone']);
 
-      final option = (deliveryData['delivery_option'] ??
-              deliveryData['shipping_type'] ??
-              deliveryOption)
-          .toString()
-          .toLowerCase();
-      if (!mergeOnly || option.isNotEmpty) {
-        deliveryOption = option;
-      }
+        final option = (deliveryData['delivery_option'] ??
+                deliveryData['shipping_type'] ??
+                deliveryOption)
+            .toString()
+            .toLowerCase();
+        if (!mergeOnly || option.isNotEmpty) {
+          deliveryOption = option;
+        }
 
-      if (deliveryOption == 'delivery') {
-        applyText(_regionController, deliveryData['region']);
-        applyText(_cityController, deliveryData['city']);
-        applyText(_addressController, deliveryData['address']);
+        if (deliveryOption == 'delivery') {
+          applyText(_regionController, deliveryData['region']);
+          applyText(_cityController, deliveryData['city']);
+          applyText(_addressController, deliveryData['address']);
 
-        loadedLat = _toDouble(deliveryData['lat']);
-        loadedLng = _toDouble(deliveryData['lng']);
-        loadedAddress = deliveryData['address']?.toString().trim() ?? '';
+          loadedLat = _toDouble(deliveryData['lat']);
+          loadedLng = _toDouble(deliveryData['lng']);
 
-        _runWithSuppressedAddressFeeRefresh(() {
           if (loadedLat != null && loadedLng != null) {
             _latitude = loadedLat;
             _longitude = loadedLng;
           }
-        });
-      } else if (deliveryOption == 'pickup') {
-        final regionLabel =
-            deliveryData['pickup_region']?.toString().trim() ?? '';
-        final cityLabel = deliveryData['pickup_city']?.toString().trim() ?? '';
-        final siteLabel =
-            (deliveryData['pickup_site'] ?? deliveryData['pickup_location'])
-                    ?.toString()
-                    .trim() ??
-                '';
-        if (!mergeOnly ||
-            regionLabel.isNotEmpty ||
-            cityLabel.isNotEmpty ||
-            siteLabel.isNotEmpty) {
-          unawaited(_restorePickupSelection(
-            regionLabel: regionLabel,
-            cityLabel: cityLabel,
-            siteLabel: siteLabel,
-          ));
+        } else if (deliveryOption == 'pickup') {
+          _ensurePickupRegionsLoaded();
+          final regionLabel =
+              deliveryData['pickup_region']?.toString().trim() ?? '';
+          final cityLabel = deliveryData['pickup_city']?.toString().trim() ?? '';
+          final siteLabel =
+              (deliveryData['pickup_site'] ?? deliveryData['pickup_location'])
+                      ?.toString()
+                      .trim() ??
+                  '';
+          if (!mergeOnly ||
+              regionLabel.isNotEmpty ||
+              cityLabel.isNotEmpty ||
+              siteLabel.isNotEmpty) {
+            unawaited(_restorePickupSelection(
+              regionLabel: regionLabel,
+              cityLabel: cityLabel,
+              siteLabel: siteLabel,
+            ));
+          }
         }
-      }
 
-      applyText(_notesController, deliveryData['notes']);
+        applyText(_notesController, deliveryData['notes']);
+        _applyBillingLocationIdsFromData(deliveryData);
+      });
     });
-
-    if (deliveryOption == 'delivery') {
-      if (loadedLat != null &&
-          loadedLng != null &&
-          _canSyncBillingForFeeRefresh()) {
-        unawaited(_syncBillingAfterApiDataLoad(loadedLat!, loadedLng!));
-      } else if (loadedAddress.isNotEmpty) {
-        unawaited(_getCoordinatesFromAddress(loadedAddress));
-      }
-    }
   }
 
-  /// Waits for regions so save-billing includes region_id/city_id on first sync.
-  Future<void> _syncBillingAfterApiDataLoad(double lat, double lng) async {
-    await _ensureRegionsLoaded();
-    if (!mounted || deliveryOption != 'delivery') return;
-    if (!_canSyncBillingForFeeRefresh()) return;
-    await _refreshDeliveryFeeAfterCoordinatesResolved(lat, lng);
+  void _applyBillingLocationIdsFromData(Map<String, dynamic> deliveryData) {
+    final regionId = deliveryData['region_id'];
+    final cityId = deliveryData['city_id'];
+    if (regionId is int && regionId > 0) {
+      _cachedBillingRegionId = regionId;
+      _cachedBillingRegionLabel = _regionController.text.trim();
+    }
+    if (cityId is int && cityId > 0) {
+      _cachedBillingCityId = cityId;
+      _cachedBillingCityLabel = _cityController.text.trim();
+    }
   }
 
   Future<void> _applyGuestCheckoutDraft(GuestCheckoutDraft draft) async {
@@ -1090,7 +1098,6 @@ class DeliveryPageState extends State<DeliveryPage> {
         _apiDeliveryTime = draft.estimatedDeliveryTime;
         _distanceKm = draft.distanceKm;
         if (draft.apiSubtotal != null) {
-          _apiOrderSummaryReady = true;
           _apiSubtotal = draft.apiSubtotal;
           _apiDiscount = draft.apiDiscountAmount ?? draft.discountAmount;
           _apiShippingFree = draft.apiShippingFree ?? false;
@@ -1098,23 +1105,12 @@ class DeliveryPageState extends State<DeliveryPage> {
       });
     });
 
-    if (draft.deliveryOption == 'delivery' &&
-        draft.lat != null &&
-        draft.lng != null &&
-        _canSyncBillingForFeeRefresh()) {
-      unawaited(
-        _syncBillingAfterApiDataLoad(draft.lat!, draft.lng!),
-      );
-    } else if (draft.deliveryOption == 'pickup') {
-      await _restorePickupSelection(
+    if (draft.deliveryOption == 'pickup') {
+      unawaited(_restorePickupSelection(
         regionLabel: draft.pickupRegionLabel,
         cityLabel: draft.pickupCityLabel,
         siteLabel: draft.pickupSiteLabel,
-      );
-    } else if (draft.address.trim().isNotEmpty &&
-        draft.lat == null &&
-        draft.lng == null) {
-      await _getCoordinatesFromAddress(draft.address);
+      ));
     }
   }
 
@@ -1179,6 +1175,7 @@ class DeliveryPageState extends State<DeliveryPage> {
     final guestId = prefs.getString('guest_id');
     if (guestId == null || guestId.isEmpty) return null;
 
+    final billingCoords = _billingCoordinates();
     return GuestCheckoutDraft(
       guestId: guestId,
       name: _nameController.text.trim(),
@@ -1192,13 +1189,14 @@ class DeliveryPageState extends State<DeliveryPage> {
       pickupRegionLabel: selectedRegion?['description']?.toString() ?? '',
       pickupCityLabel: selectedCity?['description']?.toString() ?? '',
       pickupSiteLabel: selectedPickupSite?['description']?.toString() ?? '',
-      lat: _latitude,
-      lng: _longitude,
+      lat: billingCoords.lat,
+      lng: billingCoords.lng,
       deliveryFee: deliveryFee,
       isOrderUrgent: _isOrderUrgent,
       emergencyOrderFee: _emergencyOrderFee,
       estimatedDeliveryTime: _apiDeliveryTime,
       distanceKm: _distanceKm,
+      feeDistanceText: _lastFeeDistanceText,
       apiSubtotal: _apiSubtotal,
       apiDiscountAmount: _apiDiscount > 0 ? _apiDiscount : null,
       apiShippingFree: _apiShippingFree,
@@ -1268,7 +1266,7 @@ class DeliveryPageState extends State<DeliveryPage> {
     if (region.isEmpty || city.isEmpty || address.isEmpty) {
       return;
     }
-    // Start geocoding and fee calculation
+    // Geocode for lat/lng only — save-billing runs on Continue.
     _getCoordinatesFromAddress(address);
   }
 
@@ -1306,47 +1304,13 @@ class DeliveryPageState extends State<DeliveryPage> {
     }
   }
 
-  String _billingSyncFingerprint() {
-    return [
-      deliveryOption,
-      _nameController.text.trim(),
-      _emailController.text.trim(),
-      _phoneController.text.trim(),
-      _regionController.text.trim(),
-      _cityController.text.trim(),
-      _addressController.text.trim(),
-      _notesController.text.trim(),
-      _latitude?.toStringAsFixed(6) ?? '',
-      _longitude?.toStringAsFixed(6) ?? '',
-      selectedRegion?['id']?.toString() ?? '',
-      selectedCity?['id']?.toString() ?? '',
-      selectedPickupSite?['id']?.toString() ?? '',
-    ].join('|');
-  }
-
-  void _recordBillingSync(
-    Map<String, dynamic> result, {
-    required bool hadLocationIds,
-  }) {
+  void _recordBillingSync(Map<String, dynamic> result) {
     if (result['success'] != true) return;
-    _lastBillingSyncFingerprint = _billingSyncFingerprint();
-    _lastBillingSyncResult = Map<String, dynamic>.from(result);
-    _lastBillingSyncHadLocationIds = hadLocationIds;
-  }
-
-  void _clearBillingSyncCache() {
-    _lastBillingSyncFingerprint = null;
-    _lastBillingSyncResult = null;
-    _lastBillingSyncHadLocationIds = false;
-  }
-
-  bool _billingReadyForPayment() {
-    if (_lastBillingSyncResult == null ||
-        !_deliveryFeeFromApi ||
-        !_apiOrderSummaryReady) {
-      return false;
+    final serverDistance = DeliveryService.distanceTextFromSaveResult(result);
+    if (serverDistance != null && serverDistance.isNotEmpty) {
+      _lastFeeDistanceText = serverDistance;
     }
-    return _billingSyncFingerprint() == _lastBillingSyncFingerprint;
+    _applyOrderSummaryFromSaveResult(result);
   }
 
   /// Resolve backend region/city/store ids (save-billing-add expects numeric ids).
@@ -1413,7 +1377,6 @@ class DeliveryPageState extends State<DeliveryPage> {
     _cachedBillingCityLabel = null;
     _cachedBillingRegionId = null;
     _cachedBillingCityId = null;
-    _clearBillingSyncCache();
   }
 
   @override
@@ -1990,7 +1953,7 @@ class DeliveryPageState extends State<DeliveryPage> {
             color: _fieldFill(highlighted: _highlightPickupField),
           ),
           child: DropdownButtonFormField<Map<String, dynamic>>(
-            value: value,
+            initialValue: value,
             isDense: compact,
             decoration: InputDecoration(
               prefixIcon: isLoading
@@ -2245,6 +2208,23 @@ class DeliveryPageState extends State<DeliveryPage> {
                                     height: 1.3,
                                   ),
                                 ),
+                                if (_cityController.text.trim().isNotEmpty ||
+                                    _regionController.text
+                                        .trim()
+                                        .isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    [
+                                      _cityController.text.trim(),
+                                      _regionController.text.trim(),
+                                    ].where((s) => s.isNotEmpty).join(', '),
+                                    style: TextStyle(
+                                      color: _theme.muted,
+                                      fontSize: 11,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -2345,205 +2325,6 @@ class DeliveryPageState extends State<DeliveryPage> {
         ),
       ],
     );
-  }
-
-  Widget _buildReadOnlyField({
-    required GlobalKey key,
-    required String label,
-    required IconData icon,
-    required String value,
-    required bool isHighlighted,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 13,
-                color: isHighlighted ? Colors.red : _theme.ink,
-              ),
-            ),
-            Text(
-              ' *',
-              style: TextStyle(
-                color: Colors.red,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Container(
-          key: key,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: _fieldBorder(highlighted: isHighlighted),
-              width: isHighlighted ? 2 : 1,
-            ),
-            borderRadius: BorderRadius.circular(_fieldRadius),
-            color: _fieldFill(highlighted: isHighlighted),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                color: isHighlighted ? Colors.red : _theme.muted,
-                size: 22,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  value,
-                  style: TextStyle(
-                    color: value.contains('Select location')
-                        ? _theme.inputHint
-                        : _theme.inputText,
-                    fontSize: 14,
-                    fontStyle: value.contains('Select location')
-                        ? FontStyle.italic
-                        : FontStyle.normal,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _fetchDeliveryTimeFromAPI() async {
-    if (_latitude == null || _longitude == null || !mounted) return;
-    await _refreshDeliveryFeeAfterCoordinatesResolved(_latitude!, _longitude!);
-  }
-
-  Future<bool> _safelyCallDeliveryAPI({
-    int? generation,
-    bool skipFeeWhenAlreadySet = false,
-    bool skipLocationIdLookup = false,
-  }) async {
-    try {
-      if (!mounted) return false;
-      if (_isProceedingToPayment) {
-        debugPrint(
-          '📦 [DELIVERY] Skipping save-billing — proceeding to payment',
-        );
-        return false;
-      }
-
-      // Collect data first (before any async operations)
-      final name = _nameController.text.trim();
-      final email = _emailController.text.trim();
-      final phone = _phoneController.text;
-      final region = _regionController.text.trim();
-      final city = _cityController.text.trim();
-      final address = _addressController.text.trim();
-      final lat = _latitude;
-      final lng = _longitude;
-
-      debugPrint('📤 Calling DeliveryService.saveDeliveryInfo...');
-
-      final locationIds = await _resolveBillingLocationIdsSafe(
-        skipLookup: skipLocationIdLookup,
-      );
-
-      String? provisionalDistanceText;
-      if (lat != null && lng != null) {
-        provisionalDistanceText =
-            await DeliveryService.provisionalDistanceTextForCoordinates(
-          lat: lat,
-          lng: lng,
-        );
-      }
-
-      final saveFuture = DeliveryService.saveDeliveryInfo(
-        name: name,
-        email: email,
-        phone: phone,
-        deliveryOption: 'delivery',
-        region: region,
-        city: city,
-        address: address,
-        notes: _notesController.text.trim(),
-        pickupRegion: null,
-        pickupCity: null,
-        pickupSite: null,
-        regionId: locationIds.regionId,
-        cityId: locationIds.cityId,
-        storeId: locationIds.storeId,
-        lat: lat,
-        lng: lng,
-      );
-
-      final parallel = await DeliveryService.saveBillingAndCalculateFeeParallel(
-        saveFuture: saveFuture,
-        provisionalDistanceText: provisionalDistanceText,
-      );
-      final result = parallel.saveResult;
-      final prefetchedFeeResult = parallel.feeResult;
-
-      if (!mounted) {
-        print('⚠️ Widget disposed, ignoring API result');
-        return false;
-      }
-
-      print('📦 API Response received');
-      print(json.encode(result));
-
-      final wasSuccessful = result['success'] == true;
-      if (!wasSuccessful) {
-        final errorMessage =
-            (result['message'] ?? 'Failed to save delivery information')
-                .toString();
-        debugPrint('❌ [DELIVERY] Save failed: $errorMessage');
-        _lastDeliveryErrorMessage = errorMessage;
-        return false;
-      }
-      _lastDeliveryErrorMessage = null;
-
-      final hadLocationIds = deliveryOption == 'pickup'
-          ? locationIds.storeId != null
-          : locationIds.regionId != null && locationIds.cityId != null;
-      _recordBillingSync(result, hadLocationIds: hadLocationIds);
-
-      if (!skipFeeWhenAlreadySet &&
-          mounted &&
-          (generation == null || generation == _feeUpdateGeneration)) {
-        await _applySaveBillingSideEffects(
-          Map<String, dynamic>.from(result),
-          generation: generation ?? _feeUpdateGeneration,
-          prefetchedFeeResult: prefetchedFeeResult,
-          prefetchedDistanceText: provisionalDistanceText,
-        );
-      } else if (mounted &&
-          (generation == null || generation == _feeUpdateGeneration)) {
-        final closestStore =
-            result['closest_store'] ?? result['data']?['closest_store'];
-        if (closestStore != null && closestStore['duration_text'] != null) {
-          _setStateIfMounted(() {
-            _apiDeliveryTime = closestStore['duration_text']?.toString();
-          });
-        }
-      }
-
-      return true;
-    } on TimeoutException catch (e) {
-      debugPrint('❌ [DELIVERY] save billing timeout: $e');
-      _lastDeliveryErrorMessage =
-          'Request timed out. Please check your connection and try again.';
-      return false;
-    } catch (e, st) {
-      debugPrint('❌ Error in API call: $e\n$st');
-      _lastDeliveryErrorMessage =
-          'Network error. Please check your connection and try again.';
-      return false;
-    }
   }
 
   Widget _buildPhoneField(bool isPhoneValid, {bool compact = false}) {
@@ -2725,10 +2506,19 @@ class DeliveryPageState extends State<DeliveryPage> {
       return;
     }
 
-    _setStateIfMounted(() => _isOrderUrgent = true);
+    // Defer add-xpress-fee API until continue (after calculate-delivery-fee).
+    // Calling it here leaves the server cart at merchandise + xpress only.
+    _setStateIfMounted(() {
+      _isOrderUrgent = true;
+      _emergencyOrderFee ??= DeliveryService.defaultXpressFee;
+    });
+  }
+
+  Future<bool> _applyUrgentFeeToServerCart() async {
+    if (!_isOrderUrgent) return true;
 
     final result = await DeliveryService.addXpressFee();
-    if (!mounted) return;
+    if (!mounted) return false;
 
     if (result != null && result['xpress_fee'] != null) {
       _setStateIfMounted(() {
@@ -2736,20 +2526,21 @@ class DeliveryPageState extends State<DeliveryPage> {
             ? (result['xpress_fee'] as num).toDouble()
             : double.tryParse(result['xpress_fee'].toString());
       });
-      return;
+      return true;
     }
 
     _setStateIfMounted(() {
       _isOrderUrgent = false;
       _emergencyOrderFee = null;
     });
-    if (!mounted) return;
+    if (!mounted) return false;
     AppErrorUtils.showSnack(
       context,
       'Urgent delivery is unavailable right now. Please try again.',
       isError: true,
       duration: const Duration(seconds: 2),
     );
+    return false;
   }
 
   Widget _buildUrgentOption() {
@@ -2916,12 +2707,14 @@ class DeliveryPageState extends State<DeliveryPage> {
   Widget _buildOrderSummary() {
     final emergencyOrderFee = _emergencyOrderFee ?? 0.0;
     final isDelivery = deliveryOption == 'delivery';
-    final promoReady = _apiOrderSummaryReady && _apiSubtotal != null;
-    final deliveryFeeReady =
-        !isDelivery || _apiShippingFree || _deliveryFeeFromApi;
-    final summaryLoading = !promoReady || (isDelivery && !deliveryFeeReady);
+    final subtotalLoading = !_hasMerchandiseSubtotalForSummary;
+    final deliveryFeeResolved = _effectiveShippingFree ||
+        _deliveryFeeFromApi ||
+        deliveryFee > 0;
+    final deliveryFeeLoading =
+        isDelivery && !_effectiveShippingFree && !deliveryFeeResolved;
 
-    if (summaryLoading) {
+    if (subtotalLoading && deliveryFeeLoading) {
       return Container(
         margin: _sectionMargin,
         padding: _sectionPadding,
@@ -2987,8 +2780,12 @@ class DeliveryPageState extends State<DeliveryPage> {
             decoration: _innerPanelDecoration(),
             child: Column(
               children: [
-                _buildSummaryRow('Subtotal', subtotal,
-                    icon: Icons.shopping_cart_rounded),
+                _buildSummaryRow(
+                  'Subtotal',
+                  subtotal,
+                  icon: Icons.shopping_cart_rounded,
+                  isLoading: subtotalLoading,
+                ),
                 if (discountAmount > 0) ...[
                   const SizedBox(height: 8),
                   _buildSummaryRow(
@@ -3003,7 +2800,8 @@ class DeliveryPageState extends State<DeliveryPage> {
                     'Delivery fee',
                     deliveryCharge,
                     icon: Icons.local_shipping_rounded,
-                    isFree: _apiShippingFree,
+                    isFree: _effectiveShippingFree,
+                    isLoading: deliveryFeeLoading,
                   ),
                 ],
                 if (emergencyOrderFee > 0) ...[
@@ -3012,8 +2810,16 @@ class DeliveryPageState extends State<DeliveryPage> {
                       icon: Icons.flash_on),
                 ],
                 Divider(height: 20, thickness: 1, color: _theme.border),
-                _buildSummaryRow('Total', total,
-                    isHighlighted: true, icon: Icons.payment_rounded),
+                _buildSummaryRow(
+                  'Total',
+                  total,
+                  isHighlighted: true,
+                  icon: Icons.payment_rounded,
+                  isLoading: subtotalLoading ||
+                      (isDelivery &&
+                          deliveryFeeLoading &&
+                          !_effectiveShippingFree),
+                ),
               ],
             ),
           ),
@@ -3115,10 +2921,9 @@ class DeliveryPageState extends State<DeliveryPage> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          onTap: (_isProceedingToPayment || _isInitialDeliveryDataLoading)
+          onTap: _isProceedingToPayment
               ? null
               : () async {
-                  await _ensureInitialDeliveryDataLoaded();
                   if (!mounted) return;
                   bool isValid = true;
 
@@ -3148,11 +2953,12 @@ class DeliveryPageState extends State<DeliveryPage> {
                     _scrollToError(emailSectionKey, errorType: 'email');
                   }
 
-                  // Validate delivery location (region, city, address - all from map picker)
+                  // Validate delivery location (map pick → region, city, address, coordinates)
                   if (deliveryOption == 'delivery' &&
                       (_regionController.text.trim().isEmpty ||
                           _cityController.text.trim().isEmpty ||
-                          _addressController.text.trim().isEmpty)) {
+                          _addressController.text.trim().isEmpty ||
+                          !_deliveryCoordinatesValid())) {
                     setState(() {
                       _highlightRegionField = true;
                       _highlightCityField = true;
@@ -3195,8 +3001,9 @@ class DeliveryPageState extends State<DeliveryPage> {
                     // Build specific message so user knows what to fix
                     String message = 'Please fix the following: ';
                     final missing = <String>[];
-                    if (_nameController.text.trim().isEmpty)
+                    if (_nameController.text.trim().isEmpty) {
                       missing.add('name');
+                    }
                     if (_emailController.text.trim().isEmpty ||
                         !RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
                             .hasMatch(_emailController.text.trim())) {
@@ -3209,7 +3016,8 @@ class DeliveryPageState extends State<DeliveryPage> {
                     if (deliveryOption == 'delivery') {
                       if (_addressController.text.trim().isEmpty ||
                           _regionController.text.trim().isEmpty ||
-                          _cityController.text.trim().isEmpty) {
+                          _cityController.text.trim().isEmpty ||
+                          !_deliveryCoordinatesValid()) {
                         missing.add(
                             'delivery address (tap "Pick location on map")');
                       }
@@ -3230,79 +3038,73 @@ class DeliveryPageState extends State<DeliveryPage> {
                     _feeUpdateGeneration++;
                     setState(() => _isProceedingToPayment = true);
 
-                    // Save billing once before payment — not again on swipe to pay.
+                    // Always save billing on Continue so delivery fee is on the server cart.
                     final locationIds = await _resolveBillingLocationIdsSafe(
                       skipLookup: false,
                     );
                     Map<String, dynamic> saveResult;
-                    if (_billingReadyForPayment()) {
+                    if (kDebugMode) {
                       debugPrint(
-                        '📦 [DELIVERY] Reusing billing sync — skipping duplicate save-billing',
+                        '[DELIVERY] Continue → calling /save-billing-add '
+                        '(deliveryFee=$deliveryFee, distance=$_lastFeeDistanceText)',
                       );
-                      saveResult =
-                          Map<String, dynamic>.from(_lastBillingSyncResult!);
-                    } else {
-                      if (_lastBillingSyncResult != null &&
-                          _billingSyncFingerprint() ==
-                              _lastBillingSyncFingerprint) {
-                        debugPrint(
-                          '📦 [DELIVERY] Billing fingerprint unchanged but fee/summary not ready — saving again',
-                        );
-                      }
-                      try {
-                        saveResult = await DeliveryService.saveDeliveryInfo(
-                          name: _nameController.text.trim(),
-                          email: _emailController.text.trim(),
-                          phone: _phoneController.text,
-                          deliveryOption: deliveryOption,
-                          region: deliveryOption == 'delivery'
-                              ? _regionController.text.trim()
-                              : null,
-                          city: deliveryOption == 'delivery'
-                              ? _cityController.text.trim()
-                              : null,
-                          address: deliveryOption == 'delivery'
-                              ? _addressController.text.trim()
-                              : null,
-                          notes: _notesController.text.trim(),
-                          pickupRegion: (deliveryOption == 'pickup' &&
-                                  selectedRegion != null)
-                              ? selectedRegion!['description']?.toString()
-                              : null,
-                          pickupCity: (deliveryOption == 'pickup' &&
-                                  selectedCity != null)
-                              ? selectedCity!['description']?.toString()
-                              : null,
-                          pickupSite: (deliveryOption == 'pickup' &&
-                                  selectedPickupSite != null)
-                              ? selectedPickupSite!['description']?.toString()
-                              : null,
-                          regionId: locationIds.regionId,
-                          cityId: locationIds.cityId,
-                          storeId: locationIds.storeId,
-                          lat: _latitude,
-                          lng: _longitude,
-                        );
-                      } catch (e, st) {
-                        debugPrint(
-                            '❌ [DELIVERY] saveDeliveryInfo threw: $e\n$st');
-                        if (!mounted) return;
-                        _showDeliverySnack(
-                          'Could not save delivery details. Please try again.',
-                        );
-                        return;
-                      }
+                    }
+                    try {
+                      final billingCoords = _billingCoordinates();
+                      saveResult = await DeliveryService.saveDeliveryInfo(
+                        name: _nameController.text.trim(),
+                        email: _emailController.text.trim(),
+                        phone: _phoneController.text,
+                        deliveryOption: deliveryOption,
+                        region: deliveryOption == 'delivery'
+                            ? _regionController.text.trim()
+                            : null,
+                        city: deliveryOption == 'delivery'
+                            ? _cityController.text.trim()
+                            : null,
+                        address: deliveryOption == 'delivery'
+                            ? _addressController.text.trim()
+                            : null,
+                        notes: _notesController.text.trim(),
+                        pickupRegion: (deliveryOption == 'pickup' &&
+                                selectedRegion != null)
+                            ? selectedRegion!['description']?.toString()
+                            : null,
+                        pickupCity: (deliveryOption == 'pickup' &&
+                                selectedCity != null)
+                            ? selectedCity!['description']?.toString()
+                            : null,
+                        pickupSite: (deliveryOption == 'pickup' &&
+                                selectedPickupSite != null)
+                            ? selectedPickupSite!['description']?.toString()
+                            : null,
+                        regionId: locationIds.regionId,
+                        cityId: locationIds.cityId,
+                        storeId: locationIds.storeId,
+                        lat: billingCoords.lat,
+                        lng: billingCoords.lng,
+                        deliveryFee: deliveryOption == 'delivery' &&
+                                !_effectiveShippingFree &&
+                                deliveryFee > 0
+                            ? deliveryFee
+                            : null,
+                        distanceText: _lastFeeDistanceText,
+                        orderUrgent: _isOrderUrgent,
+                        emergencyOrderFee: _emergencyOrderFee,
+                        clearStaleUrgentFee: !_isOrderUrgent,
+                      );
+                    } catch (e, st) {
+                      debugPrint(
+                          '❌ [DELIVERY] saveDeliveryInfo threw: $e\n$st');
+                      if (!mounted) return;
+                      _showDeliverySnack(
+                        'Could not save delivery details. Please try again.',
+                      );
+                      return;
+                    }
 
-                      if (saveResult['success'] == true) {
-                        final hadLocationIds = deliveryOption == 'pickup'
-                            ? locationIds.storeId != null
-                            : locationIds.regionId != null &&
-                                locationIds.cityId != null;
-                        _recordBillingSync(
-                          saveResult,
-                          hadLocationIds: hadLocationIds,
-                        );
-                      }
+                    if (saveResult['success'] == true) {
+                      _recordBillingSync(saveResult);
                     }
 
                     if (saveResult['success'] != true) {
@@ -3319,7 +3121,12 @@ class DeliveryPageState extends State<DeliveryPage> {
 
                     await _ensureDeliveryFeeForPayment(
                       saveResult: Map<String, dynamic>.from(saveResult),
+                      forceRefreshBeforePayment: true,
                     );
+                    if (!mounted) return;
+
+                    if (!await _applyUrgentFeeToServerCart()) return;
+
                     if (!mounted) return;
 
                     if (deliveryOption == 'delivery' && !_deliveryFeeFromApi) {
@@ -3330,7 +3137,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                       return;
                     }
 
-                    debugPrint(
+                    checkoutLog(
                         '🚀 [DELIVERY] Fee passed to payment: $deliveryFee');
 
                     if (!mounted) return;
@@ -3348,7 +3155,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                   }
                 },
           child: Center(
-            child: (_isProceedingToPayment || _isInitialDeliveryDataLoading)
+            child: _isProceedingToPayment
                 ? const SizedBox(
                     width: 24,
                     height: 24,
@@ -3391,20 +3198,17 @@ class DeliveryPageState extends State<DeliveryPage> {
       if (option == 'pickup') {
         _isOrderUrgent = false;
         _emergencyOrderFee = null;
+        _ensurePickupRegionsLoaded();
       }
     });
   }
 
   void _proceedToPayment() {
-    double? parseCoord(dynamic value) {
-      if (value is num) return value.toDouble();
-      return double.tryParse(value?.toString() ?? '');
-    }
-
     // Create delivery address based on option
     String deliveryAddress;
-    double? paymentLat = _latitude;
-    double? paymentLng = _longitude;
+    final billingCoords = _billingCoordinates();
+    final paymentLat = billingCoords.lat;
+    final paymentLng = billingCoords.lng;
     if (deliveryOption == 'delivery') {
       deliveryAddress =
           '${_addressController.text.trim()}, ${_cityController.text.trim()}, ${_regionController.text.trim()}';
@@ -3414,47 +3218,13 @@ class DeliveryPageState extends State<DeliveryPage> {
           ? '${selectedPickupSite!['description']}, ${selectedCity!['description']}, ${selectedRegion!['description']}'
           : '${selectedCity?['description'] ?? 'Selected'}, ${selectedRegion?['description'] ?? 'Location'}';
       deliveryAddress = 'Pickup at $pickupLocation';
-
-      // Prefer selected store coordinates for pickup confirmation map/directions.
-      if (selectedPickupSite != null) {
-        paymentLat = parseCoord(selectedPickupSite!['lat']) ??
-            parseCoord(selectedPickupSite!['latitude']) ??
-            parseCoord(selectedPickupSite!['store_lat']) ??
-            parseCoord(selectedPickupSite!['store_latitude']) ??
-            paymentLat;
-        paymentLng = parseCoord(selectedPickupSite!['lng']) ??
-            parseCoord(selectedPickupSite!['longitude']) ??
-            parseCoord(selectedPickupSite!['store_lng']) ??
-            parseCoord(selectedPickupSite!['store_longitude']) ??
-            paymentLng;
-      }
     }
 
     // Navigate to payment page with delivery details
-    debugPrint(
-        '[DEBUG] Passing guestEmail to PaymentPage: "${_emailController.text.trim()}"');
-
-    // Log coordinates being passed to payment page
-    if (_latitude != null && _longitude != null) {
-      print(
-          '🚀 [DELIVERY] ===== EXACT COORDINATES PASSED TO PAYMENT PAGE =====');
-      print('🚀 [DELIVERY] 🎯 FINAL COORDINATES FOR PAYMENT:');
-      print('   📍 Latitude: $_latitude');
-      print('   📍 Longitude: $_longitude');
-      print('   📍 Full coordinates: ($_latitude, $_longitude)');
-      print(
-          '   📍 Coordinates type: ${_latitude.runtimeType}, ${_longitude.runtimeType}');
-      print('   📍 Coordinates precision: '
-          '${_latitude?.toStringAsFixed(8)}, ${_longitude?.toStringAsFixed(8)}');
-      print('🚀 [DELIVERY] ======================================');
-    } else {
-      print('⚠️ [DELIVERY] No coordinates available to pass to PaymentPage');
-    }
-
     unawaited(_persistGuestCheckoutDraft());
 
     final totals = _checkoutTotals;
-    debugPrint(
+    checkoutLog(
       '[DELIVERY] → PaymentPage totals: merchandise=${totals.merchandiseSubtotal}, '
       'delivery(raw)=${totals.deliveryFee}, delivery(charged)=${totals.chargedDeliveryFee}, '
       'xpress=${totals.emergencyOrderFee}, total=${totals.payableAmount}',
@@ -3464,6 +3234,8 @@ class DeliveryPageState extends State<DeliveryPage> {
       MaterialPageRoute(
         builder: (context) => PaymentPage(
           orderTotals: totals,
+          lockedDeliveryFee: deliveryOption == 'delivery' ? deliveryFee : 0,
+          lockedXpressFee: totals.emergencyOrderFee,
           deliveryAddress: deliveryAddress,
           contactNumber: _phoneController.text,
           deliveryOption: deliveryOption,
@@ -3472,7 +3244,14 @@ class DeliveryPageState extends State<DeliveryPage> {
           lng: paymentLng,
           estimatedDeliveryTime: _apiDeliveryTime,
           distanceKm: _distanceKm,
+          feeDistanceText: _lastFeeDistanceText,
           isOrderUrgent: _isOrderUrgent,
+          billingCartSynced: true,
+          streetAddress: _addressController.text.trim(),
+          deliveryCity: _cityController.text.trim(),
+          deliveryRegion: _regionController.text.trim(),
+          billingRegionId: _cachedBillingRegionId,
+          billingCityId: _cachedBillingCityId,
         ),
       ),
     );
@@ -3483,48 +3262,39 @@ class DeliveryPageState extends State<DeliveryPage> {
     _scrollToError(pickupSectionKey);
   }
 
-  /// Show map picker to select exact location
+  bool _deliveryCoordinatesValid() {
+    final lat = _latitude;
+    final lng = _longitude;
+    if (lat == null || lng == null) return false;
+    if (lat.isNaN || lng.isNaN) return false;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return false;
+    if (lat.abs() < 0.0001 && lng.abs() < 0.0001) return false;
+    return true;
+  }
+
+  /// Show map picker to select exact delivery location.
   void _showMapPicker() async {
     if (!mounted) return;
-    double initialLat = 5.5600; // Default to Accra
-    double initialLng = -0.2057;
 
-    // First, try to get fresh coordinates from the current address if available
-    if (_addressController.text.trim().isNotEmpty) {
-      print('🗺️ [MAP PICKER] ===== STARTING FRESH GEOCODING =====');
-      print(
-          '🗺️ [MAP PICKER] Current address field text: "${_addressController.text}"');
-      print('🗺️ [MAP PICKER] Current city: "${_cityController.text}"');
-      print('🗺️ [MAP PICKER] Current region: "${_regionController.text}"');
-      print(
-          '🗺️ [MAP PICKER] Previous stored coordinates: ($_latitude, $_longitude)');
+    const defaultLat = 5.6037;
+    const defaultLng = -0.1870;
+    var initialLat = defaultLat;
+    var initialLng = defaultLng;
 
+    if (_deliveryCoordinatesValid()) {
+      initialLat = _latitude!;
+      initialLng = _longitude!;
+    } else if (_addressController.text.trim().isNotEmpty) {
       try {
-        // Clear any old coordinates first
-        _setStateIfMounted(() {
-          _latitude = null;
-          _longitude = null;
-        });
-
-        // Clean the address - remove Google Plus Codes and other problematic characters
-        String cleanAddress = _addressController.text.trim();
-
-        // Remove Google Plus Codes (like HRXF+F4X)
+        var cleanAddress = _addressController.text.trim();
         cleanAddress =
             cleanAddress.replaceAll(RegExp(r'[A-Z0-9]{4}\+[A-Z0-9]{3}'), '');
-
-        // Remove extra commas and clean up
         cleanAddress = cleanAddress.replaceAll(RegExp(r',+'), ',');
         cleanAddress =
             cleanAddress.replaceAll(RegExp(r'^\s*,\s*|\s*,\s*$'), '');
 
-        // Get coordinates directly without updating the state first
         final fullAddress =
-            '${cleanAddress}, ${_cityController.text.trim()}, ${_regionController.text.trim()}, Ghana';
-        print(
-            '🗺️ [MAP PICKER] Original address: "${_addressController.text}"');
-        print('🗺️ [MAP PICKER] Cleaned address: "$cleanAddress"');
-        print('🗺️ [MAP PICKER] Full address for geocoding: "$fullAddress"');
+            '$cleanAddress, ${_cityController.text.trim()}, ${_regionController.text.trim()}, Ghana';
 
         final locations = await locationFromAddress(fullAddress);
         if (!mounted) return;
@@ -3533,72 +3303,11 @@ class DeliveryPageState extends State<DeliveryPage> {
           final location = locations.first;
           initialLat = location.latitude;
           initialLng = location.longitude;
-
-          print(
-              '🗺️ [MAP PICKER] ✅ SUCCESS! Fresh coordinates obtained: ($initialLat, $initialLng)');
-
-          // Update the state for future use
-          _setStateIfMounted(() {
-            _latitude = initialLat;
-            _longitude = initialLng;
-          });
-
-          print(
-              '🗺️ [MAP PICKER] State updated with new coordinates: ($_latitude, $_longitude)');
-
-          // Fee sync runs after the user confirms a pin on the map — not while opening it.
-          await Future.delayed(const Duration(milliseconds: 200));
-          if (!mounted) return;
-
-          print(
-              '🗺️ [MAP PICKER] After delay - coordinates: ($initialLat, $initialLng)');
-        } else {
-          print(
-              '🗺️ [MAP PICKER] ⚠️ No coordinates found for address: "$fullAddress"');
-          print('🗺️ [MAP PICKER] Falling back to stored coordinates...');
-          // Use stored coordinates if available
-          if (_latitude != null && _longitude != null) {
-            initialLat = _latitude!;
-            initialLng = _longitude!;
-            print(
-                '🗺️ [MAP PICKER] Using stored coordinates: ($initialLat, $initialLng)');
-          }
         }
       } catch (e) {
-        print('🗺️ [MAP PICKER] ❌ Error getting coordinates from address: $e');
-        print('🗺️ [MAP PICKER] Falling back to stored coordinates...');
-        // Use stored coordinates if available
-        if (_latitude != null && _longitude != null) {
-          initialLat = _latitude!;
-          initialLng = _longitude!;
-          print(
-              '🗺️ [MAP PICKER] Using stored coordinates: ($initialLat, $initialLng)');
-        }
-      }
-    } else {
-      // No address entered, use stored coordinates if available
-      if (_latitude != null && _longitude != null) {
-        initialLat = _latitude!;
-        initialLng = _longitude!;
-        print(
-            '🗺️ [MAP PICKER] No address entered, using stored coordinates: ($initialLat, $initialLng)');
-      } else {
-        print(
-            '🗺️ [MAP PICKER] No address entered, using default coordinates: ($initialLat, $initialLng)');
+        checkoutLog('🗺️ [MAP PICKER] Geocode error: $e');
       }
     }
-
-    print('🗺️ [MAP PICKER] ===== FINAL RESULT =====');
-    print(
-        '🗺️ [MAP PICKER] Map will open at coordinates: ($initialLat, $initialLng)');
-    print('🗺️ [MAP PICKER] ========================');
-
-    // iOS-specific debugging
-    print('🗺️ [MAP PICKER] [iOS DEBUG] About to open MapPickerPage with:');
-    print('🗺️ [MAP PICKER] [iOS DEBUG] - initialLatitude: $initialLat');
-    print('🗺️ [MAP PICKER] [iOS DEBUG] - initialLongitude: $initialLng');
-    print(
-        '🗺️ [MAP PICKER] [iOS DEBUG] - Data type check: ${initialLat.runtimeType}, ${initialLng.runtimeType}');
 
     if (!mounted) return;
     _pushPageOnce(
@@ -3609,23 +3318,6 @@ class DeliveryPageState extends State<DeliveryPage> {
           onOfferPickup: _switchToPickupFromOutsideGeofence,
           onLocationSelected: (double lat, double lng, String? address) {
             _onDeliveryLocationSelected(lat, lng, address: address);
-
-            print(
-                '🗺️ [MAP PICKER] ===== EXACT LOCATION SELECTED FROM MAP =====');
-            print('🗺️ [MAP PICKER] 🎯 PRECISE COORDINATES SELECTED:');
-            print('   📍 Latitude: $lat');
-            print('   📍 Longitude: $lng');
-            print('   📍 Full coordinates: ($lat, $lng)');
-            print('   📍 Address from map picker: $address');
-            print(
-                '   📍 Coordinates type: ${lat.runtimeType}, ${lng.runtimeType}');
-            print('   📍 Coordinates precision: '
-                '${lat.toStringAsFixed(8)}, ${lng.toStringAsFixed(8)}');
-            print('🗺️ [MAP PICKER] 📍 STORED IN STATE:');
-            print('   📍 Stored Latitude: $_latitude');
-            print('   📍 Stored Longitude: $_longitude');
-            print('   📍 Stored coordinates: ($_latitude, $_longitude)');
-            print('🗺️ [MAP PICKER] ======================================');
           },
         ),
       ),
@@ -3637,16 +3329,7 @@ class DeliveryPageState extends State<DeliveryPage> {
   Future<void> _getAddressFromCoordinates(double lat, double lng,
       {String? preferredAddress}) async {
     try {
-      print(
-          '🔄 [REVERSE GEOCODING] Getting address from coordinates: ($lat, $lng)');
-
       final placemarks = await placemarkFromCoordinates(lat, lng);
-
-      // 🗺️ [REVERSE GEOCODING RESPONSE] Log the complete response
-      print('🗺️ [REVERSE GEOCODING RESPONSE] ===== COMPLETE RESPONSE =====');
-      print('🗺️ [REVERSE GEOCODING RESPONSE] Raw placemarks: $placemarks');
-      print(
-          '🗺️ [REVERSE GEOCODING RESPONSE] Placemarks count: ${placemarks.length}');
 
       if (placemarks.isNotEmpty) {
         // Try to pick the most human-friendly placemark:
@@ -3660,34 +3343,8 @@ class DeliveryPageState extends State<DeliveryPage> {
           }
         }
 
-        // Log detailed placemark information
-        print('🗺️ [REVERSE GEOCODING RESPONSE] First placemark: $placemark');
-        print('🗺️ [REVERSE GEOCODING RESPONSE] Street: ${placemark.street}');
-        print(
-            '🗺️ [REVERSE GEOCODING RESPONSE] Sub-locality: ${placemark.subLocality}');
-        print(
-            '🗺️ [REVERSE GEOCODING RESPONSE] Locality: ${placemark.locality}');
-        print(
-            '🗺️ [REVERSE GEOCODING RESPONSE] Administrative area: ${placemark.administrativeArea}');
-        print('🗺️ [REVERSE GEOCODING RESPONSE] Country: ${placemark.country}');
-        print(
-            '🗺️ [REVERSE GEOCODING RESPONSE] Postal code: ${placemark.postalCode}');
-        print(
-            '🗺️ [REVERSE GEOCODING RESPONSE] ISO country code: ${placemark.isoCountryCode}');
-        print('🗺️ [REVERSE GEOCODING RESPONSE] Name: ${placemark.name}');
-        print(
-            '🗺️ [REVERSE GEOCODING RESPONSE] Thoroughfare: ${placemark.thoroughfare}');
-        print(
-            '🗺️ [REVERSE GEOCODING RESPONSE] Sub-thoroughfare: ${placemark.subThoroughfare}');
-
-        // Build a readable address prioritizing place name
         final address = _buildReadableAddressFromPlacemark(placemark);
 
-        print('✅ [REVERSE GEOCODING] Address found: $address');
-        print(
-            '🗺️ [REVERSE GEOCODING RESPONSE] ======================================');
-
-        // Update all location fields with the found data from reverse geocoding
         if (mounted) {
           _invalidateBillingLocationCache();
           _runWithSuppressedAddressFeeRefresh(() {
@@ -3696,22 +3353,14 @@ class DeliveryPageState extends State<DeliveryPage> {
               if (placemark.administrativeArea != null &&
                   placemark.administrativeArea!.isNotEmpty) {
                 _regionController.text = placemark.administrativeArea!;
-                print(
-                    '🗺️ [REVERSE GEOCODING] Updated region: ${placemark.administrativeArea}');
               }
 
-              // Update city with locality
               if (placemark.locality != null &&
                   placemark.locality!.isNotEmpty) {
                 _cityController.text = placemark.locality!;
-                print(
-                    '🗺️ [REVERSE GEOCODING] Updated city: ${placemark.locality}');
               }
 
-              // Update address field: use preferred (e.g. from Places) or placemark-built
               _addressController.text = (preferredAddress ?? address).trim();
-              print(
-                  '🗺️ [REVERSE GEOCODING] Updated address: ${preferredAddress ?? address}');
 
               // Clear validation highlights since user picked a valid location
               _highlightRegionField = false;
@@ -3720,17 +3369,9 @@ class DeliveryPageState extends State<DeliveryPage> {
             });
           });
         }
-      } else {
-        print(
-            '⚠️ [REVERSE GEOCODING] No address found for coordinates: ($lat, $lng)');
-        print(
-            '🗺️ [REVERSE GEOCODING RESPONSE] ======================================');
       }
     } catch (e) {
-      print('❌ [REVERSE GEOCODING] Error: $e');
-      print('❌ [REVERSE GEOCODING] Error type: ${e.runtimeType}');
-      print(
-          '🗺️ [REVERSE GEOCODING RESPONSE] ======================================');
+      checkoutLog('❌ Reverse geocoding error: $e');
     }
   }
 
@@ -3847,56 +3488,35 @@ class DeliveryPageState extends State<DeliveryPage> {
             final rawRegions = List<Map<String, dynamic>>.from(result['data']);
             final uniqueRegions = <String, Map<String, dynamic>>{};
 
-            print('🔍 [REGIONS] Processing ${rawRegions.length} raw regions');
-
             for (final region in rawRegions) {
               try {
                 final description = region['description']?.toString() ?? '';
                 if (description.isNotEmpty &&
                     !uniqueRegions.containsKey(description)) {
                   uniqueRegions[description] = region;
-                } else if (description.isNotEmpty) {
-                  print(
-                      '⚠️ [REGIONS] Duplicate region description found: "$description"');
                 }
-              } catch (e) {
-                print('⚠️ [REGIONS] Error processing region: $e');
+              } catch (_) {
                 continue;
               }
             }
 
             final allRegions = uniqueRegions.values.toList();
 
-            // Filter to only show Greater Accra, Ashanti, and Western regions
             final allowedRegionNames = [
               'greater accra',
               'ashanti',
               'western',
-              'accra', // Also allow "Accra" as it might be named differently
+              'accra',
             ];
 
             final filteredRegions = allRegions.where((region) {
               final regionName =
                   (region['description'] ?? '').toString().toLowerCase().trim();
-              final isAllowed = allowedRegionNames
+              return allowedRegionNames
                   .any((allowed) => regionName.contains(allowed));
-
-              if (!isAllowed) {
-                print(
-                    '❌ [REGIONS] Region filtered out: "$regionName" (original: "${region['description']}")');
-              } else {
-                print(
-                    '✅ [REGIONS] Region allowed: "$regionName" (original: "${region['description']}")');
-              }
-
-              return isAllowed;
             }).toList();
 
             regions = filteredRegions;
-            print(
-                '✅ [REGIONS] Filtered to ${regions.length} regions (from ${allRegions.length} total)');
-            print(
-                '📋 [REGIONS] Allowed regions: ${regions.map((r) => r['description']).toList()}');
             isLoadingRegions = false;
 
             // Validate pre-filled region value - use flexible matching
@@ -3910,13 +3530,11 @@ class DeliveryPageState extends State<DeliveryPage> {
               });
               if (!regionExists) {
                 _regionController.clear();
-                print(
-                    '⚠️ [REGIONS] Pre-filled region not in allowed list, cleared');
               }
             }
           });
         } catch (e) {
-          print('❌ [REGIONS] Error setting regions state: $e');
+          checkoutLog('❌ [REGIONS] Error setting regions state: $e');
           setState(() {
             regions = [];
             isLoadingRegions = false;
@@ -3985,7 +3603,6 @@ class DeliveryPageState extends State<DeliveryPage> {
           });
           if (!cityExists) {
             _cityController.clear();
-            print('⚠️ [CITIES] Pre-filled city not in cities list, cleared');
           }
         }
       });
@@ -4029,8 +3646,6 @@ class DeliveryPageState extends State<DeliveryPage> {
             // Deduplicate stores by description to prevent dropdown errors
             final uniqueStores = <String, Map<String, dynamic>>{};
 
-            print('🔍 [STORES] Processing ${storesData.length} raw stores');
-
             for (final store in storesData) {
               try {
                 final normalized = DeliveryService.normalizeStoreMap(store);
@@ -4038,36 +3653,26 @@ class DeliveryPageState extends State<DeliveryPage> {
                 if (description.isNotEmpty &&
                     !uniqueStores.containsKey(description)) {
                   uniqueStores[description] = normalized;
-                } else if (description.isNotEmpty) {
-                  print(
-                      '⚠️ [STORES] Duplicate store description found: "$description"');
                 }
-              } catch (e) {
-                print('⚠️ [STORES] Error processing store: $e');
+              } catch (_) {
                 continue;
               }
             }
 
             stores = uniqueStores.values.toList();
-            print('✅ [STORES] Deduplicated to ${stores.length} unique stores');
-            _storesCache[cityId] =
-                uniqueStores.values.toList(); // Cache the deduplicated result
+            _storesCache[cityId] = uniqueStores.values.toList();
             isLoadingStores = false;
 
-            // Validate pre-filled pickup site value after stores are loaded
             if (selectedPickupSite != null) {
               final storeExists =
                   stores.any((s) => s['id'] == selectedPickupSite!['id']);
               if (!storeExists) {
-                // Clear invalid pickup site value to prevent dropdown errors
                 selectedPickupSite = null;
-                print(
-                    '⚠️ [STORES] Pre-filled pickup site not found in stores list, cleared');
               }
             }
           });
         } catch (e) {
-          print('❌ [STORES] Error setting stores state: $e');
+          checkoutLog('❌ [STORES] Error setting stores state: $e');
           setState(() {
             stores = [];
             isLoadingStores = false;

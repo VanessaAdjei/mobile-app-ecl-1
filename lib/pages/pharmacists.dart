@@ -1,17 +1,18 @@
 // pages/pharmacists.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import 'app_back_button.dart';
 import '../config/app_colors.dart';
+import '../config/app_routes.dart';
 import '../utils/app_error_utils.dart';
 import '../utils/app_theme_colors.dart';
 import '../widgets/cart_icon_button.dart';
 import 'pharmacists/pharmacists_bookings_sheet.dart';
 import 'pharmacists/pharmacists_booking_helpers.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/health_tips_service.dart';
@@ -111,6 +112,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   List<Map<String, dynamic>> _bookings = [];
   List<HealthTip> _healthTips = [];
   bool _isLoadingHealthTips = false;
+  bool _isRefreshingHealthTips = false;
   bool _isUserLoggedIn = false;
   static List<HealthTip> _cachedHealthTips = [];
   static DateTime? _lastHealthTipsCacheTime;
@@ -194,34 +196,24 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   }
 
   Future<void> _refreshHealthTips() async {
-    // show feedback right away
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            ),
-            SizedBox(width: 12),
-            Text('Refreshing health insights...'),
-          ],
-        ),
-        backgroundColor: Colors.blue[600],
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        duration: Duration(seconds: 3),
-      ),
-    );
+    if (_isRefreshingHealthTips) return;
+
+    setState(() => _isRefreshingHealthTips = true);
 
     _cachedHealthTips.clear();
     _lastHealthTipsCacheTime = null;
+    HealthTipsService.clearCache();
 
-    await _loadFreshHealthTipsInBackground();
+    try {
+      await _loadFreshHealthTipsInBackground(forceRefresh: true);
+      if (mounted && _healthTips.isEmpty) {
+        _showInstantFallbackTips();
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshingHealthTips = false);
+      }
+    }
   }
 
   bool _isLocalCacheValid() {
@@ -286,32 +278,42 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         'PharmacistsPage: Fallback tips set, count: ${_healthTips.length}');
   }
 
-  Future<void> _loadFreshHealthTipsInBackground() async {
+  Future<void> _loadFreshHealthTipsInBackground({
+    bool forceRefresh = false,
+  }) async {
     try {
-      final backgroundTips = HealthTipsService.getCurrentTips(limit: 4);
-      if (backgroundTips.isNotEmpty) {
-        setState(() {
-          _healthTips = backgroundTips;
-          _isLoadingHealthTips = false;
-        });
-        return;
+      if (!forceRefresh) {
+        final backgroundTips = HealthTipsService.getCurrentTips(limit: 4);
+        if (backgroundTips.isNotEmpty) {
+          if (!mounted) return;
+          setState(() {
+            _healthTips = backgroundTips;
+            _isLoadingHealthTips = false;
+          });
+          return;
+        }
       }
 
-      final tips = await HealthTipsService.fetchHealthTips(limit: 4)
-          .timeout(Duration(seconds: 6));
+      final tips = await HealthTipsService.fetchHealthTips(
+        limit: 4,
+        forceRefresh: forceRefresh,
+      ).timeout(const Duration(seconds: 12));
 
-      if (mounted && tips.isNotEmpty) {
-        // save the fresh tips locally
-        _cachedHealthTips = tips;
-        _lastHealthTipsCacheTime = DateTime.now();
+      if (!mounted || tips.isEmpty) return;
 
-        setState(() {
-          _healthTips = tips;
-          _isLoadingHealthTips = false;
-        });
-      }
+      _cachedHealthTips = tips;
+      _lastHealthTipsCacheTime = DateTime.now();
+
+      setState(() {
+        _healthTips = tips;
+        _isLoadingHealthTips = false;
+      });
     } catch (e) {
       debugPrint('Error loading fresh health tips: $e');
+      if (!mounted) return;
+      if (forceRefresh && _healthTips.isEmpty) {
+        _showInstantFallbackTips();
+      }
     }
   }
 
@@ -616,26 +618,41 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   /// Returns true if cancel succeeded (so caller can close sheet).
   Future<bool> _cancelBooking(Map<String, dynamic> booking) async {
     final id = booking['id'];
-    if (id == null) {
-      setState(() => _bookings.remove(booking));
+    final index = indexOfBooking(_bookings, booking);
+    Map<String, dynamic>? removed;
+
+    if (index >= 0) {
+      removed = Map<String, dynamic>.from(_bookings[index]);
+      setState(() => _bookings.removeAt(index));
       await _saveBookings();
-      return true;
     }
-    final result = await BookingService.cancel(id.toString());
-    if (!context.mounted) return false;
-    if (result['success'] == true) {
-      setState(() =>
-          _bookings.removeWhere((e) => e['id'] == id || identical(e, booking)));
-      await _saveBookings();
-      if (!context.mounted) return false;
+
+    if (id == null) {
+      if (!mounted) return false;
       AppErrorUtils.showSnack(context, 'Booking cancelled', isError: false);
       return true;
-    } else {
-      AppErrorUtils.showSnack(
-          context, result['message']?.toString() ?? 'Failed to cancel booking',
-          isError: true);
-      return false;
     }
+
+    final result = await BookingService.cancel(id.toString());
+    if (!mounted) return false;
+
+    if (result['success'] == true) {
+      AppErrorUtils.showSnack(context, 'Booking cancelled', isError: false);
+      return true;
+    }
+
+    if (removed != null) {
+      final restoreAt = index.clamp(0, _bookings.length);
+      setState(() => _bookings.insert(restoreAt, removed!));
+      await _saveBookings();
+    }
+
+    AppErrorUtils.showSnack(
+      context,
+      result['message']?.toString() ?? 'Failed to cancel booking',
+      isError: true,
+    );
+    return false;
   }
 
   @override
@@ -2029,7 +2046,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
             color: theme.fieldBg,
           ),
           child: DropdownButtonFormField<String>(
-            value: value,
+            initialValue: value,
             decoration: const InputDecoration(
               border: InputBorder.none,
               contentPadding:
@@ -2231,23 +2248,37 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       if (result['success'] == true) {
         final bookingData = result['booking'];
         if (bookingData is Map<String, dynamic>) {
-          setState(() => _bookings.insert(0, bookingData));
+          setState(() => _bookings.insert(
+                0,
+                Map<String, dynamic>.from(bookingData),
+              ));
         } else {
           setState(() => _bookings.insert(0, localBooking));
         }
         await _saveBookings();
         _showSuccessDialog();
-      } else {
-        AppErrorUtils.showSnack(
-            context, result['message']?.toString() ?? 'Booking failed',
-            isError: true, duration: Duration(seconds: 4));
+        return;
       }
+
+      if (result['offline'] == true) {
+        setState(() => _bookings.insert(0, localBooking));
+        await _saveBookings();
+        _showSuccessDialog(offline: true);
+        return;
+      }
+
+      AppErrorUtils.showSnack(
+        context,
+        result['message']?.toString() ?? 'Booking failed',
+        isError: true,
+        duration: const Duration(seconds: 4),
+      );
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context);
       setState(() => _bookings.insert(0, localBooking));
       await _saveBookings();
-      _showSuccessDialog();
+      _showSuccessDialog(offline: true);
     }
   }
 
@@ -2317,7 +2348,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     );
   }
 
-  void _showSuccessDialog() {
+  void _showSuccessDialog({bool offline = false}) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -2343,19 +2374,21 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 padding: EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.green[400]!, Colors.green[600]!],
+                    colors: offline
+                        ? [Colors.orange[400]!, Colors.orange[600]!]
+                        : [Colors.green[400]!, Colors.green[600]!],
                   ),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(
-                  Icons.check_circle,
+                  offline ? Icons.cloud_off_rounded : Icons.check_circle,
                   color: Colors.white,
                   size: 48,
                 ),
               ),
               SizedBox(height: 16),
               Text(
-                'Booking Successful!',
+                offline ? 'Saved on this device' : 'Booking Successful!',
                 style: GoogleFonts.poppins(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -2364,7 +2397,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               ),
               SizedBox(height: 8),
               Text(
-                'Your consultation has been booked successfully. We\'ll contact you soon to confirm the details.',
+                offline
+                    ? 'We couldn\'t reach the server right now. Your appointment is saved here — connect to the internet and try booking again, or contact us to confirm.'
+                    : 'Your consultation has been booked successfully. We\'ll contact you soon to confirm the details.',
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   color: Colors.grey[600],
@@ -2432,10 +2467,25 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (_) => BookingsListSheet(
-          bookings: visible,
-          onClear: _clearBookings,
-          onCancelBooking: _cancelBooking,
+        builder: (sheetContext) => StatefulBuilder(
+          builder: (context, setSheetState) {
+            return BookingsListSheet(
+              bookings: _pharmacistPageBookings,
+              onClear: () async {
+                await _clearBookings();
+                if (sheetContext.mounted) {
+                  setSheetState(() {});
+                }
+              },
+              onCancelBooking: (booking) async {
+                final ok = await _cancelBooking(booking);
+                if (sheetContext.mounted) {
+                  setSheetState(() {});
+                }
+                return ok;
+              },
+            );
+          },
         ),
       );
     }
@@ -2610,19 +2660,10 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     );
   }
 
-  void _openBookingsSheet() {
-    final visible = _pharmacistPageBookings;
-    if (visible.isEmpty) return;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => BookingsListSheet(
-        bookings: visible,
-        onClear: _clearBookings,
-        onCancelBooking: _cancelBooking,
-      ),
-    );
+  void _openMyAppointments() {
+    Navigator.pushNamed(context, AppRoutes.myAppointments).then((_) {
+      if (mounted) unawaited(_loadBookings());
+    });
   }
 
   @override
@@ -2634,22 +2675,30 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       backgroundColor: pageBg,
       body: _pharmPageBackdrop(
         context: context,
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(
-            parent: AlwaysScrollableScrollPhysics(),
-          ),
-          slivers: [
-            SliverToBoxAdapter(child: _buildPharmacistPageHeader()),
-            if (hasBookings)
-              SliverToBoxAdapter(child: _buildTopBookingsStrip()),
-            SliverPadding(
-              padding: EdgeInsets.fromLTRB(20, hasBookings ? 12 : 18, 20, 32),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  _buildHeroSection(),
-                  const SizedBox(height: 16),
-                  _buildRedesignedHealthTipsSection(),
-                ]),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildPharmacistPageHeader(),
+            Expanded(
+              child: CustomScrollView(
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
+                ),
+                slivers: [
+                  if (hasBookings)
+                    SliverToBoxAdapter(child: _buildTopBookingsStrip()),
+                  SliverPadding(
+                    padding:
+                        EdgeInsets.fromLTRB(20, hasBookings ? 12 : 18, 20, 32),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        _buildHeroSection(),
+                        const SizedBox(height: 16),
+                        _buildRedesignedHealthTipsSection(),
+                      ]),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -2734,37 +2783,36 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _PharmacistActionTile(
-                        icon: Icons.calendar_month_rounded,
-                        label: 'Book appointment',
-                        subtitle: 'Video, audio, or chat',
-                        filled: true,
-                        onTap: _showBookingForm,
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: _PharmacistActionTile(
+                          icon: Icons.calendar_month_rounded,
+                          label: 'Book appointment',
+                          subtitle: 'Video, audio, or chat',
+                          isPrimary: true,
+                          ctaLabel: 'Book now',
+                          onTap: _showBookingForm,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _PharmacistActionTile(
-                        icon: Icons.event_note_rounded,
-                        label: 'My bookings',
-                        subtitle: hasBookings
-                            ? '${_pharmacistPageBookings.length} upcoming'
-                            : 'None yet',
-                        filled: false,
-                        onTap: hasBookings
-                            ? _openBookingsSheet
-                            : () {
-                                AppErrorUtils.showSnack(
-                                  context,
-                                  'Book a session to see it here.',
-                                );
-                              },
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _PharmacistActionTile(
+                          icon: Icons.event_note_rounded,
+                          label: 'My bookings',
+                          subtitle: 'Consultations & follow-ups',
+                          isPrimary: false,
+                          ctaLabel: 'View all',
+                          badge: hasBookings
+                              ? '${_pharmacistPageBookings.length}'
+                              : null,
+                          onTap: _openMyAppointments,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Container(
@@ -2890,197 +2938,464 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     return raw;
   }
 
-  /// One-line preview for compact tips list.
-  String _compactTipPreview(HealthTip tip) {
+  static const double _wellnessCardHeight = 168.0;
+
+  double _wellnessInsightCardWidth(BuildContext context) {
+    final screenW = MediaQuery.sizeOf(context).width;
+    return (screenW * 0.72).clamp(184.0, 210.0);
+  }
+
+  /// Two-line preview for insight cards.
+  String _insightCardPreview(HealthTip tip) {
     final raw = tip.summary?.trim().isNotEmpty == true
         ? tip.summary!.trim()
         : tip.content.trim();
-    if (raw.length <= 80) return raw;
-    return '${raw.substring(0, 80).trim()}…';
+    if (raw.length <= 88) return raw;
+    return '${raw.substring(0, 88).trim()}…';
   }
 
-  Widget _buildCompactHealthTipRow(HealthTip tip) {
+  Widget _buildWellnessInsightCard(
+    HealthTip tip, {
+    required double width,
+  }) {
     final theme = context.appColors;
     final v = _categoryVisualsForTip(tip);
-    final badgeBg = theme.isDark ? v.primary.withValues(alpha: 0.18) : v.accent;
-    final preview = _compactTipPreview(tip);
-    final String? resolvedImageUrl = _resolvedHealthTipImageUrl(tip);
-    final bool hasImage =
-        resolvedImageUrl != null && resolvedImageUrl.isNotEmpty;
+    final preview = _insightCardPreview(tip);
+    final resolvedImageUrl = _resolvedHealthTipImageUrl(tip);
+    final hasImage = resolvedImageUrl != null && resolvedImageUrl.isNotEmpty;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => _showHealthTipDetails(tip),
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: SizedBox(
-                  width: 52,
-                  height: 52,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: theme.border),
-                      color: badgeBg,
-                    ),
-                    child: hasImage
-                        ? CachedNetworkImage(
+    return SizedBox(
+      width: width,
+      height: _wellnessCardHeight,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showHealthTipDetails(tip),
+          borderRadius: BorderRadius.circular(12),
+          child: Ink(
+            decoration: BoxDecoration(
+              color: theme.isDark ? theme.fieldBg : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.isDark
+                    ? theme.border
+                    : v.primary.withValues(alpha: 0.14),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: theme.isDark
+                      ? Colors.black.withValues(alpha: 0.2)
+                      : v.primary.withValues(alpha: 0.07),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(11),
+                  ),
+                  child: SizedBox(
+                    height: 68,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (hasImage)
+                          CachedNetworkImage(
                             imageUrl: resolvedImageUrl,
                             fit: BoxFit.cover,
-                            fadeInDuration: const Duration(milliseconds: 180),
-                            placeholder: (_, __) => Center(
-                              child: SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: v.primary.withOpacity(0.75),
-                                ),
+                            fadeInDuration: const Duration(milliseconds: 200),
+                            placeholder: (_, __) => ColoredBox(
+                              color: v.accent.withValues(
+                                alpha: theme.isDark ? 0.35 : 1,
                               ),
                             ),
-                            errorWidget: (_, __, ___) => Icon(
-                              v.icon,
-                              color: v.primary,
-                              size: 26,
+                            errorWidget: (_, __, ___) => ColoredBox(
+                              color: v.accent.withValues(
+                                alpha: theme.isDark ? 0.35 : 1,
+                              ),
+                              child: Icon(v.icon, color: v.primary, size: 28),
                             ),
                           )
-                        : Center(
-                            child: Icon(
-                              v.icon,
-                              color: v.primary,
-                              size: 26,
+                        else
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: theme.isDark
+                                    ? [
+                                        v.primary.withValues(alpha: 0.35),
+                                        v.primary.withValues(alpha: 0.12),
+                                      ]
+                                    : [v.accent, Colors.white],
+                              ),
+                            ),
+                            child: Center(
+                              child: Icon(v.icon, color: v.primary, size: 28),
                             ),
                           ),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.38),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: 8,
+                          bottom: 6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.92),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              tip.category,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.poppins(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w700,
+                                color: v.primary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: badgeBg,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        tip.category,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
-                          color: v.primary,
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          tip.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: theme.ink,
+                            height: 1.22,
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 3),
+                        Expanded(
+                          child: Text(
+                            preview,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 9.5,
+                              color: theme.muted,
+                              height: 1.32,
+                            ),
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              'Read',
+                              style: GoogleFonts.poppins(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                                color: v.primary,
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 12,
+                              color: v.primary,
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      tip.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: theme.ink,
-                        height: 1.25,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      preview,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: 10,
-                        color: theme.muted,
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 20,
-                color: theme.muted.withValues(alpha: 0.65),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildCompactHealthTipsList() {
+  Widget _buildWellnessInsightSkeleton({required double width}) {
     final theme = context.appColors;
-
-    if (_isLoadingHealthTips) {
-      return Container(
-        height: 56,
+    return SizedBox(
+      width: width,
+      height: _wellnessCardHeight,
+      child: DecoratedBox(
         decoration: BoxDecoration(
-          color: theme.sheetBg,
-          borderRadius: BorderRadius.circular(10),
+          color: theme.fieldBg,
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: theme.border),
         ),
-        child: Center(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: _pharmAccent(context),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              height: 68,
+              decoration: BoxDecoration(
+                color: theme.border.withValues(alpha: 0.45),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(11),
                 ),
               ),
-              const SizedBox(width: 10),
-              Text(
-                'Loading tips…',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: theme.muted,
-                  fontWeight: FontWeight.w500,
+            ),
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    height: 10,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: theme.border.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    height: 8,
+                    width: 120,
+                    decoration: BoxDecoration(
+                      color: theme.border.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWellnessCarouselFade({required Widget child, bool show = true}) {
+    if (!show) return child;
+    final theme = context.appColors;
+    return Stack(
+      children: [
+        child,
+        Positioned(
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: 32,
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    theme.sheetBg.withValues(alpha: 0),
+                    theme.sheetBg.withValues(alpha: 0.92),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildWellnessRefreshChip({bool expanded = false}) {
+    final theme = context.appColors;
+    final accent = _pharmAccent(context);
+    final busy = _isRefreshingHealthTips;
+
+    final child = Row(
+      mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
+      mainAxisAlignment:
+          expanded ? MainAxisAlignment.center : MainAxisAlignment.start,
+      children: [
+        if (busy)
+          SizedBox(
+            width: 13,
+            height: 13,
+            child: CircularProgressIndicator(
+              strokeWidth: 1.6,
+              color: accent,
+            ),
+          )
+        else
+          Icon(Icons.sync_rounded, size: 14, color: accent),
+        const SizedBox(width: 6),
+        Text(
+          busy ? 'Updating tips…' : 'Update tips',
+          style: GoogleFonts.poppins(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+            color: accent,
+          ),
+        ),
+      ],
+    );
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: busy ? null : _refreshHealthTips,
+        borderRadius: BorderRadius.circular(20),
+        child: Ink(
+          width: expanded ? double.infinity : null,
+          padding: EdgeInsets.symmetric(
+            horizontal: expanded ? 14 : 11,
+            vertical: 7,
+          ),
+          decoration: BoxDecoration(
+            color: theme.isDark
+                ? accent.withValues(alpha: 0.14)
+                : accent.withValues(alpha: 0.09),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: accent.withValues(alpha: busy ? 0.45 : 0.28),
+            ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWellnessInsightsFooter({required int tipCount}) {
+    final theme = context.appColors;
+    final accent = _pharmAccent(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
+      child: Row(
+        children: [
+          if (tipCount > 1) ...[
+            Icon(Icons.swipe_left_alt_rounded, size: 14, color: accent),
+            const SizedBox(width: 4),
+            Text(
+              'Swipe for more',
+              style: GoogleFonts.poppins(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: accent,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ] else
+            Text(
+              'Latest wellness guidance',
+              style: GoogleFonts.poppins(
+                fontSize: 10,
+                color: theme.muted,
+              ),
+            ),
+          const Spacer(),
+          _buildWellnessRefreshChip(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWellnessScrollHint({required int tipCount}) {
+    return _buildWellnessInsightsFooter(tipCount: tipCount);
+  }
+
+  Widget _buildWellnessInsightsCarousel() {
+    final theme = context.appColors;
+    final cardWidth = _wellnessInsightCardWidth(context);
+
+    if (_isLoadingHealthTips) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: _wellnessCardHeight,
+            child: _buildWellnessCarouselFade(
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(left: 14, right: 4),
+                itemCount: 3,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (_, __) =>
+                    _buildWellnessInsightSkeleton(width: cardWidth),
+              ),
+            ),
+          ),
+          _buildWellnessScrollHint(tipCount: 3),
+        ],
       );
     }
 
     if (_healthTips.isEmpty) {
-      return Container(
-        height: 64,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: theme.sheetBg,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: theme.border),
-        ),
-        child: Center(
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+          decoration: BoxDecoration(
+            color: theme.isDark ? theme.fieldBg : const Color(0xFFF4FAF6),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.16),
+            ),
+          ),
           child: Row(
             children: [
-              Icon(Icons.lightbulb_outline_rounded,
-                  size: 22, color: _pharmAccent(context)),
-              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.spa_outlined,
+                  color: _pharmAccent(context),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  'No tips yet. Pull refresh above.',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: theme.muted,
-                    height: 1.3,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Tips will appear here',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: theme.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Tap update below for the latest guidance.',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: theme.muted,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildWellnessRefreshChip(expanded: true),
+                  ],
                 ),
               ),
             ],
@@ -3090,26 +3405,28 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     }
 
     final tips = _healthTips.take(4).toList();
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.sheetBg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.border),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (int i = 0; i < tips.length; i++) ...[
-            if (i > 0)
-              Divider(
-                height: 1,
-                thickness: 1,
-                color: theme.border,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: _wellnessCardHeight,
+          child: _buildWellnessCarouselFade(
+            show: tips.length > 1,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(left: 14, right: 4),
+              physics: const BouncingScrollPhysics(),
+              itemCount: tips.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (context, index) => _buildWellnessInsightCard(
+                tips[index],
+                width: cardWidth,
               ),
-            _buildCompactHealthTipRow(tips[i]),
-          ],
-        ],
-      ),
+            ),
+          ),
+        ),
+        _buildWellnessScrollHint(tipCount: tips.length),
+      ],
     );
   }
 
@@ -3319,23 +3636,24 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
 
   Widget _buildRedesignedHealthTipsSection() {
     final theme = context.appColors;
+    final accent = _pharmAccent(context);
 
     return Container(
       decoration: BoxDecoration(
         color: theme.sheetBg,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: theme.isDark
               ? theme.border
-              : AppColors.primary.withValues(alpha: 0.18),
+              : AppColors.primary.withValues(alpha: 0.16),
         ),
         boxShadow: [
           BoxShadow(
             color: theme.isDark
-                ? Colors.black.withValues(alpha: 0.24)
-                : AppColors.primary.withValues(alpha: 0.07),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+                ? Colors.black.withValues(alpha: 0.22)
+                : AppColors.primary.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -3344,81 +3662,77 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: theme.isDark
-                    ? [
-                        AppColors.primary.withValues(alpha: 0.18),
-                        theme.fieldBg,
-                      ]
-                    : [
-                        const Color(0xFFDFF0E4),
-                        const Color(0xFFF0FAF3),
-                      ],
-              ),
-            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(6),
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
-                    color: theme.isDark
-                        ? Colors.white.withValues(alpha: 0.12)
-                        : Colors.white.withValues(alpha: 0.85),
-                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: theme.isDark
+                          ? [
+                              accent.withValues(alpha: 0.35),
+                              accent.withValues(alpha: 0.12),
+                            ]
+                          : [
+                              const Color(0xFFD8F0DE),
+                              const Color(0xFFECF8F0),
+                            ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(Icons.lightbulb_outline_rounded,
-                      size: 18,
-                      color: theme.isDark
-                          ? AppColors.primaryLight
-                          : AppColors.primaryDark),
+                  child: Icon(
+                    Icons.auto_awesome_rounded,
+                    size: 22,
+                    color: theme.isDark ? AppColors.primaryLight : accent,
+                  ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Wellness insights',
+                        'WELLNESS',
                         style: GoogleFonts.poppins(
-                          fontSize: 15,
+                          fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: theme.ink,
+                          letterSpacing: 0.8,
+                          color: accent,
                         ),
                       ),
+                      const SizedBox(height: 2),
                       Text(
-                        'Short reads from trusted health guidance.',
+                        'Wellness insights',
+                        style: GoogleFonts.poppins(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: theme.ink,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Swipe sideways for more tips.',
                         style: GoogleFonts.poppins(
                           fontSize: 11,
                           color: theme.muted,
-                          height: 1.35,
+                          height: 1.4,
                         ),
                       ),
                     ],
                   ),
                 ),
-                IconButton(
-                  onPressed: _refreshHealthTips,
-                  tooltip: 'Refresh tips',
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints(minWidth: 32, minHeight: 32),
-                  icon: Icon(Icons.refresh_rounded,
-                      size: 20,
-                      color: theme.isDark
-                          ? AppColors.primaryLight
-                          : AppColors.primaryDark),
-                ),
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
-            child: _buildCompactHealthTipsList(),
-          ),
+          _buildWellnessInsightsCarousel(),
+          const SizedBox(height: 6),
         ],
       ),
     );
@@ -3450,93 +3764,189 @@ class _PharmacistActionTile extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.subtitle,
-    required this.filled,
+    required this.isPrimary,
+    required this.ctaLabel,
     required this.onTap,
+    this.badge,
   });
 
   final IconData icon;
   final String label;
   final String subtitle;
-  final bool filled;
+  final bool isPrimary;
+  final String ctaLabel;
   final VoidCallback onTap;
+  final String? badge;
 
   @override
   Widget build(BuildContext context) {
     final theme = context.appColors;
-    final fg = filled
-        ? Colors.white
-        : (theme.isDark ? AppColors.primaryLight : AppColors.primaryDark);
-    final subColor =
-        filled ? Colors.white.withValues(alpha: 0.88) : theme.muted;
+    final accent = _pharmAccent(context);
+    final titleColor = isPrimary ? Colors.white : theme.ink;
+    final subtitleColor = isPrimary
+        ? Colors.white.withValues(alpha: 0.86)
+        : theme.muted;
+    final ctaColor =
+        isPrimary ? Colors.white.withValues(alpha: 0.92) : accent;
 
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            gradient: filled
-                ? const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [AppColors.primary, AppColors.primaryDark],
-                  )
-                : LinearGradient(
-                    colors: theme.isDark
-                        ? [
-                            AppColors.primary.withValues(alpha: 0.16),
-                            theme.fieldBg,
-                          ]
-                        : [
-                            const Color(0xFFE8F5E9),
-                            const Color(0xFFF8FCF9),
-                          ],
-                  ),
-            border: filled
-                ? null
-                : Border.all(
-                    color: theme.isDark
-                        ? AppColors.primary.withValues(alpha: 0.28)
-                        : AppColors.primary.withValues(alpha: 0.25),
-                  ),
-            boxShadow: filled
-                ? [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.25),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
+    return SizedBox(
+      width: double.infinity,
+      height: double.infinity,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Ink(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 11),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              gradient: isPrimary
+                  ? const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF1B5E20),
+                        AppColors.primary,
+                        Color(0xFF43A047),
+                      ],
+                      stops: [0.0, 0.55, 1.0],
+                    )
+                  : LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: theme.isDark
+                          ? [
+                              theme.fieldBg,
+                              AppColors.primary.withValues(alpha: 0.12),
+                            ]
+                          : [
+                              Colors.white,
+                              const Color(0xFFF1FAF4),
+                            ],
                     ),
-                  ]
-                : null,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: fg, size: 22),
-              const SizedBox(height: 10),
-              Text(
-                label,
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: fg,
-                  height: 1.2,
+              border: isPrimary
+                  ? null
+                  : Border.all(
+                      color: theme.isDark
+                          ? accent.withValues(alpha: 0.28)
+                          : accent.withValues(alpha: 0.22),
+                    ),
+              boxShadow: [
+                BoxShadow(
+                  color: isPrimary
+                      ? AppColors.primary.withValues(alpha: 0.28)
+                      : (theme.isDark
+                          ? Colors.black.withValues(alpha: 0.22)
+                          : AppColors.primary.withValues(alpha: 0.08)),
+                  blurRadius: isPrimary ? 10 : 6,
+                  offset: const Offset(0, 3),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: GoogleFonts.poppins(
-                  fontSize: 10,
-                  color: subColor,
-                  height: 1.3,
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: isPrimary
+                            ? Colors.white.withValues(alpha: 0.18)
+                            : accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(11),
+                        border: Border.all(
+                          color: isPrimary
+                              ? Colors.white.withValues(alpha: 0.22)
+                              : accent.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 19,
+                        color: isPrimary ? Colors.white : accent,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (badge != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isPrimary
+                              ? Colors.white.withValues(alpha: 0.2)
+                              : accent.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isPrimary
+                                ? Colors.white.withValues(alpha: 0.28)
+                                : accent.withValues(alpha: 0.28),
+                          ),
+                        ),
+                        child: Text(
+                          badge!,
+                          style: GoogleFonts.poppins(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: isPrimary ? Colors.white : accent,
+                            height: 1,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 10),
+                Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: titleColor,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    color: subtitleColor,
+                    height: 1.3,
+                  ),
+                ),
+                const Spacer(),
+                Row(
+                  children: [
+                    Text(
+                      ctaLabel,
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: ctaColor,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 14,
+                      color: ctaColor,
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

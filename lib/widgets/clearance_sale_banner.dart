@@ -7,7 +7,7 @@ import '../providers/clearance_sale_provider.dart';
 import '../pages/clearance_homepage.dart';
 
 class ClearanceSaleBanner extends StatefulWidget {
-  const ClearanceSaleBanner({Key? key}) : super(key: key);
+  const ClearanceSaleBanner({super.key});
 
   @override
   State<ClearanceSaleBanner> createState() => _ClearanceSaleBannerState();

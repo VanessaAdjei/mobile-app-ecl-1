@@ -10,7 +10,7 @@ import 'auth_service.dart';
 class PromotionalEventService {
   static String get _eventsUrl => ApiConfig.getEndpointUrl(ApiConfig.promotionalEvents);
   static String get _applyOfferUrl => ApiConfig.getEndpointUrl('/apply-promotional-offer');
-  static String get _offersValidateUrl => ApiConfig.getEndpointUrl('/promotional-offers') + '/validate';
+  static String get _offersValidateUrl => '${ApiConfig.getEndpointUrl('/promotional-offers')}/validate';
 
   // Cache keys
   static const String _eventsCacheKey = 'promotional_events_cache';

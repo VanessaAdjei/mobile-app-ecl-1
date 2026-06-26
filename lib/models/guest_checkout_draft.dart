@@ -20,6 +20,7 @@ class GuestCheckoutDraft {
     this.emergencyOrderFee,
     this.estimatedDeliveryTime,
     this.distanceKm,
+    this.feeDistanceText,
     this.apiSubtotal,
     this.apiDiscountAmount,
     this.apiShippingFree,
@@ -47,6 +48,8 @@ class GuestCheckoutDraft {
   final double? emergencyOrderFee;
   final String? estimatedDeliveryTime;
   final double? distanceKm;
+  /// Server distance_text from save-billing (e.g. "0.4 km") for calculate-delivery-fee.
+  final String? feeDistanceText;
   final double? apiSubtotal;
   final double? apiDiscountAmount;
   final bool? apiShippingFree;
@@ -79,6 +82,7 @@ class GuestCheckoutDraft {
         'emergency_order_fee': emergencyOrderFee,
         'estimated_delivery_time': estimatedDeliveryTime,
         'distance_km': distanceKm,
+        'fee_distance_text': feeDistanceText,
         'api_subtotal': apiSubtotal,
         'api_discount_amount': apiDiscountAmount,
         'api_shipping_free': apiShippingFree,
@@ -115,6 +119,7 @@ class GuestCheckoutDraft {
       emergencyOrderFee: readDouble(json['emergency_order_fee']),
       estimatedDeliveryTime: json['estimated_delivery_time']?.toString(),
       distanceKm: readDouble(json['distance_km']),
+      feeDistanceText: json['fee_distance_text']?.toString(),
       apiSubtotal: readDouble(json['api_subtotal']),
       apiDiscountAmount: readDouble(json['api_discount_amount']),
       apiShippingFree: json['api_shipping_free'] as bool?,

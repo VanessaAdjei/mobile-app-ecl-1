@@ -238,13 +238,13 @@ class PromotionalOffer {
   // Get offer summary
   String get offerSummary {
     if (type == 'discount') {
-      return 'Get ${formattedValue} off';
+      return 'Get $formattedValue off';
     } else if (type == 'cashback') {
-      return 'Earn ${formattedValue}';
+      return 'Earn $formattedValue';
     } else if (type == 'free_shipping') {
       return 'Free Shipping';
     } else if (type == 'bonus') {
-      return 'Bonus ${formattedValue}';
+      return 'Bonus $formattedValue';
     }
     return description;
   }

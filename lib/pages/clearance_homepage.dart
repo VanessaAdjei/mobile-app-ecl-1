@@ -723,7 +723,7 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
                           Padding(
                             padding: EdgeInsets.only(left: isTablet ? 16 : 1),
                             child: Image.asset(
-                              'assets/images/png.png',
+                              'assets/images/app_logo.png',
                               height: isTablet ? 100 : 85,
                             ),
                           ),
@@ -1415,7 +1415,7 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Category Filter
-          Container(
+          SizedBox(
             height: 40,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
@@ -1478,7 +1478,7 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Container(
+                child: SizedBox(
                   height: 36,
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
@@ -1613,7 +1613,7 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
           ),
           const SizedBox(height: 12),
           // Carousel
-          Container(
+          SizedBox(
             height: 150,
             child: Stack(
               children: [
@@ -1686,7 +1686,7 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
         child: Stack(
           children: [
             // Background image
-            Container(
+            SizedBox(
               width: double.infinity,
               height: double.infinity,
               child: Image.network(
@@ -1934,7 +1934,7 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
                     flex: 3,
                     child: Stack(
                       children: [
-                        Container(
+                        SizedBox(
                           width: double.infinity,
                           height: double.infinity,
                           child: Image.network(

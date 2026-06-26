@@ -299,12 +299,15 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
                   '🔍 Found saved delivery address: $notificationAddress');
             } else if (savedRegion != null || savedCity != null) {
               final addressParts = <String>[];
-              if (savedAddress != null && savedAddress.isNotEmpty)
+              if (savedAddress != null && savedAddress.isNotEmpty) {
                 addressParts.add(savedAddress);
-              if (savedCity != null && savedCity.isNotEmpty)
+              }
+              if (savedCity != null && savedCity.isNotEmpty) {
                 addressParts.add(savedCity);
-              if (savedRegion != null && savedRegion.isNotEmpty)
+              }
+              if (savedRegion != null && savedRegion.isNotEmpty) {
                 addressParts.add(savedRegion);
+              }
 
               if (addressParts.isNotEmpty) {
                 notificationAddress = addressParts.join(', ');

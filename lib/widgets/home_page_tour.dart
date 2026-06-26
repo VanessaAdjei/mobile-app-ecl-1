@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:eclapp/pages/homepage.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/home_tour_gate.dart';

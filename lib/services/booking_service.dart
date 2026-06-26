@@ -155,8 +155,13 @@ class BookingService {
           .timeout(const Duration(seconds: 15));
 
       final data = AppErrorUtils.tryDecodeJsonMap(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return data ?? {'success': true};
+      if (response.statusCode == 200 ||
+          response.statusCode == 201 ||
+          response.statusCode == 204) {
+        return {
+          ...?data,
+          'success': true,
+        };
       }
       return {
         'success': false,

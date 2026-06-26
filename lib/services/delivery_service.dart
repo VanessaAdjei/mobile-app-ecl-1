@@ -12,6 +12,7 @@ import '../repositories/delivery_repository.dart';
 import '../utils/delivery_api_parser.dart';
 import '../utils/delivery_geofence_parser.dart';
 import 'package:eclapp/services/auth_service.dart';
+import '../utils/checkout_log.dart';
 import '../utils/app_error_utils.dart';
 
 class DeliveryService {
@@ -31,8 +32,8 @@ class DeliveryService {
 
   static final Map<int, List<Map<String, dynamic>>> _citiesByRegionCache = {};
   static final Map<int, DateTime> _citiesByRegionCachedAt = {};
-  static final Map<int, Future<List<Map<String, dynamic>>>> _citiesByRegionInFlight =
-      {};
+  static final Map<int, Future<List<Map<String, dynamic>>>>
+      _citiesByRegionInFlight = {};
   static const Duration _citiesCacheTtl = Duration(hours: 6);
 
   // Delivery pricing constants
@@ -60,7 +61,14 @@ class DeliveryService {
   }
 
   /// Call /add-xpress-fee API to add express/urgent delivery fee
-  static Future<Map<String, dynamic>?> addXpressFee() async {
+  static const Duration _feeApiRetryDelay = Duration(milliseconds: 400);
+
+  /// Default xpress surcharge for UI until continue confirms via API.
+  static const double defaultXpressFee = 15.0;
+
+  static Future<Map<String, dynamic>?> addXpressFee({
+    int maxAttempts = 2,
+  }) async {
     try {
       final isLoggedIn = await AuthService.isLoggedIn();
       String? token;
@@ -88,17 +96,33 @@ class DeliveryService {
           'X-Guest-ID': guestId,
         },
       };
-      final result = await _repository.addXpressFee(headers: headers);
-      debugPrint('[add-xpress-fee] Response status: ${result.statusCode}');
-      debugPrint('[add-xpress-fee] Response body: ${result.rawBody}');
-      if (result.statusCode == 200 || result.statusCode == 201) {
-        final data = _decodedPayload(result);
+
+      CategoryFetchResult? result;
+      for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+        result = await _repository.addXpressFee(headers: headers);
+        debugPrint(
+          '[add-xpress-fee] attempt $attempt/$maxAttempts '
+          'status=${result.statusCode}',
+        );
+        debugPrint('[add-xpress-fee] Response body: ${result.rawBody}');
+        if (result.statusCode == 200 || result.statusCode == 201) {
+          break;
+        }
+        if (attempt < maxAttempts) {
+          await Future<void>.delayed(_feeApiRetryDelay);
+        }
+      }
+
+      final last = result;
+      if (last == null) return null;
+      if (last.statusCode == 200 || last.statusCode == 201) {
+        final data = _decodedPayload(last);
         if (data is Map<String, dynamic>) return data;
         if (data is Map) return Map<String, dynamic>.from(data);
       }
       return null;
     } catch (e) {
-      debugPrint('add-xpress-fee error: \\${e.toString()}');
+      debugPrint('add-xpress-fee error: $e');
       return null;
     }
   }
@@ -220,10 +244,11 @@ class DeliveryService {
   }
 
   /// Runs save-billing and calculate-delivery-fee concurrently when distance is known.
-  static Future<({
-    Map<String, dynamic> saveResult,
-    Map<String, dynamic>? feeResult,
-  })> saveBillingAndCalculateFeeParallel({
+  static Future<
+      ({
+        Map<String, dynamic> saveResult,
+        Map<String, dynamic>? feeResult,
+      })> saveBillingAndCalculateFeeParallel({
     required Future<Map<String, dynamic>> saveFuture,
     String? provisionalDistanceText,
     bool fallbackToLocalEstimate = true,
@@ -247,6 +272,132 @@ class DeliveryService {
     );
   }
 
+  /// Adds lat/lng (and aliases) to save-billing-add when coordinates are known.
+  @visibleForTesting
+  static void attachBillingCoordinates(
+    Map<String, dynamic> body, {
+    double? lat,
+    double? lng,
+  }) {
+    if (lat == null || lng == null) return;
+    body['lat'] = lat;
+    body['lng'] = lng;
+    body['latitude'] = lat;
+    body['longitude'] = lng;
+    body['coordinates'] = [lat, lng];
+  }
+
+  static void _logSaveBillingExchange({
+    required Map<String, dynamic> requestBody,
+    required int statusCode,
+    String? responseBody,
+  }) {
+    if (!kDebugMode) return;
+
+    const encoder = JsonEncoder.withIndent('  ');
+    final url = ApiConfig.getEndpointUrl(ApiConfig.saveBillingAddress);
+
+    debugPrint('');
+    debugPrint('══════════════════════════════════════════════════════');
+    debugPrint('[SAVE-BILLING-ADD] POST $url');
+    debugPrint('── Request body ──');
+    debugPrint(encoder.convert(requestBody));
+    debugPrint('── Response HTTP $statusCode ──');
+    if (responseBody != null && responseBody.trim().isNotEmpty) {
+      try {
+        final decoded = json.decode(responseBody);
+        debugPrint(encoder.convert(decoded));
+      } catch (_) {
+        debugPrint(responseBody);
+      }
+    } else {
+      debugPrint('(empty body)');
+    }
+    debugPrint('══════════════════════════════════════════════════════');
+    debugPrint('');
+  }
+
+  static void _logGetBillingResponse({
+    required int statusCode,
+    String? responseBody,
+  }) {
+    if (!kDebugMode) return;
+
+    const encoder = JsonEncoder.withIndent('  ');
+    final url = ApiConfig.getEndpointUrl(ApiConfig.getBillingAddress);
+
+    debugPrint('');
+    debugPrint('══════════════════════════════════════════════════════');
+    debugPrint('[GET-BILLING-ADD] GET $url');
+    debugPrint('── Response HTTP $statusCode ──');
+    if (responseBody != null && responseBody.trim().isNotEmpty) {
+      try {
+        final decoded = json.decode(responseBody);
+        debugPrint(encoder.convert(decoded));
+      } catch (_) {
+        debugPrint(responseBody);
+      }
+    } else {
+      debugPrint('(empty body)');
+    }
+    debugPrint('══════════════════════════════════════════════════════');
+    debugPrint('');
+  }
+
+  /// Order summary / fee fields from get-billing-add or save-billing-add JSON.
+  @visibleForTesting
+  static Map<String, dynamic>? billingCheckoutPayloadFromResponse(
+    Map<String, dynamic> responseMap,
+  ) {
+    final data = responseMap['data'];
+    final root = data is Map
+        ? Map<String, dynamic>.from(data)
+        : responseMap;
+
+    final billingAddr = root['billingAddr'];
+    final addr = billingAddr is Map
+        ? Map<String, dynamic>.from(billingAddr)
+        : null;
+
+    final closestRaw = root['closest_store'];
+    final closestStore = closestRaw is Map
+        ? Map<String, dynamic>.from(closestRaw)
+        : null;
+
+    final promoRaw = root['promo_details'];
+    final promo =
+        promoRaw is Map ? Map<String, dynamic>.from(promoRaw) : null;
+
+    final deliveryFee =
+        root['delivery_fee'] ?? addr?['delivery_fee'] ?? closestStore?['delivery_fee'];
+
+    final hasCheckout = promo != null ||
+        closestStore != null ||
+        deliveryFee != null ||
+        root['selected_store_description'] != null;
+    if (!hasCheckout) return null;
+
+    return {
+      'success': true,
+      if (promo != null) 'promo_details': promo,
+      if (closestStore != null) 'closest_store': closestStore,
+      if (deliveryFee != null) 'delivery_fee': deliveryFee,
+      if (root['selected_store_description'] != null)
+        'selected_store_description': root['selected_store_description'],
+      if (addr?['distance_text'] != null) 'distance_text': addr!['distance_text'],
+      if (addr?['order_urgent'] == true || addr?['is_urgent'] == true)
+        'order_urgent': true,
+      if (addr?['xpress_fee'] != null) 'xpress_fee': addr!['xpress_fee'],
+      if (addr?['emergency_order_fee'] != null)
+        'emergency_order_fee': addr!['emergency_order_fee'],
+    };
+  }
+
+  static int? _billingLocationId(dynamic raw) {
+    if (raw is int) return raw > 0 ? raw : null;
+    return int.tryParse('${raw ?? ''}');
+  }
+
   // save where they want stuff delivered
   static Future<Map<String, dynamic>> saveDeliveryInfo({
     required String name,
@@ -265,6 +416,14 @@ class DeliveryService {
     int? storeId,
     double? lat,
     double? lng,
+    double? deliveryFee,
+    String? distanceText,
+    bool? orderUrgent,
+    double? emergencyOrderFee,
+
+    /// When true, tells the API to drop any leftover xpress/urgent fee from a
+    /// prior checkout session (non-urgent orders only).
+    bool clearStaleUrgentFee = false,
   }) async {
     try {
       // check if theyre logged in or just a guest
@@ -329,16 +488,12 @@ class DeliveryService {
         requestBody['addr_1'] = address ?? 'Not specified';
         requestBody['region'] = region ?? 'Not specified';
         requestBody['city'] = city ?? 'Not specified';
-
-        // add the map coordinates if we have them
-        if (lat != null && lng != null) {
-          requestBody['lat'] = lat;
-          requestBody['lng'] = lng;
-          // Backward-compatible aliases used by some backend handlers
-          requestBody['latitude'] = lat;
-          requestBody['longitude'] = lng;
-          // Some handlers read index 0/1 from a coordinates array
-          requestBody['coordinates'] = [lat, lng];
+        if (deliveryFee != null && deliveryFee > 0) {
+          requestBody['delivery_fee'] = deliveryFee;
+        }
+        final trimmedDistance = distanceText?.trim() ?? '';
+        if (trimmedDistance.isNotEmpty) {
+          requestBody['distance_text'] = trimmedDistance;
         }
       } else if (deliveryOption == 'pickup') {
         // if theyre picking it up, we need the store info
@@ -362,13 +517,23 @@ class DeliveryService {
         }
       }
 
-      debugPrint('Saving delivery info to API...');
-      debugPrint('Request body: ${json.encode(requestBody)}');
-      debugPrint('Delivery option: $deliveryOption');
-      debugPrint('Is delivery: ${deliveryOption == 'delivery'}');
-      debugPrint('Is pickup: ${deliveryOption == 'pickup'}');
+      attachBillingCoordinates(requestBody, lat: lat, lng: lng);
 
-      // set the headers depending on if theyre logged in or not
+      if (emergencyOrderFee != null && emergencyOrderFee > 0) {
+        requestBody['order_urgent'] = true;
+        requestBody['is_urgent'] = true;
+        requestBody['emergency_order_fee'] = emergencyOrderFee;
+        requestBody['xpress_fee'] = emergencyOrderFee;
+      } else if (orderUrgent == true) {
+        requestBody['order_urgent'] = true;
+        requestBody['is_urgent'] = true;
+      } else if (clearStaleUrgentFee) {
+        requestBody['order_urgent'] = false;
+        requestBody['is_urgent'] = false;
+        requestBody['xpress_fee'] = 0;
+        requestBody['emergency_order_fee'] = 0;
+      }
+
       final headers = <String, String>{
         'Accept': 'application/json',
         'Content-Type': 'application/json',
@@ -379,19 +544,17 @@ class DeliveryService {
         },
       };
 
-      final saveAddressUrl =
-          ApiConfig.getEndpointUrl(ApiConfig.saveBillingAddress);
       final result = await _repository.saveBillingAddress(
         headers: headers,
         body: json.encode(requestBody),
         timeout: _apiTimeout,
       );
 
-      debugPrint('===== SAVE ADDRESS API RESPONSE =====');
-      debugPrint('URL: $saveAddressUrl');
-      debugPrint('STATUS: ${result.statusCode}');
-      debugPrint('RAW BODY: ${result.rawBody}');
-      debugPrint('====================================');
+      _logSaveBillingExchange(
+        requestBody: requestBody,
+        statusCode: result.statusCode,
+        responseBody: result.rawBody,
+      );
 
       if (result.statusCode == 200 || result.statusCode == 201) {
         final data = _decodedPayload(result);
@@ -404,33 +567,13 @@ class DeliveryService {
         final responseMap = data is Map<String, dynamic>
             ? data
             : Map<String, dynamic>.from(data);
-        debugPrint('=== API SAVE SUCCESS ===');
-        debugPrint('Parsed response data: ${json.encode(responseMap)}');
-        debugPrint('Response message: ${responseMap['message']}');
-        debugPrint('Response status: ${responseMap['status']}');
 
-        // get the store info from the response
         final closestStore = responseMap['closest_store'];
         final selectedStoreDescription =
             responseMap['selected_store_description'];
 
-        // Also check nested data.data (some APIs wrap response)
         final resolvedStore =
             closestStore ?? responseMap['data']?['closest_store'];
-        if (resolvedStore != null) {
-          debugPrint('Closest store found:');
-          debugPrint('  - ID: ${resolvedStore['id']}');
-          debugPrint('  - Lat: ${resolvedStore['lat']}');
-          debugPrint('  - Lng: ${resolvedStore['lng']}');
-          debugPrint('  - distance_text: ${resolvedStore['distance_text']}');
-          debugPrint('  - Duration: ${resolvedStore['duration_text']}');
-        }
-
-        if (selectedStoreDescription != null) {
-          debugPrint('Selected store: $selectedStoreDescription');
-        }
-
-        debugPrint('========================');
 
         return {
           'success': true,
@@ -447,10 +590,6 @@ class DeliveryService {
         };
       } else {
         final errorData = AppErrorUtils.tryDecodeJsonMap(result.rawBody ?? '');
-        debugPrint('=== API SAVE ERROR ===');
-        debugPrint('Error status code: ${result.statusCode}');
-        debugPrint('Error response body: ${result.rawBody}');
-        debugPrint('=====================');
         return {
           'success': false,
           'message': AppErrorUtils.messageFromMap(
@@ -503,13 +642,14 @@ class DeliveryService {
         headers['Authorization'] = 'Guest $guestId';
       }
 
-      debugPrint('Fetching last delivery info from API...');
-      debugPrint(
-          'API URL: ${ApiConfig.getEndpointUrl(ApiConfig.getBillingAddress)}');
-
       final result = await _repository.getBillingAddress(
         headers: headers,
         timeout: _apiTimeout,
+      );
+
+      _logGetBillingResponse(
+        statusCode: result.statusCode,
+        responseBody: result.rawBody,
       );
 
       if (result.statusCode == 200) {
@@ -523,23 +663,8 @@ class DeliveryService {
         final responseMap = data is Map<String, dynamic>
             ? data
             : Map<String, dynamic>.from(data);
-        debugPrint('\n${'=' * 50}');
-        debugPrint('✅ API GET SUCCESS');
-        debugPrint('=' * 50);
-        debugPrint('Raw response data: ${json.encode(responseMap)}');
-        debugPrint('Response message: ${responseMap['message']}');
-        debugPrint('Response data: ${responseMap['data']}');
-        debugPrint('=' * 50);
-
-        if (responseMap['data'] != null &&
-            responseMap['data']['billingAddr'] != null) {
-          // keep for structured logging / future use
-        } else {
-          debugPrint('  └── billingAddr: null');
-        }
 
         if (responseMap['data'] == null) {
-          debugPrint('\n❌ NO DATA IN RESPONSE');
           return {
             'success': true,
             'data': null,
@@ -557,6 +682,14 @@ class DeliveryService {
           };
         }
 
+        final dataRoot = responseMap['data'];
+        final dataMap =
+            dataRoot is Map ? Map<String, dynamic>.from(dataRoot) : null;
+        final closestFromData = dataMap?['closest_store'];
+        final closestDistance = closestFromData is Map
+            ? closestFromData['distance_text']?.toString()
+            : null;
+
         final deliveryData = {
           'name': billingAddr['fname'] ?? '',
           'email': billingAddr['email'] ?? '',
@@ -568,7 +701,7 @@ class DeliveryService {
           'region': billingAddr['region'] ?? '',
           'city': billingAddr['city'] ?? '',
           'address': billingAddr['addr_1'] ?? '',
-          'notes': billingAddr['notes'] ?? '',
+          'notes': billingAddr['notes'] ?? billingAddr['landmark'] ?? '',
           'landmark': billingAddr['landmark'] ?? '',
           'pickup_region': billingAddr['pickup_region'] ?? '',
           'pickup_city': billingAddr['pickup_city'] ?? '',
@@ -584,11 +717,23 @@ class DeliveryService {
               '',
           'lat': _parseBillingCoordinate(billingAddr['lat']),
           'lng': _parseBillingCoordinate(billingAddr['lng']),
+          'region_id': _billingLocationId(billingAddr['region_id']),
+          'city_id': _billingLocationId(billingAddr['city_id']),
+          'store_id': _billingLocationId(
+            billingAddr['store_id'] ?? billingAddr['pickup_site_id'],
+          ),
+          'distance_text':
+              billingAddr['distance_text']?.toString() ?? closestDistance,
+          'delivery_fee': billingAddr['delivery_fee'] ?? dataMap?['delivery_fee'],
         };
+
+        final checkout =
+            billingCheckoutPayloadFromResponse(responseMap);
 
         return {
           'success': true,
           'data': deliveryData,
+          if (checkout != null) 'checkout': checkout,
           'message': responseMap['message'] ??
               'Delivery information retrieved successfully',
         };
@@ -694,6 +839,10 @@ class DeliveryService {
       'delivery_fee': parsed['fee'],
     };
   }
+
+  /// Cached store list for map-based fee estimates (null until first load).
+  static List<Map<String, dynamic>>? get cachedStoresForFeeEstimate =>
+      _storesForFeeEstimateCache;
 
   /// Cached store list for map-based fee estimates (background preload).
   static Future<List<Map<String, dynamic>>> getStoresForFeeEstimate() async {
@@ -804,7 +953,8 @@ class DeliveryService {
       if (headers.isEmpty || !headers.containsKey('Authorization')) {
         return const GeofenceValidationResult(
           isValid: false,
-          message: 'Please sign in or continue as guest to verify delivery area.',
+          message:
+              'Please sign in or continue as guest to verify delivery area.',
         );
       }
 
@@ -913,11 +1063,202 @@ class DeliveryService {
     return null;
   }
 
+  /// distance_text from a save-billing response (closest store).
+  static String? distanceTextFromSaveResult(Map<String, dynamic> result) {
+    final closestStore =
+        result['closest_store'] ?? result['data']?['closest_store'];
+    final text = closestStore?['distance_text']?.toString() ??
+        result['distance_text']?.toString() ??
+        result['data']?['distance_text']?.toString();
+    if (text == null || text.trim().isEmpty) return null;
+    return text.trim();
+  }
+
+  static Map<String, dynamic>? promoDetailsFromSaveResult(
+    Map<String, dynamic> result,
+  ) {
+    final promo = result['promo_details'];
+    if (promo is Map) return Map<String, dynamic>.from(promo);
+    final data = result['data'];
+    if (data is Map) {
+      final nested = data['promo_details'];
+      if (nested is Map) return Map<String, dynamic>.from(nested);
+    }
+    return null;
+  }
+
+  static double? _readAmount(dynamic raw) {
+    if (raw is num) return raw.toDouble();
+    return double.tryParse('${raw ?? ''}'.replaceAll(',', '').trim());
+  }
+
+  /// Merchandise-only subtotal from save-billing [promo_details] (no delivery/xpress).
+  static double? merchandiseSubtotalFromSaveResult(
+    Map<String, dynamic>? result,
+  ) {
+    if (result == null || result['success'] != true) return null;
+    final promo = promoDetailsFromSaveResult(result);
+    if (promo == null) return null;
+    return _readAmount(promo['running_subtotal']) ??
+        _readAmount(promo['subtotal']);
+  }
+
+  /// Delivery fee quoted on a save-billing response (closest store / root).
+  static double? deliveryFeeFromSaveResult(Map<String, dynamic>? result) {
+    if (result == null || result['success'] != true) return null;
+    final closestStore =
+        result['closest_store'] ?? result['data']?['closest_store'];
+    final raw = closestStore?['delivery_fee'] ??
+        closestStore?['deliveryFee'] ??
+        result['delivery_fee'] ??
+        result['deliveryFee'] ??
+        result['data']?['delivery_fee'] ??
+        result['data']?['deliveryFee'];
+    return _readAmount(raw);
+  }
+
+  static int? _locationIdFromMap(Map<String, dynamic>? map) {
+    if (map == null) return null;
+    final raw = map['id'] ?? map['region_id'] ?? map['city_id'];
+    if (raw is int) return raw;
+    return int.tryParse('$raw');
+  }
+
+  /// Resolves backend region/city ids for save-billing-add.
+  static Future<({int? regionId, int? cityId})> resolveBillingLocationIds({
+    required String regionLabel,
+    required String cityLabel,
+  }) async {
+    final trimmedRegion = regionLabel.trim();
+    if (trimmedRegion.isEmpty) {
+      return (regionId: null, cityId: null);
+    }
+
+    final regionsResult = await getRegions();
+    if (regionsResult['success'] != true) {
+      return (regionId: null, cityId: null);
+    }
+
+    final regionRows = (regionsResult['data'] as List?)
+            ?.map((e) => Map<String, dynamic>.from(e as Map))
+            .toList() ??
+        const <Map<String, dynamic>>[];
+    final regionMatch = findRegionInList(regionRows, trimmedRegion);
+    final regionId = _locationIdFromMap(
+      regionMatch != null ? Map<String, dynamic>.from(regionMatch) : null,
+    );
+    if (regionId == null) {
+      return (regionId: null, cityId: null);
+    }
+
+    int? cityId;
+    final trimmedCity = cityLabel.trim();
+    if (trimmedCity.isNotEmpty) {
+      final cityMatch = await findCityInRegion(regionId, trimmedCity);
+      cityId = _locationIdFromMap(
+        cityMatch != null ? Map<String, dynamic>.from(cityMatch) : null,
+      );
+    }
+
+    return (regionId: regionId, cityId: cityId);
+  }
+
+  /// Applies delivery fee via POST [/calculate-delivery-fee].
+  /// Call after save-billing (and after add-xpress-fee when urgent).
+  /// [forceRefresh] bypasses the fee cache so the server session is updated
+  /// immediately before ExpressPay (cached quotes do not re-apply).
+  static Future<Map<String, dynamic>?> applyDeliveryFeeToCart({
+    required String distanceText,
+    bool fallbackToLocalEstimate = true,
+    bool forceRefresh = false,
+    double? knownDeliveryFee,
+  }) async {
+    final trimmed = distanceText.trim();
+    if (trimmed.isEmpty) return null;
+
+    final result = await fetchDeliveryFeeFromApi(
+      distanceText: trimmed,
+      fallbackToLocalEstimate: fallbackToLocalEstimate,
+      forceRefresh: forceRefresh,
+      knownDeliveryFee: knownDeliveryFee,
+    );
+    debugPrint(
+      '[DELIVERY] calculate-delivery-fee applied: fee=${result?['delivery_fee']}'
+      '${forceRefresh ? ' (force refresh)' : ''}',
+    );
+    return result;
+  }
+
+  /// Resolves distance_text for [/calculate-delivery-fee].
+  /// Prefers save-billing [feeDistanceText] (e.g. "0.4 km") over km-derived labels.
+  static Future<String?> resolveDistanceTextForDeliveryFee({
+    String? feeDistanceText,
+    double? knownDistanceKm,
+    double? lat,
+    double? lng,
+  }) async {
+    final authoritative = feeDistanceText?.trim();
+    if (authoritative != null && authoritative.isNotEmpty) {
+      return authoritative;
+    }
+    if (knownDistanceKm != null && knownDistanceKm >= 1) {
+      return formatDistanceText(knownDistanceKm);
+    }
+    if (lat != null && lng != null) {
+      return provisionalDistanceTextForCoordinates(lat: lat, lng: lng);
+    }
+    if (knownDistanceKm != null && knownDistanceKm > 0) {
+      return formatDistanceText(knownDistanceKm);
+    }
+    return null;
+  }
+
+  /// Drops leftover xpress/urgent fee from a prior checkout on the server cart.
+  static Future<void> clearStaleUrgentFeeOnServer({
+    required String name,
+    required String email,
+    required String phone,
+    required String deliveryOption,
+    String? region,
+    String? city,
+    String? address,
+    int? regionId,
+    int? cityId,
+    double? lat,
+    double? lng,
+    double? deliveryFee,
+    String? distanceText,
+  }) async {
+    debugPrint(
+      '[DELIVERY] Clearing stale xpress/urgent fee from server cart '
+      '(non-urgent checkout)',
+    );
+    await saveDeliveryInfo(
+      name: name,
+      email: email,
+      phone: phone,
+      deliveryOption: deliveryOption,
+      region: region,
+      city: city,
+      address: address,
+      regionId: regionId,
+      cityId: cityId,
+      lat: lat,
+      lng: lng,
+      deliveryFee: deliveryFee,
+      distanceText: distanceText,
+      orderUrgent: false,
+      clearStaleUrgentFee: true,
+    );
+  }
+
   /// Call /calculate-delivery-fee API with distance_text (e.g. "1.9 km").
   /// Returns { distance, delivery_fee, from_api } or null. Caches API results only.
   static Future<Map<String, dynamic>?> fetchDeliveryFeeFromApi({
     required String distanceText,
     bool fallbackToLocalEstimate = false,
+    bool forceRefresh = false,
+    double? knownDeliveryFee,
   }) async {
     try {
       final key = distanceText.trim();
@@ -928,10 +1269,12 @@ class DeliveryService {
 
       final normalizedKey = normalizeDistanceTextForFeeApi(key);
 
-      final cached =
-          _deliveryFeeApiCache[normalizedKey] ?? _deliveryFeeApiCache[key];
-      if (cached != null && cached['from_api'] == true) {
-        return Map<String, dynamic>.from(cached);
+      if (!forceRefresh) {
+        final cached =
+            _deliveryFeeApiCache[normalizedKey] ?? _deliveryFeeApiCache[key];
+        if (cached != null && cached['from_api'] == true) {
+          return Map<String, dynamic>.from(cached);
+        }
       }
 
       final headers = await deliveryAuthHeaders();
@@ -940,14 +1283,11 @@ class DeliveryService {
         return fallbackToLocalEstimate ? _localEstimateResult(key) : null;
       }
 
-      final url = ApiConfig.getEndpointUrl(ApiConfig.calculateDeliveryFee);
-      final jsonBody = json.encode({'distance_text': normalizedKey});
-
-      debugPrint('📤 [CALCULATE-DELIVERY-FEE] Calling API: $url');
-      debugPrint(
-        '📤 [CALCULATE-DELIVERY-FEE] distance_text: "$key"'
-        '${normalizedKey != key ? ' → normalized: "$normalizedKey"' : ''}',
-      );
+      final payload = <String, dynamic>{'distance_text': normalizedKey};
+      if (knownDeliveryFee != null && knownDeliveryFee > 0) {
+        payload['delivery_fee'] = knownDeliveryFee;
+      }
+      final jsonBody = json.encode(payload);
 
       var result = await _repository.calculateDeliveryFee(
         headers: headers,
@@ -957,19 +1297,21 @@ class DeliveryService {
       );
 
       if (result.statusCode != 200 && result.statusCode != 201) {
+        var formBody = 'distance_text=${Uri.encodeComponent(normalizedKey)}';
+        if (knownDeliveryFee != null && knownDeliveryFee > 0) {
+          formBody +=
+              '&delivery_fee=${Uri.encodeComponent(knownDeliveryFee.toString())}';
+        }
         result = await _repository.calculateDeliveryFee(
           headers: headers,
-          body: 'distance_text=${Uri.encodeComponent(normalizedKey)}',
+          body: formBody,
           formEncoded: true,
           timeout: _apiTimeout,
         );
       }
 
-      debugPrint(
-          '📥 [CALCULATE-DELIVERY-FEE] status=${result.statusCode} body=${result.rawBody}');
-
       if (result.statusCode != 200 && result.statusCode != 201) {
-        debugPrint('❌ [CALCULATE-DELIVERY-FEE] Non-success status');
+        checkoutLog('❌ [CALCULATE-DELIVERY-FEE] Non-success status');
         return fallbackToLocalEstimate ? _localEstimateResult(key) : null;
       }
 
@@ -1112,12 +1454,9 @@ class DeliveryService {
         (distanceKm - baseDeliveryDistanceKm).clamp(0.0, double.infinity);
     final double fee = baseDeliveryFee + extraDistance * rate;
 
-    debugPrint(
+    checkoutLog(
       '📦 Delivery fee by distance → '
-      'distance: ${distanceKm.toStringAsFixed(2)} km, '
-      'extra: ${extraDistance.toStringAsFixed(2)} km, '
-      'rate: $rate, '
-      'fee: ${fee.toStringAsFixed(2)}',
+      'distance: ${distanceKm.toStringAsFixed(2)} km, fee: ${fee.toStringAsFixed(2)}',
     );
 
     return fee;

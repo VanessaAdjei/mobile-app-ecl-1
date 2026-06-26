@@ -245,7 +245,7 @@ class _BrandLaunchSplashPageState extends State<BrandLaunchSplashPage>
                               child: Padding(
                                 padding: const EdgeInsets.all(12),
                                 child: Image.asset(
-                                  'assets/images/png.png',
+                                  'assets/images/app_logo.png',
                                   fit: BoxFit.contain,
                                 ),
                               ),

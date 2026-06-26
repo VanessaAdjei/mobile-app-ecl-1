@@ -291,7 +291,7 @@ class _PrescriptionUploadStandaloneState
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
 
-  String _selectedCountryCode = '+233';
+  final String _selectedCountryCode = '+233';
 
   @override
   void dispose() {

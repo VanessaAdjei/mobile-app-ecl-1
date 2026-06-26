@@ -11,10 +11,10 @@ class ErnestFridayNotification extends StatefulWidget {
   final bool showCloseButton;
 
   const ErnestFridayNotification({
-    Key? key,
+    super.key,
     this.onDismiss,
     this.showCloseButton = true,
-  }) : super(key: key);
+  });
 
   @override
   State<ErnestFridayNotification> createState() =>
@@ -196,9 +196,9 @@ class ErnestFridayTopNotification extends StatelessWidget {
   final VoidCallback? onDismiss;
 
   const ErnestFridayTopNotification({
-    Key? key,
+    super.key,
     this.onDismiss,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

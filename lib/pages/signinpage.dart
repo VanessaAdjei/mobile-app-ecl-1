@@ -1,6 +1,5 @@
 // pages/signinpage.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:eclapp/pages/forgot_password.dart';
 import 'package:eclapp/pages/main_tab_shell.dart';
@@ -454,7 +453,7 @@ class SignInScreenState extends State<SignInScreen> {
                       ],
                     ),
                     child: Image.asset(
-                      'assets/images/png.png',
+                      'assets/images/app_logo.png',
                       height: 70,
                       width: 70,
                     ),

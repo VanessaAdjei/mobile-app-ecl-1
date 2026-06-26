@@ -325,7 +325,7 @@ class _ItemDetailSearchBarState extends State<ItemDetailSearchBar> {
           );
         },
         debounceDuration: const Duration(milliseconds: 250),
-        hideOnEmpty: true,
+        hideOnEmpty: _controller.text.trim().isEmpty,
         hideOnLoading: false,
         suggestionsCallback: _fetchSuggestions,
         itemBuilder: (context, suggestion) => _buildSuggestionTile(suggestion),
@@ -337,10 +337,22 @@ class _ItemDetailSearchBarState extends State<ItemDetailSearchBar> {
           }
         },
         emptyBuilder: (context) => Padding(
-          padding: const EdgeInsets.all(12),
-          child: Text(
-            'No products found',
-            style: GoogleFonts.poppins(fontSize: 13, color: muted),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.search_off_rounded, size: 28, color: muted),
+              const SizedBox(height: 8),
+              Text(
+                "Sorry, we couldn't find your product.",
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: theme.ink,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
         ),
       ),

@@ -3,9 +3,6 @@ package com.ecl.ecl_commerce
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
-import com.expresspaygh.api.ExpressPayApi
-import com.expresspaygh.api.ExpressPayApi.ExpressPayPaymentCompletionListener
-import org.json.JSONObject
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -18,12 +15,10 @@ import androidx.core.content.ContextCompat
 import android.content.pm.PackageManager
 import android.Manifest
 
-class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
-    private val CHANNEL = "com.yourcompany.expresspay"
+class MainActivity: FlutterActivity() {
     private val NOTIFICATION_CHANNEL = "ecl_notifications"
     private val MAPS_CONFIG_CHANNEL = "com.ecl.ecl_commerce/maps_config"
     private val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
-    private var pendingResult: MethodChannel.Result? = null
     private var notificationPayload: String? = null
     private var notificationPermissionResult: MethodChannel.Result? = null
 
@@ -32,7 +27,6 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
 
         println("🔧 Android: MainActivity configureFlutterEngine called")
 
-        // Set up notification channel
         println("🔧 Android: Setting up notification method channel...")
         val binaryMessenger = flutterEngine.dartExecutor.binaryMessenger
         val notificationChannel = MethodChannel(binaryMessenger, NOTIFICATION_CHANNEL)
@@ -76,7 +70,6 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
                 }
                 "onNotificationOpened" -> {
                     println("🔧 Android: Handling onNotificationOpened")
-                    // This is called from Android side, no need to do anything here
                     result.success(null)
                 }
                 else -> {
@@ -105,86 +98,6 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
                 else -> result.notImplemented()
             }
         }
-
-        val expressPayChannel = MethodChannel(binaryMessenger, CHANNEL)
-        expressPayChannel.setMethodCallHandler { call, result ->
-            if (call.method == "startExpressPay") {
-                val params = call.arguments as? HashMap<String, String>
-                if (params != null) {
-                    if (pendingResult != null) {
-                        // There is already a pending payment
-                        result.error("ALREADY_RUNNING", "A payment is already in progress", null)
-                        return@setMethodCallHandler
-                    }
-                    try {
-                        pendingResult = result // Store for later use
-                        val expressPayApi = ExpressPayApi(this, "https://eclcommerce.ernestchemists.com.gh/api/expresspayment")
-                        expressPayApi.setDebugMode(true)
-                        expressPayApi.submitAndCheckout(params, this, object : ExpressPayApi.ExpressPayPaymentCompletionListener {
-                            override fun onExpressPayPaymentFinished(paymentCompleted: Boolean, errorMessage: String?) {
-                                handlePaymentResult(paymentCompleted, errorMessage)
-                            }
-                        })
-                        println("DEBUG: submitAndCheckout called")
-                        // Add a submit listener to log the server response
-                        expressPayApi.submit(params, this, object : ExpressPayApi.ExpressPaySubmitCompletionListener {
-                            override fun onExpressPaySubmitFinished(response: org.json.JSONObject?, errorMessage: String?) {
-                                println("ExpressPay SUBMIT server response: " + response?.toString())
-                                println("ExpressPay SUBMIT error message: $errorMessage")
-                                if (response != null && response.has("token")) {
-                                    println("ExpressPay SUBMIT token: " + response.getString("token"))
-                                    // Pass through the raw response
-                                    if (pendingResult != null) {
-                                        pendingResult?.success(response.toString())
-                                        pendingResult = null
-                                    }
-                                } else {
-                                    println("ExpressPay SUBMIT: No token in response!")
-                                    // Pass through the raw response even if there's no token
-                                    if (pendingResult != null) {
-                                        pendingResult?.success(response?.toString() ?: "{}")
-                                        pendingResult = null
-                                    }
-                                }
-                                // If there is an error message, surface it to Flutter immediately
-                                if (errorMessage != null && errorMessage.isNotEmpty()) {
-                                    if (pendingResult != null) {
-                                        pendingResult?.success(mapOf("success" to false, "message" to errorMessage))
-                                        pendingResult = null
-                                    }
-                                }
-                            }
-                        })
-                    } catch (e: Exception) {
-                        println("ERROR: Exception in payment logic: ${e.message}")
-                        result.error("UNEXPECTED_ERROR", e.message ?: "An unexpected error occurred", null)
-                        pendingResult = null
-                    }
-                } else {
-                    result.error("INVALID_PARAMS", "Params are null or invalid", null)
-                }
-            } else {
-                result.notImplemented()
-            }
-        }
-    }
-
-    private fun handlePaymentResult(paymentCompleted: Boolean, errorMessage: String?) {
-        println("DEBUG: handlePaymentResult called with paymentCompleted=$paymentCompleted, errorMessage=$errorMessage")
-        val result = pendingResult
-        pendingResult = null
-        if (result != null) {
-            if (paymentCompleted) {
-                result.success(mapOf("success" to true))
-            } else {
-                result.success(mapOf("success" to false, "message" to (errorMessage ?: "Payment failed")))
-            }
-        }
-    }
-
-    // This is called by the SDK when payment is finished
-    override fun onExpressPayPaymentFinished(paymentCompleted: Boolean, errorMessage: String?) {
-        handlePaymentResult(paymentCompleted, errorMessage)
     }
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
@@ -196,7 +109,6 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
         super.onCreate(savedInstanceState)
     }
 
-    // Handle when app is opened from notification (never forward untrusted intents).
     override fun onNewIntent(intent: Intent) {
         val safeIntent = IntentSanitizer.sanitizeMainActivityIntent(
             packageName,
@@ -248,12 +160,10 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
     private fun showNotification(id: Int, title: String, body: String, payload: String?) {
         createNotificationChannel()
 
-        // Create optimized intent for faster app launch
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("notification_payload", payload)
 
-            // Add specific action for faster routing
             if (payload != null && payload.contains("order_placed")) {
                 action = "OPEN_ORDER_TRACKING"
             } else if (payload != null && payload.contains("test")) {
@@ -265,7 +175,7 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
 
         val pendingIntent = PendingIntent.getActivity(
             this,
-            id, // Use unique ID for each notification
+            id,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -277,7 +187,7 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .setColor(0xFF22C55E.toInt()) // Green color
+            .setColor(0xFF22C55E.toInt())
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .build()
@@ -288,7 +198,6 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
 
     private fun requestNotificationPermissions(result: MethodChannel.Result) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // Android 13+ requires explicit notification permission request
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                 == PackageManager.PERMISSION_GRANTED) {
                 println("🔧 Android: Notification permission already granted")
@@ -303,7 +212,6 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
                 )
             }
         } else {
-            // For Android 12 and below, notifications are granted by default
             println("🔧 Android: Notification permission not required for this Android version")
             result.success(mapOf("granted" to true, "message" to "Permission not required for this Android version"))
         }

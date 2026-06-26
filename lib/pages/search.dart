@@ -1,7 +1,6 @@
 // pages/search.dart
 import 'package:flutter/material.dart';
 import 'package:eclapp/pages/categories.dart';
-import 'package:eclapp/utils/category_navigation.dart';
 import 'package:eclapp/utils/category_utils.dart';
 
 class CategorySearchDelegate extends SearchDelegate {

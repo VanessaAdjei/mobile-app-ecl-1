@@ -141,19 +141,27 @@ class HealthTipsService {
 
   static Future<List<HealthTip>> fetchHealthTips({
     int limit = 6,
+    bool forceRefresh = false,
     String? category,
     int? age,
     String? gender,
   }) async {
-    debugPrint('HealthTipsService: Starting fetchHealthTips');
+    debugPrint(
+      'HealthTipsService: Starting fetchHealthTips '
+      '(forceRefresh=$forceRefresh)',
+    );
 
     // Start background service if not running
     if (!_isBackgroundServiceRunning) {
       startBackgroundService();
     }
 
+    if (forceRefresh) {
+      clearCache();
+    }
+
     // check cache first so we can respond instantly
-    if (isCacheValid) {
+    if (!forceRefresh && isCacheValid) {
       debugPrint('HealthTipsService: Using cached data');
       final result = _cachedTips.take(limit).toList();
       debugPrint(
@@ -364,5 +372,6 @@ class HealthTipsService {
   static void clearCache() {
     _cachedTips.clear();
     _hasLoadedOnce = false;
+    _lastFetchTime = null;
   }
 }

@@ -1,12 +1,9 @@
 // services/background_order_tracking_service.dart
 import 'dart:async';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../config/api_config.dart';
 import 'auth_service.dart';
-import 'native_notification_service.dart';
 import 'order_notification_service.dart';
 import '../providers/order_tracking_provider.dart';
 import '../utils/app_error_utils.dart';
@@ -17,8 +14,6 @@ class BackgroundOrderTrackingService {
   static const Duration _trackingInterval = Duration(minutes: 10);
   static const Duration _initialDelay = Duration(seconds: 60);
 
-  // Cache for order data
-  static Map<String, dynamic> _orderCache = {};
   static DateTime? _lastTrackingTime;
   static const Duration _cacheExpiration = Duration(minutes: 15);
 
@@ -67,7 +62,6 @@ class BackgroundOrderTrackingService {
       }
 
       _lastTrackingTime = DateTime.now();
-      debugPrint('📦 BackgroundOrderTrackingService: Order tracking completed');
     } catch (e) {
       debugPrint(
           '📦 BackgroundOrderTrackingService: Background tracking error: $e');
@@ -255,87 +249,6 @@ class BackgroundOrderTrackingService {
     } catch (e) {
       debugPrint('📦 Error sending status notification: $e');
     }
-  }
-
-  // Get authentication token
-  static Future<String?> _getAuthToken() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString('token') ?? prefs.getString('auth_token');
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // Check for delivery updates
-  static Future<void> _checkDeliveryUpdates() async {
-    try {
-      final orders = await _getUserOrders();
-      final shippedOrders = orders
-          .where(
-              (order) => order['status']?.toString().toLowerCase() == 'shipped')
-          .toList();
-
-      for (final order in shippedOrders) {
-        await _checkDeliveryStatus(order);
-      }
-    } catch (e, st) {
-      AppErrorUtils.log('BackgroundOrderTracking._checkDeliveryUpdates', e, st);
-    }
-  }
-
-  // Check delivery status for shipped orders
-  static Future<void> _checkDeliveryStatus(Map<String, dynamic> order) async {
-    try {
-      if (!(await AuthService.isLoggedIn())) return;
-
-      final orderId = order['id'];
-      final deliveryStatus = await _getDeliveryStatusFromServer(orderId);
-
-      if (deliveryStatus != null) {
-        order['delivery_status'] = deliveryStatus;
-        await _saveUserOrders([order]);
-
-        if (deliveryStatus['estimated_delivery'] != null) {
-          await NativeNotificationService.showNotification(
-            title: 'Delivery Update',
-            body:
-                'Your order will be delivered on ${deliveryStatus['estimated_delivery']}',
-            payload: 'delivery_$orderId',
-          );
-        }
-      }
-    } catch (e, st) {
-      AppErrorUtils.log('BackgroundOrderTracking._checkDeliveryStatus', e, st);
-    }
-  }
-
-  // Get delivery status from server
-  static Future<Map<String, dynamic>?> _getDeliveryStatusFromServer(
-      String orderId) async {
-    try {
-      final token = await _getAuthToken();
-      if (token == null) return null;
-
-      final response = await http.get(
-        Uri.parse(ApiConfig.getOrderDeliveryUrl(orderId)),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(Duration(seconds: 8));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return data['delivery_status'];
-      }
-    } catch (e, st) {
-      AppErrorUtils.log(
-        'BackgroundOrderTracking._getDeliveryStatusFromServer',
-        e,
-        st,
-      );
-    }
-    return null;
   }
 
   // Get tracking status

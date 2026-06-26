@@ -42,7 +42,12 @@ class CheckoutOrderTotals {
   double get total =>
       merchandiseAfterDiscount + chargedDeliveryFee + emergencyOrderFee;
 
-  String get payableAmount => total.toStringAsFixed(2);
+  /// Explicit payable total for ExpressPay — always sums line items (never
+  /// assumes [runningSubtotal] already includes delivery or xpress).
+  double get expressPayGrandTotal =>
+      merchandiseAfterDiscount + chargedDeliveryFee + emergencyOrderFee;
+
+  String get payableAmount => expressPayGrandTotal.toStringAsFixed(2);
 
   CheckoutOrderTotals copyWith({
     double? merchandiseSubtotal,

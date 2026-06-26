@@ -152,27 +152,40 @@ class _MyAppointmentsPageState extends State<MyAppointmentsPage>
 
   Future<bool> _cancelBooking(Map<String, dynamic> booking) async {
     final id = booking['id'];
-    if (id == null) {
-      setState(() => _bookings.remove(booking));
+    final index = indexOfBooking(_bookings, booking);
+    Map<String, dynamic>? removed;
+
+    if (index >= 0) {
+      removed = Map<String, dynamic>.from(_bookings[index]);
+      setState(() => _bookings.removeAt(index));
       await _saveBookings(_bookings);
-      return true;
     }
-    final result = await BookingService.cancel(id.toString());
-    if (!mounted) return false;
-    if (result['success'] == true) {
-      setState(() {
-        _bookings.removeWhere(
-          (e) => e['id'] == id || identical(e, booking),
-        );
-      });
-      await _saveBookings(_bookings);
+
+    if (id == null) {
       if (mounted) {
         AppErrorUtils.showSnack(context, 'Appointment cancelled',
             isError: false);
       }
       return true;
     }
+
+    final result = await BookingService.cancel(id.toString());
     if (!mounted) return false;
+
+    if (result['success'] == true) {
+      if (mounted) {
+        AppErrorUtils.showSnack(context, 'Appointment cancelled',
+            isError: false);
+      }
+      return true;
+    }
+
+    if (removed != null) {
+      final restoreAt = index.clamp(0, _bookings.length);
+      setState(() => _bookings.insert(restoreAt, removed!));
+      await _saveBookings(_bookings);
+    }
+
     AppErrorUtils.showSnack(
       context,
       result['message']?.toString() ?? 'Failed to cancel appointment',

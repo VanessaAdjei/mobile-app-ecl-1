@@ -16,7 +16,6 @@ import '../models/product_model.dart';
 import '../models/health_tip.dart';
 import 'health_tips_service.dart';
 import 'banner_cache_service.dart';
-import 'package:flutter/foundation.dart';
 
 class HomepageOptimizationService {
   static final HomepageOptimizationService _instance =

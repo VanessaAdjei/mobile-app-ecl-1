@@ -1,7 +1,9 @@
 // pages/search_results_page.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../config/app_colors.dart';
 import '../models/product_model.dart';
+import '../utils/app_theme_colors.dart';
 import '../utils/product_detail_navigation.dart';
 import '../utils/product_tap_guard.dart';
 import '../widgets/product_card.dart';
@@ -75,12 +77,13 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appColors;
     final isLoading = _filteredProducts == null;
     final isEmpty = _filteredProducts?.isEmpty ?? false;
     final resultCount = _filteredProducts?.length ?? 0;
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: theme.pageBg,
       appBar: AppHeaderBar.forScaffold(
         context,
         title: 'Results for "${widget.query}"',
@@ -94,24 +97,18 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.search_off_rounded,
-                          size: 70, color: Colors.grey[400]),
+                          size: 70, color: theme.muted),
                       const SizedBox(height: 18),
-                      Text('No products found',
+                      Text("Sorry, we couldn't find your product.",
                           style: GoogleFonts.poppins(
-                            color: Colors.grey[700],
+                            color: theme.ink,
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
-                          )),
-                      const SizedBox(height: 8),
-                      Text('Try a different keyword.',
-                          style: GoogleFonts.poppins(
-                            color: Colors.grey[500],
-                            fontSize: 14,
                           )),
                       const SizedBox(height: 18),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green[700],
+                          backgroundColor: AppColors.primary,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(18),
                           ),

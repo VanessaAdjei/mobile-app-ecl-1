@@ -876,7 +876,7 @@ class CartState extends State<Cart> {
           image: item.image,
           price: item.price,
           quantity: item.quantity,
-          lineTotal: item.price * item.quantity,
+          lineTotal: CartItem.lineCharge(item),
           isSelected: item.isSelected,
           isBusy: CartProvider.selectRowIsUpdating(cart, item.id, index),
           lineId: item.id,
