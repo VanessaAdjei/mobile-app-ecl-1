@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../services/auth_service.dart';
+import '../services/cart_service.dart';
 
 /// Background data prefetching service for improved performance
 class BackgroundPrefetchService {
@@ -167,7 +168,7 @@ class BackgroundPrefetchService {
     }
   }
 
-  /// Prefetch cart data
+  /// Prefetch cart data from `GET /check-out/{guest_id|hashed_link}`.
   Future<void> prefetchCart() async {
     if (_prefetchingTasks['cart'] == true) return;
 
@@ -175,10 +176,23 @@ class BackgroundPrefetchService {
     debugPrint('🔄 Prefetching cart data...');
 
     try {
+      final headers = await CartService.resolveGuestOrUserTokenHeaders();
+      if (headers == null) return;
+
+      final isLoggedIn = await AuthService.isLoggedIn();
+      final token = await AuthService.getToken();
+      if (token == null) return;
+
+      final checkoutLink = await CartService.resolveCheckoutLink(
+        token: token,
+        isLoggedIn: isLoggedIn,
+      );
+      if (checkoutLink == null || checkoutLink.isEmpty) return;
+
       final response = await http
           .get(
-            Uri.parse('${ApiConfig.baseUrl}/api/cart'),
-            headers: await _getHeaders(),
+            Uri.parse(ApiConfig.getCheckoutUrl(checkoutLink)),
+            headers: headers,
           )
           .timeout(const Duration(seconds: 10));
 

@@ -57,13 +57,11 @@ class CartState extends State<Cart> {
     // Warm store list so delivery fee can show instantly on the delivery step.
     unawaited(DeliveryService.getStoresForFeeEstimate());
 
-    // Disable automatic server sync to prevent quantity override
-    // Local cart is now the source of truth
-    // Server sync will happen during checkout
+    // Server cart is source of truth — refresh when the cart tab opens.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // Don't sync immediately - let the protection mechanism handle it
-      // Cart items loaded successfully
-      _updateScrollHint();
+      if (!mounted) return;
+      await context.read<CartProvider>().syncWithApi();
+      if (mounted) _updateScrollHint();
     });
   }
 
@@ -345,21 +343,11 @@ class CartState extends State<Cart> {
                                           await AuthService.getCurrentUserID();
                                       if (!context.mounted) return;
                                       if (userId != null) {
-                                        final cart = context.read<CartProvider>();
-
-                                        showTopSnackBar(
-                                          context,
-                                          'Merging cart items...',
-                                          duration: Duration(seconds: 1),
-                                        );
-
-                                        await cart.mergeGuestCartOnLogin(userId);
                                         if (!context.mounted) return;
-
                                         showTopSnackBar(
                                           context,
                                           'Welcome back!',
-                                          duration: Duration(seconds: 3),
+                                          duration: const Duration(seconds: 3),
                                         );
                                         setState(() {});
                                       }
@@ -619,10 +607,8 @@ class CartState extends State<Cart> {
                                       final userId =
                                           await AuthService.getCurrentUserID();
                                       if (!context.mounted) return;
-                                      if (userId != null) {
-                                        await context
-                                            .read<CartProvider>()
-                                            .mergeGuestCartOnLogin(userId);
+                                      if (userId != null && context.mounted) {
+                                        setState(() {});
                                       }
                                     }
                                     return;

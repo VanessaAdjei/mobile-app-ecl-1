@@ -50,6 +50,7 @@ class AuthService {
   static const String userDataKey = 'user_data';
   static const String userIdKey = 'user_id';
   static const String hashedLinkKey = 'hashed_link';
+  static const String pendingGuestCartIdKey = 'pending_guest_cart_id';
 
   List<Product> products = [];
   List<Product> filteredProducts = [];
@@ -962,6 +963,10 @@ class AuthService {
         }
 
         final prefs = await SharedPreferences.getInstance();
+        final guestId = prefs.getString('guest_id');
+        if (guestId != null && guestId.isNotEmpty) {
+          await prefs.setString(pendingGuestCartIdKey, guestId);
+        }
         await prefs.remove('guest_id');
 
         return {
@@ -1801,24 +1806,37 @@ class AuthService {
 
   static Future<Map<String, dynamic>> getServerCart() async {
     try {
+      final loggedIn = await AuthService.isLoggedIn();
       final token = await getToken();
       if (token == null) {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
+      final checkoutLink = loggedIn ? await getHashedLink() : token;
+      if (checkoutLink == null || checkoutLink.isEmpty) {
+        return {'success': false, 'message': 'Missing check-out link'};
+      }
+
+      final headers = <String, String>{
+        'Accept': 'application/json',
+      };
+      if (loggedIn) {
+        headers['Authorization'] = 'Bearer $token';
+      } else {
+        headers['Authorization'] = 'Guest $token';
+        headers['X-Guest-ID'] = token;
+      }
+
       final response = await HttpClientService.get(
-        Uri.parse('$baseUrl/cart'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
+        Uri.parse(ApiConfig.getCheckoutUrl(checkoutLink)),
+        headers: headers,
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return {
           'success': true,
-          'cart': data['items'] ?? [],
+          'cart': data['cart_items'] ?? data['items'] ?? [],
           'lastUpdated': data['updated_at'],
         };
       } else {
@@ -1863,6 +1881,19 @@ class AuthService {
   static Future<void> clearAllGuestIds() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('guest_id');
+    await prefs.remove(pendingGuestCartIdKey);
+  }
+
+  /// Guest session id saved at login so cart merge can read `/check-out/{guest_id}`.
+  static Future<String?> getPendingGuestCartId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(pendingGuestCartIdKey) ??
+        prefs.getString('guest_id');
+  }
+
+  static Future<void> clearPendingGuestCartId() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(pendingGuestCartIdKey);
   }
 
   /// Generate and store a new guest_id in SharedPreferences.

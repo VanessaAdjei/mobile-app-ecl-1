@@ -92,40 +92,28 @@ class CartService {
         timeout: timeout,
       );
 
-  Future<CategoryFetchResult> fetchGuestCart({
-    required Map<String, String> headers,
-    Duration timeout = cartHttpTimeout,
-  }) {
-    final body = jsonEncode({'productID': 0, 'quantity': 0});
-    return _repository.postCheckAuth(
-      headers: headers,
-      body: body,
-      timeout: timeout,
-    );
+  /// Resolves the `/check-out/{link}` segment (guest_id or hashed_link).
+  static Future<String?> resolveCheckoutLink({
+    required String token,
+    required bool isLoggedIn,
+  }) async {
+    if (isLoggedIn) {
+      return AuthService.getHashedLink();
+    }
+    return token;
   }
 
-  /// Probes check-auth for the current cart snapshot (guest or logged-in).
+  /// Loads the current cart via `GET /check-out/{link}`.
   Future<CategoryFetchResult> fetchCartSnapshot({
+    required String checkoutLink,
     required Map<String, String> headers,
     Duration timeout = cartHttpTimeout,
-  }) async {
-    const probes = <Map<String, dynamic>>[
-      {'productID': 0, 'quantity': 0},
-      <String, dynamic>{},
-    ];
-    CategoryFetchResult? last;
-    for (final body in probes) {
-      final result = await checkAuth(
+  }) =>
+      _repository.fetchCheckoutCart(
+        hashedLink: checkoutLink,
         headers: headers,
-        body: body,
         timeout: timeout,
       );
-      last = result;
-      if (isSuccessStatus(result.statusCode)) return result;
-    }
-    return last ??
-        CategoryFetchResult(statusCode: 0, error: StateError('fetch'));
-  }
 
   Future<CategoryFetchResult> checkAuth({
     required Map<String, String> headers,

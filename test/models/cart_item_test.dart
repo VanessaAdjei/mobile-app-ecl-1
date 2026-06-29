@@ -145,6 +145,26 @@ void main() {
       expect(locked.servedBy, 1);
     });
 
+    test('flattenServerLine merges nested product fields', () {
+      final flat = CartItem.flattenServerLine({
+        'id': '10',
+        'qty': 2,
+        'product': {
+          'id': 99,
+          'name': 'Vitamin C',
+          'price': 15,
+          'product_img': 'img.png',
+          'batch_no': 'B1',
+        },
+      });
+
+      final item = CartItem.fromServerJson(flat);
+      expect(item.name, 'Vitamin C');
+      expect(item.productId, '99');
+      expect(item.price, 15);
+      expect(item.batchNo, 'B1');
+    });
+
     test('copyWith preserves unchanged fields', () {
       final item = CartItem(
         id: '1',

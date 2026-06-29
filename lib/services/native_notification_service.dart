@@ -122,7 +122,7 @@ class NativeNotificationService {
       final String orderId = data['order_id']?.toString() ?? '';
       final String orderNumber = data['order_number']?.toString() ?? '';
 
-      if (orderId.isNotEmpty && orderNumber.isNotEmpty) {
+      if (orderId.isNotEmpty || orderNumber.isNotEmpty) {
         // Create order details map for OrderTrackingPage
         final Map<String, dynamic> orderDetails = {
           'id': orderId,

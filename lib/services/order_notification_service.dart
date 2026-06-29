@@ -306,14 +306,24 @@ class OrderNotificationService {
       return 'local_shipping';
     }
     if (s.contains('delivered')) return 'check_circle';
-    if (s.contains('cancel')) return 'cancel';
+    if (s.contains('cancel') ||
+        s.contains('declined') ||
+        s.contains('failed') ||
+        s.contains('reject')) {
+      return 'cancel';
+    }
     return 'info';
   }
 
   static String _getStatusColor(String status) {
     final s = status.toLowerCase();
     if (s.contains('delivered')) return 'green';
-    if (s.contains('cancel')) return 'red';
+    if (s.contains('cancel') ||
+        s.contains('declined') ||
+        s.contains('failed') ||
+        s.contains('reject')) {
+      return 'red';
+    }
     if (s.contains('ship') || s.contains('delivery')) return 'blue';
     return 'orange';
   }

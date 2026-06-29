@@ -165,9 +165,10 @@ class CartItem {
   }
 
   factory CartItem.fromServerJson(Map<String, dynamic> json) {
-    final price = _resolveUnitPrice(json);
-    final totalPrice = _parseDouble(json['total_price']);
-    var quantity = _parseInt(json['qty'] ?? json['quantity']);
+    final flat = flattenServerLine(json);
+    final price = _resolveUnitPrice(flat);
+    final totalPrice = _parseDouble(flat['total_price']);
+    var quantity = _parseInt(flat['qty'] ?? flat['quantity']);
     if (price > 0 && totalPrice > 0) {
       final inferredQty = (totalPrice / price).round();
       if (inferredQty > 0 && inferredQty != quantity) {
@@ -176,22 +177,50 @@ class CartItem {
     }
     final resolvedQty = quantity > 0 ? quantity : 1;
     return CartItem(
-      id: json['id']?.toString() ?? '',
-      productId: json['product_id']?.toString() ?? '',
-      serverProductId: json['product_id'] is int
-          ? json['product_id']
-          : int.tryParse(json['product_id']?.toString() ?? ''),
-      originalProductId: json['product_id']?.toString(),
-      name: json['product_name']?.toString() ?? 'Unknown Item',
+      id: flat['id']?.toString() ?? '',
+      productId: flat['product_id']?.toString() ?? '',
+      serverProductId: flat['product_id'] is int
+          ? flat['product_id']
+          : int.tryParse(flat['product_id']?.toString() ?? ''),
+      originalProductId: flat['product_id']?.toString(),
+      name: flat['product_name']?.toString() ??
+          flat['name']?.toString() ??
+          'Unknown Item',
       price: price,
       quantity: resolvedQty,
-      image: coerceProductImageSource(json['product_img'] ?? json['image']),
-      batchNo: json['batch_no']?.toString() ?? '',
-      urlName: json['url_name']?.toString() ?? '',
+      image: coerceProductImageSource(flat['product_img'] ?? flat['image']),
+      batchNo: flat['batch_no']?.toString() ?? '',
+      urlName: flat['url_name']?.toString() ?? '',
       totalPrice: totalPrice > 0 ? totalPrice : price * resolvedQty,
-      isSelected: _parseIsSelected(json['is_selected']),
-      servedBy: _parseNullableInt(json['served_by']),
+      isSelected: _parseIsSelected(flat['is_selected']),
+      servedBy: _parseNullableInt(flat['served_by']),
     );
+  }
+
+  /// Merges nested `product` objects from check-auth / checkout payloads.
+  @visibleForTesting
+  static Map<String, dynamic> flattenServerLine(Map<String, dynamic> json) {
+    final line = Map<String, dynamic>.from(json);
+    final product = line['product'];
+    if (product is Map) {
+      final p = Map<String, dynamic>.from(product);
+      line.putIfAbsent(
+        'product_name',
+        () => p['product_name'] ?? p['name'],
+      );
+      line.putIfAbsent('product_id', () => p['product_id'] ?? p['id']);
+      line.putIfAbsent(
+        'product_img',
+        () => p['product_img'] ?? p['image'] ?? p['img'],
+      );
+      line.putIfAbsent('url_name', () => p['url_name'] ?? p['urlName']);
+      line.putIfAbsent(
+        'price',
+        () => p['price'] ?? p['selling_price'] ?? p['unit_price'],
+      );
+      line.putIfAbsent('batch_no', () => p['batch_no'] ?? p['batchNo']);
+    }
+    return line;
   }
 
   void updateQuantity(int newQuantity) {

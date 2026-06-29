@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config/api_config.dart';
 import 'app_optimization_service.dart';
+import 'auth_service.dart';
+import 'cart_service.dart';
 
 class ComprehensiveOptimizationService {
   static final ComprehensiveOptimizationService _instance =
@@ -288,17 +290,34 @@ class ComprehensiveOptimizationService {
     _isLoadingCart = true;
 
     try {
+      final headers = await CartService.resolveGuestOrUserTokenHeaders();
+      if (headers == null) {
+        throw Exception('No cart auth available');
+      }
+
+      final isLoggedIn = await AuthService.isLoggedIn();
+      final token = await AuthService.getToken();
+      if (token == null) {
+        throw Exception('No cart auth token');
+      }
+
+      final checkoutLink = await CartService.resolveCheckoutLink(
+        token: token,
+        isLoggedIn: isLoggedIn,
+      );
+      if (checkoutLink == null || checkoutLink.isEmpty) {
+        throw Exception('Missing check-out link');
+      }
+
       final response = await http
-          .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getCart)))
+          .get(Uri.parse(ApiConfig.getCheckoutUrl(checkoutLink)), headers: headers)
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['success'] == true) {
-          _cacheCartData(data);
-          _optimizationService.endTimer('CartService_GetData');
-          return data;
-        }
+        _cacheCartData(data);
+        _optimizationService.endTimer('CartService_GetData');
+        return data;
       }
       throw Exception('Failed to load cart data');
     } catch (e) {

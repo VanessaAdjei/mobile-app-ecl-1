@@ -367,40 +367,212 @@ class CartProvider with ChangeNotifier {
 
   Future<void> _checkCurrentUser() async {
     final isLoggedIn = await AuthService.isLoggedIn();
+    final newUserId =
+        isLoggedIn ? await AuthService.getCurrentUserID() : null;
+    final userChanged = newUserId != _currentUserId;
+
     if (isLoggedIn) {
-      _currentUserId = (await AuthService.getCurrentUserID()) as String;
+      _currentUserId = newUserId;
       await _loadPurchasedItems();
-    } else {
+    } else if (userChanged) {
       _currentUserId = null;
       _purchasedItems = [];
     }
-    _cartItems = [];
-    notifyListeners();
+
+    if (userChanged) {
+      _cartItems = [];
+      notifyListeners();
+    }
   }
 
-  Future<void> _syncGuestCartFromApi(String guestToken) async {
-    final headers = _cartAuthHeaders(guestToken, false);
-    final response = await _cartService.fetchCartSnapshot(headers: headers);
-    if (!CartService.isSuccessStatus(response.statusCode)) {
-      debugPrint(
-        '⚠️ Guest cart sync failed: status ${response.statusCode}',
-      );
-      return;
+  /// Reads cart lines from check-auth, checkout, or nested `data` payloads.
+  static List<dynamic>? extractCartItemsList(Map<String, dynamic> data) {
+    final roots = <Map<String, dynamic>>[data];
+    final nested = data['data'];
+    if (nested is Map) {
+      roots.add(Map<String, dynamic>.from(nested));
     }
 
-    final data = CartService.decodeBody(response);
-    if (data == null) return;
+    for (final root in roots) {
+      for (final key in ['cart_items', 'items', 'cartItems']) {
+        final list = root[key];
+        if (list is List) return list;
+      }
+    }
+    return null;
+  }
 
-    final rawItems = data['items'] as List? ?? data['cart_items'] as List?;
-    if (rawItems == null) return;
-
+  void _loadCartFromServerItemList(List<dynamic> rawItems) {
     if (rawItems.isEmpty) {
       _cartItems = [];
       notifyListeners();
       return;
     }
 
-    _mergeFullServerCartFromCheckAuthItems(rawItems);
+    final mergedItems = <String, CartItem>{};
+
+    for (final rawItem in rawItems) {
+      if (rawItem is! Map) continue;
+      var cartItem = CartItem.fromServerJson(
+        Map<String, dynamic>.from(rawItem),
+      );
+      final normalizedName = _normalizeProductName(cartItem.name);
+      final mergeKey = '$normalizedName-${cartItem.batchNo}';
+
+      if (mergedItems.containsKey(mergeKey)) {
+        final existingItem = mergedItems[mergeKey]!;
+        mergedItems[mergeKey] = existingItem.copyWith(
+          quantity: existingItem.quantity + cartItem.quantity,
+          totalPrice: existingItem.totalPrice + cartItem.totalPrice,
+        );
+      } else {
+        mergedItems[mergeKey] = cartItem;
+      }
+    }
+
+    if (mergedItems.isEmpty) return;
+
+    final items = mergedItems.values.toList();
+    for (var i = 0; i < items.length; i++) {
+      var cartItem = items[i];
+
+      CartItem? matchingLocalItem;
+      for (final localItem in _cartItems) {
+        if (_sameCartProduct(localItem, cartItem)) {
+          matchingLocalItem = localItem;
+          break;
+        }
+      }
+
+      if (matchingLocalItem != null) {
+        cartItem = cartItem.copyWith(
+          originalProductId:
+              matchingLocalItem.originalProductId ?? matchingLocalItem.productId,
+          image: matchingLocalItem.image.isNotEmpty
+              ? matchingLocalItem.image
+              : cartItem.image,
+        );
+      } else if (_pendingItemBatch != null &&
+          cartItem.batchNo == _pendingItemBatch &&
+          (_pendingItemName == null ||
+              _productNamesLooselyMatch(cartItem.name, _pendingItemName!))) {
+        cartItem = cartItem.copyWith(
+          originalProductId: _pendingOriginalProductId,
+        );
+      }
+
+      items[i] = cartItem;
+    }
+
+    _pendingOriginalProductId = null;
+    _pendingItemName = null;
+    _pendingItemBatch = null;
+
+    _cartItems = items;
+    _consolidateDuplicateCartLines();
+    debugPrint(
+      '✅ Cart loaded from server (${_cartItems.length} line(s), '
+      'subtotal ${_cartItems.fold<double>(0, (s, i) => s + CartItem.lineCharge(i)).toStringAsFixed(2)})',
+    );
+    notifyListeners();
+  }
+
+  Future<List<CartItem>> _fetchCheckoutCartItems({
+    required String checkoutLink,
+    required String token,
+    required bool isLoggedIn,
+  }) async {
+    try {
+      final response = await _cartService.fetchCartSnapshot(
+        checkoutLink: checkoutLink,
+        headers: _cartAuthHeaders(token, isLoggedIn),
+        timeout: const Duration(seconds: 12),
+      );
+      if (!CartService.isSuccessStatus(response.statusCode)) return [];
+
+      final data = CartService.decodeBody(response);
+      if (data == null) return [];
+
+      final rawItems = extractCartItemsList(data);
+      if (rawItems == null || rawItems.isEmpty) return [];
+
+      return rawItems
+          .whereType<Map>()
+          .map(
+            (raw) => CartItem.fromServerJson(
+              Map<String, dynamic>.from(raw),
+            ),
+          )
+          .toList();
+    } catch (e) {
+      debugPrint('⚠️ Fetch check-out cart failed: $e');
+      return [];
+    }
+  }
+
+  List<CartItem> _mergeCartItemLists(
+    List<CartItem> primary,
+    List<CartItem> extra,
+  ) {
+    final merged = List<CartItem>.from(primary);
+    for (final item in extra) {
+      final index =
+          merged.indexWhere((existing) => _sameCartProduct(existing, item));
+      if (index >= 0) {
+        final existing = merged[index];
+        merged[index] = existing.copyWith(
+          quantity: existing.quantity + item.quantity,
+          totalPrice: existing.totalPrice + item.totalPrice,
+        );
+      } else {
+        merged.add(item);
+      }
+    }
+    return merged;
+  }
+
+  Future<bool> _loadCartFromCheckout({
+    required String token,
+    required String checkoutLink,
+    required bool isLoggedIn,
+  }) async {
+    final headers = _cartAuthHeaders(token, isLoggedIn);
+    final response = await _cartService.fetchCartSnapshot(
+      checkoutLink: checkoutLink,
+      headers: headers,
+      timeout: const Duration(seconds: 12),
+    );
+
+    if (!CartService.isSuccessStatus(response.statusCode)) {
+      debugPrint(
+        '⚠️ GET /check-out failed: status ${response.statusCode} '
+        'body=${response.rawBody}',
+      );
+      return false;
+    }
+
+    final data = CartService.decodeBody(response);
+    if (data == null) {
+      debugPrint('⚠️ GET /check-out: could not decode response');
+      return false;
+    }
+
+    final rawItems = extractCartItemsList(data);
+    if (rawItems == null) {
+      debugPrint(
+        '⚠️ GET /check-out: no cart_items/items in response: ${response.rawBody}',
+      );
+      return false;
+    }
+
+    if (rawItems.isEmpty) {
+      _cartItems = [];
+      notifyListeners();
+      return true;
+    }
+
+    _loadCartFromServerItemList(rawItems);
+    return true;
   }
 
   Future<void> syncWithApi() async {
@@ -412,179 +584,23 @@ class CartProvider with ChangeNotifier {
       final auth = await _resolveCartAuth();
       if (auth.token == null) return;
 
-      if (!auth.isLoggedIn) {
-        await _syncGuestCartFromApi(auth.token!);
+      final checkoutLink = await CartService.resolveCheckoutLink(
+        token: auth.token!,
+        isLoggedIn: auth.isLoggedIn,
+      );
+      if (checkoutLink == null || checkoutLink.isEmpty) {
+        debugPrint(
+          '⚠️ Cart sync: missing check-out link '
+          '(guest_id or hashed_link)',
+        );
         return;
       }
 
-      final hashedLink = await AuthService.getHashedLink();
-      if (hashedLink == null || hashedLink.isEmpty) return;
-
-      final response = await _cartService.fetchLoggedInCart(
-        hashedLink: hashedLink,
-        headers: {
-          'Authorization': 'Bearer ${auth.token}',
-          'Accept': 'application/json',
-        },
-        timeout: const Duration(seconds: 5),
+      await _loadCartFromCheckout(
+        token: auth.token!,
+        checkoutLink: checkoutLink,
+        isLoggedIn: auth.isLoggedIn,
       );
-
-      if (response.statusCode == 200) {
-        final data = CartService.decodeBody(response);
-        if (data == null) {
-          debugPrint('⚠️ Cart sync failed: Could not decode server response');
-          return;
-        }
-
-        if (data['cart_items'] != null) {
-          final rawItems = data['cart_items'] as List;
-
-          if (rawItems.isEmpty) {
-            _cartItems = [];
-            notifyListeners();
-            return;
-          }
-
-          // Merge duplicate items from server by name and batch
-          Map<String, CartItem> mergedItems = {};
-
-          for (final rawItem in rawItems) {
-            var cartItem = CartItem.fromServerJson(rawItem);
-            final normalizedName = _normalizeProductName(cartItem.name);
-            final mergeKey = '$normalizedName-${cartItem.batchNo}';
-
-            if (mergedItems.containsKey(mergeKey)) {
-              // Merge with existing item
-              final existingItem = mergedItems[mergeKey]!;
-              final newQuantity = existingItem.quantity + cartItem.quantity;
-              final newTotalPrice =
-                  existingItem.totalPrice + cartItem.totalPrice;
-
-              mergedItems[mergeKey] = existingItem.copyWith(
-                quantity: newQuantity,
-                totalPrice: newTotalPrice,
-              );
-            } else {
-              // First occurrence of this item
-              mergedItems[mergeKey] = cartItem;
-            }
-          }
-
-          List<CartItem> items = mergedItems.values.toList();
-
-          // Preserve original product IDs from local items
-          for (int i = 0; i < items.length; i++) {
-            var cartItem = items[i];
-
-            CartItem? matchingLocalItem;
-            try {
-              matchingLocalItem = _cartItems.firstWhere(
-                (localItem) => _sameCartProduct(localItem, cartItem),
-              );
-            } catch (e) {
-              matchingLocalItem = null;
-            }
-
-            // If we found a matching local item, preserve its original product ID
-            if (matchingLocalItem != null) {
-              cartItem = cartItem.copyWith(
-                originalProductId: matchingLocalItem.originalProductId ??
-                    matchingLocalItem.productId,
-              );
-            } else {
-              // Check if this is the pending item we're trying to preserve
-              bool isPendingItem = _pendingItemBatch != null &&
-                  cartItem.batchNo == _pendingItemBatch &&
-                  (_pendingItemName == null ||
-                      _productNamesLooselyMatch(
-                          cartItem.name, _pendingItemName!));
-
-              if (isPendingItem) {
-                cartItem = cartItem.copyWith(
-                  originalProductId: _pendingOriginalProductId,
-                );
-
-                // Clear pending variables after use
-                _pendingOriginalProductId = null;
-                _pendingItemName = null;
-                _pendingItemBatch = null;
-              } else {
-                // Try more flexible matching for e-panol products
-                CartItem? flexibleMatchingLocalItem;
-                try {
-                  flexibleMatchingLocalItem = _cartItems.firstWhere(
-                    (localItem) {
-                      final localNormalizedName =
-                          _normalizeProductName(localItem.name);
-                      final serverNormalizedName =
-                          _normalizeProductName(cartItem.name);
-
-                      // More flexible matching for e-panol products
-                      final isEpanolLocal =
-                          localNormalizedName.contains('e panol') ||
-                              localNormalizedName.contains('e-panol');
-                      final isEpanolServer =
-                          serverNormalizedName.contains('e panol') ||
-                              serverNormalizedName.contains('e-panol');
-
-                      if (isEpanolLocal && isEpanolServer) {
-                        // For e-panol products, match by batch number and flavor
-                        final localHasStrawberry =
-                            localNormalizedName.contains('strawberry');
-                        final serverHasStrawberry =
-                            serverNormalizedName.contains('strawberry');
-                        final localHasOriginal =
-                            localNormalizedName.contains('original');
-                        final serverHasOriginal =
-                            serverNormalizedName.contains('original');
-
-                        return localItem.batchNo == cartItem.batchNo &&
-                            ((localHasStrawberry && serverHasStrawberry) ||
-                                (localHasOriginal && serverHasOriginal));
-                      }
-
-                      return false;
-                    },
-                  );
-                } catch (e) {
-                  flexibleMatchingLocalItem = null;
-                }
-
-                if (flexibleMatchingLocalItem != null) {
-                  cartItem = cartItem.copyWith(
-                    originalProductId:
-                        flexibleMatchingLocalItem.originalProductId ??
-                            flexibleMatchingLocalItem.productId,
-                  );
-                } else {
-                  debugPrint('🔍 NO LOCAL ITEM FOUND FOR PRESERVATION ===');
-                  debugPrint('Product: ${cartItem.name}');
-                  debugPrint('Batch: ${cartItem.batchNo}');
-                  debugPrint('Server Product ID: ${cartItem.productId}');
-                  debugPrint('==========================================');
-                }
-              }
-            }
-
-            items[i] = cartItem;
-          }
-
-          _cartItems = items;
-          _consolidateDuplicateCartLines();
-
-          notifyListeners();
-        } else {
-          debugPrint(
-              '⚠️ Cart sync failed: Missing "cart_items" in server response');
-          debugPrint('Response body: ${response.rawBody}');
-        }
-      } else {
-        debugPrint(
-            '⚠️ Cart sync failed: Server returned status code ${response.statusCode}');
-        if (response.statusCode >= 400) {
-          debugPrint('Response body: ${response.rawBody}');
-        }
-      }
     } catch (e) {
       debugPrint('Cart sync error: $e');
     }
@@ -1194,16 +1210,10 @@ class CartProvider with ChangeNotifier {
   }
 
   Future<void> handleUserLogin(String userId) async {
-    _currentUserId = userId;
-    _cartItems = [];
-
+    debugPrint('🛒 CartProvider: User logged in — merging guest cart: $userId');
+    await mergeGuestCartOnLogin(userId);
     await _loadPurchasedItems();
     notifyListeners();
-
-    debugPrint(
-        '🛒 CartProvider: User logged in — loading cart from server: $userId');
-    await syncWithApi();
-    _scheduleBackgroundCartSync();
   }
 
   Future<void> handleUserLogout() async {
@@ -1282,35 +1292,47 @@ class CartProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Merge in-session guest cart into the logged-in user's server cart.
+  // Merge guest session cart (memory + `/check-out/{guest_id}`) into the account.
   Future<void> mergeGuestCartOnLogin(String userId) async {
     debugPrint('🔄 Starting cart merge for user: $userId');
 
-    final guestCart = List<CartItem>.from(_cartItems);
+    var guestCart = List<CartItem>.from(_cartItems);
+    final pendingGuestId = await AuthService.getPendingGuestCartId();
+    if (pendingGuestId != null && pendingGuestId.isNotEmpty) {
+      final serverGuestItems = await _fetchCheckoutCartItems(
+        checkoutLink: pendingGuestId,
+        token: pendingGuestId,
+        isLoggedIn: false,
+      );
+      if (serverGuestItems.isNotEmpty) {
+        guestCart = _mergeCartItemLists(guestCart, serverGuestItems);
+        debugPrint(
+          '🔄 Loaded ${serverGuestItems.length} guest line(s) from check-out',
+        );
+      }
+    }
+
     _currentUserId = userId;
     _cartItems = [];
     notifyListeners();
 
     await syncWithApi();
 
-    final Map<String, CartItem> merged = {};
-    for (final item in [..._cartItems, ...guestCart]) {
-      final String uniqueKey = '${item.urlName}_${item.batchNo}';
-      if (merged.containsKey(uniqueKey)) {
-        merged[uniqueKey] = merged[uniqueKey]!.copyWith(
-          quantity: merged[uniqueKey]!.quantity + item.quantity,
-        );
-      } else {
-        merged[uniqueKey] = item;
-      }
+    if (guestCart.isNotEmpty) {
+      _cartItems = _mergeCartItemLists(_cartItems, guestCart);
+      notifyListeners();
+      debugPrint(
+        '✅ Cart merge completed. Items: ${_cartItems.length} '
+        '(guest lines merged into account)',
+      );
+      await _syncMergedCartInBackground();
+    } else {
+      debugPrint(
+        '✅ Cart loaded for account (${_cartItems.length} line(s), no guest items)',
+      );
     }
 
-    _cartItems = merged.values.toList();
-    notifyListeners();
-
-    debugPrint('✅ Cart merge completed. Items: ${_cartItems.length}');
-
-    _syncMergedCartInBackground();
+    await AuthService.clearPendingGuestCartId();
     _scheduleBackgroundCartSync();
   }
 
@@ -1357,13 +1379,16 @@ class CartProvider with ChangeNotifier {
   // Clear server cart before adding merged items
   Future<void> _clearServerCart(String token) async {
     try {
-      final hashedLink = await AuthService.getHashedLink() ?? '';
-      final response = await _cartService.fetchLoggedInCart(
-        hashedLink: hashedLink,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
+      final isLoggedIn = await AuthService.isLoggedIn();
+      final checkoutLink = await CartService.resolveCheckoutLink(
+        token: token,
+        isLoggedIn: isLoggedIn,
+      );
+      if (checkoutLink == null || checkoutLink.isEmpty) return;
+
+      final response = await _cartService.fetchCartSnapshot(
+        checkoutLink: checkoutLink,
+        headers: _cartAuthHeaders(token, isLoggedIn),
         timeout: const Duration(seconds: 3),
       );
 
@@ -1451,14 +1476,16 @@ class CartProvider with ChangeNotifier {
       final token = await AuthService.getToken();
       if (token == null) return;
 
-      // Get current cart from server
-      final hashedLink = await AuthService.getHashedLink() ?? '';
-      final cartResponse = await _cartService.fetchLoggedInCart(
-        hashedLink: hashedLink,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
+      final isLoggedIn = await AuthService.isLoggedIn();
+      final checkoutLink = await CartService.resolveCheckoutLink(
+        token: token,
+        isLoggedIn: isLoggedIn,
+      );
+      if (checkoutLink == null || checkoutLink.isEmpty) return;
+
+      final cartResponse = await _cartService.fetchCartSnapshot(
+        checkoutLink: checkoutLink,
+        headers: _cartAuthHeaders(token, isLoggedIn),
       );
 
       if (cartResponse.statusCode == 200) {

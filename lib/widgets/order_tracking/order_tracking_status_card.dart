@@ -11,6 +11,7 @@ class OrderTrackingStatusCard extends StatelessWidget {
     required this.orderRef,
     required this.isPickup,
     required this.isDelivered,
+    required this.isFailed,
     required this.accent,
     this.placedAt,
   });
@@ -20,11 +21,21 @@ class OrderTrackingStatusCard extends StatelessWidget {
   final String orderRef;
   final bool isPickup;
   final bool isDelivered;
+  final bool isFailed;
   final Color accent;
   final DateTime? placedAt;
 
   @override
   Widget build(BuildContext context) {
+    if (isFailed) {
+      return _FailedCard(
+        stageLabel: stageLabel,
+        badgeLabel: badgeLabel,
+        orderRef: orderRef,
+        placedAt: placedAt,
+      );
+    }
+
     if (isDelivered) {
       return _DeliveredCard(
         stageLabel: stageLabel,
@@ -162,6 +173,146 @@ class OrderTrackingStatusCard extends StatelessWidget {
     return isPickup
         ? Icons.storefront_outlined
         : Icons.local_pharmacy_rounded;
+  }
+}
+
+class _FailedCard extends StatelessWidget {
+  const _FailedCard({
+    required this.stageLabel,
+    required this.badgeLabel,
+    required this.orderRef,
+    this.placedAt,
+  });
+
+  final String stageLabel;
+  final String badgeLabel;
+  final String orderRef;
+  final DateTime? placedAt;
+
+  static const Color _failedAccent = Color(0xFFDC2626);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.red.shade900.withValues(alpha: 0.22)
+            : Colors.red.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.red.shade700
+              : Colors.red.shade200,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(11),
+        child: Stack(
+          children: [
+            const Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 3,
+              child: ColoredBox(color: _failedAccent),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: _failedAccent.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.payment_rounded,
+                      size: 22,
+                      color: _failedAccent,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Payment not completed',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: PostCheckoutDesign.ink(context),
+                                  letterSpacing: -0.25,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _failedAccent,
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Text(
+                                badgeLabel.toUpperCase(),
+                                style: GoogleFonts.poppins(
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.6,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          stageLabel,
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: PostCheckoutDesign.muted(context),
+                            height: 1.35,
+                          ),
+                        ),
+                        if (placedAt != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            DateFormat('EEE, MMM d · h:mm a').format(placedAt!),
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: PostCheckoutDesign.muted(context),
+                            ),
+                          ),
+                        ],
+                        if (orderRef.isNotEmpty &&
+                            orderRef.toUpperCase() != 'N/A') ...[
+                          const SizedBox(height: 6),
+                          _OrderIdRow(
+                            reference: orderRef,
+                            accent: _failedAccent,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

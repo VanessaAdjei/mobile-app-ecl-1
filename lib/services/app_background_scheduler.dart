@@ -105,11 +105,16 @@ class AppBackgroundScheduler {
       unawaited(RealtimeCartSyncService.checkNow());
     });
 
-    // Store/inventory/tips — defer heavy/low-value work (~60s).
+    // Store locator — warm cache early so Contact → Stores feels instant.
+    _schedule(const Duration(seconds: 25), () {
+      if (_paused) return;
+      BackgroundStoreDataService.startBackgroundPreloading();
+    });
+
+    // Other deferred background work (~60s).
     _schedule(const Duration(seconds: 60), () {
       if (_paused) return;
       HealthTipsService.startBackgroundService();
-      BackgroundStoreDataService.startBackgroundPreloading();
       BackgroundInventoryMonitorService.startBackgroundMonitoring();
     });
   }

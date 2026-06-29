@@ -21,6 +21,7 @@ import '../models/order_tracking_page_details.dart';
 import '../utils/order_tracking_page_resolver.dart';
 import '../utils/order_timestamp_parser.dart';
 import '../config/api_config.dart';
+import '../config/app_routes.dart';
 import 'app_back_button.dart';
 
 class OrderTrackingPage extends StatefulWidget {
@@ -71,6 +72,22 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     final t = raw.trim();
     if (t.isEmpty || t.toUpperCase() == 'N/A') return 'Order';
     return t.startsWith('#') ? t : '#$t';
+  }
+
+  String _sliverToolbarTitle(String status) {
+    if (_isFailedOrder(status)) return 'Order details';
+    return _sliverHeaderOrderLabel();
+  }
+
+  String _sliverHeroTitle(String status) {
+    if (_isFailedOrder(status)) return 'Order details';
+    return _sliverHeaderOrderLabel();
+  }
+
+  String? _sliverHeroSubtitle(String status) {
+    if (!_isFailedOrder(status)) return null;
+    final label = _sliverHeaderOrderLabel();
+    return label == 'Order' ? null : label;
   }
 
   bool _isPickupOrder() {
@@ -375,6 +392,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         _timelineStage = initialStage;
         _isLoading = false;
       });
+      _stopPeriodicRefreshIfTerminal(initialStatus);
 
       // Fetch latest order status from API so delivery progression timeline can move
       if (isLoggedIn) {
@@ -585,6 +603,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         }
       });
       debugPrint('🔍 Updated order status from API: ${details.orderStatus}');
+      _stopPeriodicRefreshIfTerminal(details.orderStatus!);
     } else if (details.stageTimes.isNotEmpty || details.placedAt != null) {
       setState(() {
         if (details.stageTimes.isNotEmpty) {
@@ -766,6 +785,118 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     return _displayStageForUi(fallbackStatus) == OrderTrackingStage.delivered;
   }
 
+  bool _isFailedOrder(String fallbackStatus) {
+    return _displayStageForUi(fallbackStatus) == OrderTrackingStage.failed;
+  }
+
+  void _stopPeriodicRefreshIfTerminal(String status) {
+    final stage = _orderTrackingService.normalizeStage(status);
+    if (stage == OrderTrackingStage.failed ||
+        stage == OrderTrackingStage.delivered) {
+      _refreshTimer?.cancel();
+      _refreshTimer = null;
+    }
+  }
+
+  Widget _buildFailedPaymentBanner() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.red.shade900.withValues(alpha: 0.25)
+            : Colors.red.shade50,
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(
+          color: isDark ? Colors.red.shade700 : Colors.red.shade200,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.error_outline_rounded,
+            color: isDark ? Colors.red.shade300 : Colors.red.shade700,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _orderTrackingService.stageMessage(OrderTrackingStage.failed),
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.red.shade200 : Colors.red.shade900,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFailedOrderActions() {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: () {
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                AppRoutes.home,
+                (route) => false,
+              );
+            },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: PostCheckoutDesign.ink(context),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              side: BorderSide(color: PostCheckoutDesign.border(context)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              'Home',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: FilledButton(
+            onPressed: () {
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                AppRoutes.cart,
+                (route) => false,
+              );
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.orange.shade600,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              'Try again',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   ({
     double subtotal,
     double deliveryFee,
@@ -824,6 +955,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     required bool isPickup,
   }) {
     final isDelivered = _isDeliveredStatus(status);
+    final isFailed = _isFailedOrder(status);
     final bill = _billSummary(totalAmount);
     final trackingItems =
         orderItems.map(OrderTrackingItem.fromMap).toList(growable: false);
@@ -850,12 +982,18 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         orderRef: orderNumber,
         isPickup: isPickup,
         isDelivered: isDelivered,
+        isFailed: isFailed,
         accent: _accent,
         placedAt: orderDate,
       ),
     ];
 
-    if (!isDelivered) {
+    if (isFailed) {
+      children.addAll([
+        const SizedBox(height: 12),
+        _buildFailedPaymentBanner(),
+      ]);
+    } else if (!isDelivered) {
       children.addAll([
         const SizedBox(height: 12),
         PostCheckoutOrderProgressCard(
@@ -885,7 +1023,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         deliveryFee: bill.deliveryFee,
         discount: bill.discount,
         total: bill.total,
-        accent: _accent,
+        accent: isFailed ? Colors.red.shade700 : _accent,
         showDeliveryFee: bill.showDeliveryFee,
       ),
       const SizedBox(height: 12),
@@ -898,9 +1036,16 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         method: isPickup
             ? 'Store pickup'
             : (_deliveryOption ?? 'Standard delivery'),
-        accent: _accent,
+        accent: isFailed ? Colors.red.shade700 : _accent,
       ),
     ]);
+
+    if (isFailed) {
+      children.addAll([
+        const SizedBox(height: 16),
+        _buildFailedOrderActions(),
+      ]);
+    }
 
     return children;
   }
@@ -938,8 +1083,9 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
                   EclExpandableSliverAppBar(
-                    toolbarTitle: _sliverHeaderOrderLabel(),
-                    heroTitle: _sliverHeaderOrderLabel(),
+                    toolbarTitle: _sliverToolbarTitle(status),
+                    heroTitle: _sliverHeroTitle(status),
+                    heroSubtitle: _sliverHeroSubtitle(status),
                     leading: Padding(
                       padding: const EdgeInsets.only(left: 4),
                       child: AppBackButton(
@@ -1020,8 +1166,9 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
                   ),
                   slivers: [
                     EclExpandableSliverAppBar(
-                      toolbarTitle: _sliverHeaderOrderLabel(),
-                      heroTitle: _sliverHeaderOrderLabel(),
+                      toolbarTitle: _sliverToolbarTitle(status),
+                      heroTitle: _sliverHeroTitle(status),
+                      heroSubtitle: _sliverHeroSubtitle(status),
                       leading: Padding(
                         padding: const EdgeInsets.only(left: 4),
                         child: AppBackButton(
@@ -1080,14 +1227,17 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       );
     } catch (e) {
       debugPrint('🔍 Error in OrderTrackingPage build: $e');
+      final fallbackStatus =
+          widget.orderDetails['status']?.toString() ?? 'Processing';
       return Scaffold(
         backgroundColor: PostCheckoutDesign.pageBg(context),
         body: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             EclExpandableSliverAppBar(
-              toolbarTitle: _sliverHeaderOrderLabel(),
-              heroTitle: _sliverHeaderOrderLabel(),
+              toolbarTitle: _sliverToolbarTitle(fallbackStatus),
+              heroTitle: _sliverHeroTitle(fallbackStatus),
+              heroSubtitle: _sliverHeroSubtitle(fallbackStatus),
             ),
             SliverFillRemaining(
               hasScrollBody: false,

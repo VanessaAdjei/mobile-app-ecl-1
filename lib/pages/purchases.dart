@@ -349,7 +349,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(14),
-            onTap: isDeclined ? null : () => _navigateToOrderTracking(order),
+            onTap: () => _navigateToOrderTracking(order),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
@@ -774,7 +774,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Order not placed, payment failed',
+              'Payment failed — tap to view order details',
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 color: isDark ? Colors.red.shade200 : Colors.red.shade800,

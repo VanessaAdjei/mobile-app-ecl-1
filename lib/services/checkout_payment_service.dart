@@ -6,6 +6,8 @@ import '../services/auth_service.dart';
 export '../database/payment/payment_remote_data_source.dart'
     show buildCheckoutAuthHeaders, buildCheckPaymentBody;
 
+import '../utils/express_pay_api_log.dart';
+
 class CheckoutPaymentService {
   CheckoutPaymentService({PaymentRepository? repository})
       : _repository = repository ?? PaymentRepositoryImpl();
@@ -31,6 +33,10 @@ class CheckoutPaymentService {
     _rethrowTransportError(result);
 
     final rawBody = result.rawBody ?? result.body?.toString() ?? '';
+    ExpressPayApiLog.message(
+      'POST /expresspayment raw response: '
+      '${rawBody.length > 500 ? '${rawBody.substring(0, 500)}…' : rawBody}',
+    );
     if (rawBody.trim().isEmpty) {
       throw Exception(
         'Could not read a payment page URL from the server. Please try again.',

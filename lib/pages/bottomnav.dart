@@ -1,4 +1,5 @@
 // pages/bottomnav.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -7,9 +8,11 @@ import '../config/app_routes.dart';
 import '../config/app_colors.dart';
 import '../providers/cart_provider.dart';
 import '../widgets/cart_nav_badge_icon.dart';
+import '../widgets/contact_us_sheet.dart';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 import '../services/order_notification_service.dart';
+import '../services/background_store_data_service.dart';
 import '../utils/app_error_utils.dart';
 import '../utils/app_theme_colors.dart';
 import 'main_tab_shell.dart';
@@ -320,14 +323,10 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                     title: 'Upload',
                                     subtitle: 'Prescription',
                                     color: Colors.purple.shade600,
-                                    onTap: () {
-                                      _popThen(() {
-                                        Navigator.pushNamed(
-                                          context,
+                                    onTap: () =>
+                                        _pushRouteAfterMenuPop(
                                           AppRoutes.prescriptionUpload,
-                                        );
-                                      });
-                                    },
+                                        ),
                                   ),
                                 ),
                                 const SizedBox(width: 10),
@@ -338,14 +337,9 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                     title: 'Pharmacist',
                                     subtitle: 'Consultation',
                                     color: Colors.green.shade600,
-                                    onTap: () {
-                                      _popThen(() {
-                                        Navigator.pushNamed(
-                                          context,
-                                          AppRoutes.pharmacists,
-                                        );
-                                      });
-                                    },
+                                    onTap: () => _pushRouteAfterMenuPop(
+                                      AppRoutes.pharmacists,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -361,12 +355,13 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                     subtitle: 'Retail outlets',
                                     color: Colors.blue.shade600,
                                     onTap: () {
-                                      _popThen(() {
-                                        Navigator.pushNamed(
-                                          context,
-                                          AppRoutes.storeSelection,
-                                        );
-                                      });
+                                      unawaited(
+                                        BackgroundStoreDataService
+                                            .warmStoreSelectionCache(),
+                                      );
+                                      _pushRouteAfterMenuPop(
+                                        AppRoutes.storeSelection,
+                                      );
                                     },
                                   ),
                                 ),
@@ -378,10 +373,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                     title: 'Contact',
                                     subtitle: 'Support team',
                                     color: Colors.orange.shade600,
-                                    onTap: () {
-                                      _popThen(
-                                          () => _showContactOptions(context));
-                                    },
+                                    onTap: () => _popThen(_showContactOptions),
                                   ),
                                 ),
                               ],
@@ -477,232 +469,47 @@ class _CustomBottomNavState extends State<CustomBottomNav>
     );
   }
 
-  void _showContactOptions(BuildContext context) {
-    const String phoneNumber1 = '0302908674';
-    const String phoneNumber2 = '0302908675';
-    const String whatsapp = '0508411184';
-    const String email = 'commerce@ecl.com.gh';
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: false,
-      enableDrag: true,
-      isDismissible: true,
-      useSafeArea: true,
-      builder: (BuildContext context) {
-        final theme = context.appColors;
-        return _AnimatedBottomSheet(
-          child: Container(
-            decoration: BoxDecoration(
-              color: theme.sheetBg,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 12,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Handle bar
-                  Container(
-                    margin: const EdgeInsets.only(top: 10, bottom: 4),
-                    width: 38,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: theme.handleBar,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildContactOption(
-                          context,
-                          icon: Icons.phone_rounded,
-                          title: 'Call Us',
-                          subtitle: '0302908674, 0302908675',
-                          color: Colors.green.shade600,
-                          onTap: () async {
-                            Navigator.pop(context);
-                            _afterRouteUnlock(() async {
-                              if (!mounted || !context.mounted) return;
-                              final selected =
-                                  await showModalBottomSheet<String>(
-                                context: context,
-                                builder: (ctx) => SafeArea(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      ListTile(
-                                        leading: const Icon(Icons.phone),
-                                        title: const Text('Call 0302908674'),
-                                        onTap: () =>
-                                            Navigator.pop(ctx, phoneNumber1),
-                                      ),
-                                      ListTile(
-                                        leading: const Icon(Icons.phone),
-                                        title: const Text('Call 0302908675'),
-                                        onTap: () =>
-                                            Navigator.pop(ctx, phoneNumber2),
-                                      ),
-                                      ListTile(
-                                        leading: const Icon(Icons.phone),
-                                        title: const Text(
-                                            'Call 0508411184 (WhatsApp)'),
-                                        onTap: () =>
-                                            Navigator.pop(ctx, whatsapp),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                              if (selected != null) {
-                                _launchPhoneDialer(selected);
-                              }
-                            });
-                          },
-                        ),
-                        const Divider(height: 1),
-                        _buildContactOption(
-                          context,
-                          icon: Icons.message_rounded,
-                          title: 'WhatsApp',
-                          subtitle: '0508411184 - Chat instantly',
-                          color: const Color(0xFF25D366),
-                          onTap: () {
-                            _popThen(() {
-                              _launchWhatsApp(
-                                whatsapp,
-                                'Hello! I need help with the Ernest Chemists Ltd app. Can you assist me?',
-                              );
-                            });
-                          },
-                        ),
-                        const Divider(height: 1),
-                        _buildContactOption(
-                          context,
-                          icon: Icons.email_rounded,
-                          title: 'Email Us',
-                          subtitle: email,
-                          color: Colors.blue.shade600,
-                          onTap: () {
-                            _popThen(() {
-                              _launchEmail(
-                                email,
-                                'Ernest Chemists Ltd Support & Inquiry',
-                              );
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
+  void _showContactOptions() {
+    if (!mounted) return;
+    unawaited(BackgroundStoreDataService.warmStoreSelectionCache());
+    ContactUsSheet.show(
+      context,
+      onCall: (phone) {
+        _afterRouteUnlock(() => _launchPhoneDialer(phone));
+      },
+      onWhatsApp: () {
+        _afterRouteUnlock(() {
+          _launchWhatsApp(
+            ContactUsSheet.whatsapp,
+            'Hello! I need help with the Ernest Chemists Ltd app. Can you assist me?',
+          );
+        });
+      },
+      onEmail: () {
+        _afterRouteUnlock(() {
+          _launchEmail(
+            ContactUsSheet.email,
+            'Ernest Chemists Ltd Support & Inquiry',
+          );
+        });
+      },
+      onFindStore: () {
+        _pushRouteAfterContactSheet(AppRoutes.storeSelection);
       },
     );
   }
 
-  Widget _buildContactOption(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    final theme = context.appColors;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  center: const Alignment(0, -0.4),
-                  radius: 1.1,
-                  colors: [
-                    color.withValues(alpha: 0.18),
-                    color.withValues(alpha: 0.05),
-                  ],
-                ),
-              ),
-              child: Container(
-                margin: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: theme.surface,
-                  boxShadow: theme.isDark
-                      ? null
-                      : [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                ),
-                child: Icon(
-                  icon,
-                  color: color,
-                  size: 20,
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: theme.ink,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: theme.muted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.chevron_right,
-              color: theme.muted,
-              size: 20,
-            ),
-          ],
-        ),
-      ),
-    );
+  void _pushRouteAfterMenuPop(String routeName) {
+    _popThen(() => _pushNamedRoute(routeName));
+  }
+
+  void _pushRouteAfterContactSheet(String routeName) {
+    _afterRouteUnlock(() => _pushNamedRoute(routeName));
+  }
+
+  void _pushNamedRoute(String routeName) {
+    if (!mounted || !context.mounted) return;
+    Navigator.of(context, rootNavigator: true).pushNamed(routeName);
   }
 
   Future<void> _launchPhoneDialer(String phoneNumber) async {

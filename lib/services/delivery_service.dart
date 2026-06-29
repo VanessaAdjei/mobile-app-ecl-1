@@ -13,6 +13,7 @@ import '../utils/delivery_api_parser.dart';
 import '../utils/delivery_geofence_parser.dart';
 import 'package:eclapp/services/auth_service.dart';
 import '../utils/checkout_log.dart';
+import '../utils/express_pay_api_log.dart';
 import '../utils/app_error_utils.dart';
 
 class DeliveryService {
@@ -98,13 +99,17 @@ class DeliveryService {
       };
 
       CategoryFetchResult? result;
+      final url = ApiConfig.getEndpointUrl('/add-xpress-fee');
       for (var attempt = 1; attempt <= maxAttempts; attempt++) {
         result = await _repository.addXpressFee(headers: headers);
-        debugPrint(
-          '[add-xpress-fee] attempt $attempt/$maxAttempts '
-          'status=${result.statusCode}',
+        ExpressPayApiLog.exchange(
+          step:
+              'Pre-ExpressPay → GET /add-xpress-fee (attempt $attempt/$maxAttempts)',
+          method: 'GET',
+          url: url,
+          statusCode: result.statusCode,
+          responseBody: result.rawBody,
         );
-        debugPrint('[add-xpress-fee] Response body: ${result.rawBody}');
         if (result.statusCode == 200 || result.statusCode == 201) {
           break;
         }
@@ -291,30 +296,23 @@ class DeliveryService {
     required Map<String, dynamic> requestBody,
     required int statusCode,
     String? responseBody,
+    bool expressPayFlow = false,
   }) {
     if (!kDebugMode) return;
 
-    const encoder = JsonEncoder.withIndent('  ');
     final url = ApiConfig.getEndpointUrl(ApiConfig.saveBillingAddress);
+    final step = expressPayFlow
+        ? 'Pre-ExpressPay → POST /save-billing-add'
+        : 'POST /save-billing-add';
 
-    debugPrint('');
-    debugPrint('══════════════════════════════════════════════════════');
-    debugPrint('[SAVE-BILLING-ADD] POST $url');
-    debugPrint('── Request body ──');
-    debugPrint(encoder.convert(requestBody));
-    debugPrint('── Response HTTP $statusCode ──');
-    if (responseBody != null && responseBody.trim().isNotEmpty) {
-      try {
-        final decoded = json.decode(responseBody);
-        debugPrint(encoder.convert(decoded));
-      } catch (_) {
-        debugPrint(responseBody);
-      }
-    } else {
-      debugPrint('(empty body)');
-    }
-    debugPrint('══════════════════════════════════════════════════════');
-    debugPrint('');
+    ExpressPayApiLog.exchange(
+      step: step,
+      method: 'POST',
+      url: url,
+      request: requestBody,
+      statusCode: statusCode,
+      responseBody: responseBody,
+    );
   }
 
   static void _logGetBillingResponse({
@@ -350,26 +348,22 @@ class DeliveryService {
     Map<String, dynamic> responseMap,
   ) {
     final data = responseMap['data'];
-    final root = data is Map
-        ? Map<String, dynamic>.from(data)
-        : responseMap;
+    final root = data is Map ? Map<String, dynamic>.from(data) : responseMap;
 
     final billingAddr = root['billingAddr'];
-    final addr = billingAddr is Map
-        ? Map<String, dynamic>.from(billingAddr)
-        : null;
+    final addr =
+        billingAddr is Map ? Map<String, dynamic>.from(billingAddr) : null;
 
     final closestRaw = root['closest_store'];
-    final closestStore = closestRaw is Map
-        ? Map<String, dynamic>.from(closestRaw)
-        : null;
+    final closestStore =
+        closestRaw is Map ? Map<String, dynamic>.from(closestRaw) : null;
 
     final promoRaw = root['promo_details'];
-    final promo =
-        promoRaw is Map ? Map<String, dynamic>.from(promoRaw) : null;
+    final promo = promoRaw is Map ? Map<String, dynamic>.from(promoRaw) : null;
 
-    final deliveryFee =
-        root['delivery_fee'] ?? addr?['delivery_fee'] ?? closestStore?['delivery_fee'];
+    final deliveryFee = root['delivery_fee'] ??
+        addr?['delivery_fee'] ??
+        closestStore?['delivery_fee'];
 
     final hasCheckout = promo != null ||
         closestStore != null ||
@@ -384,7 +378,8 @@ class DeliveryService {
       if (deliveryFee != null) 'delivery_fee': deliveryFee,
       if (root['selected_store_description'] != null)
         'selected_store_description': root['selected_store_description'],
-      if (addr?['distance_text'] != null) 'distance_text': addr!['distance_text'],
+      if (addr?['distance_text'] != null)
+        'distance_text': addr!['distance_text'],
       if (addr?['order_urgent'] == true || addr?['is_urgent'] == true)
         'order_urgent': true,
       if (addr?['xpress_fee'] != null) 'xpress_fee': addr!['xpress_fee'],
@@ -424,6 +419,9 @@ class DeliveryService {
     /// When true, tells the API to drop any leftover xpress/urgent fee from a
     /// prior checkout session (non-urgent orders only).
     bool clearStaleUrgentFee = false,
+
+    /// Tags save-billing logs as part of the ExpressPay pre-sync pipeline.
+    bool expressPayFlow = false,
   }) async {
     try {
       // check if theyre logged in or just a guest
@@ -554,6 +552,7 @@ class DeliveryService {
         requestBody: requestBody,
         statusCode: result.statusCode,
         responseBody: result.rawBody,
+        expressPayFlow: expressPayFlow,
       );
 
       if (result.statusCode == 200 || result.statusCode == 201) {
@@ -724,11 +723,11 @@ class DeliveryService {
           ),
           'distance_text':
               billingAddr['distance_text']?.toString() ?? closestDistance,
-          'delivery_fee': billingAddr['delivery_fee'] ?? dataMap?['delivery_fee'],
+          'delivery_fee':
+              billingAddr['delivery_fee'] ?? dataMap?['delivery_fee'],
         };
 
-        final checkout =
-            billingCheckoutPayloadFromResponse(responseMap);
+        final checkout = billingCheckoutPayloadFromResponse(responseMap);
 
         return {
           'success': true,
@@ -1296,6 +1295,17 @@ class DeliveryService {
         timeout: _apiTimeout,
       );
 
+      ExpressPayApiLog.exchange(
+        step: forceRefresh
+            ? 'Pre-ExpressPay → POST /calculate-delivery-fee'
+            : 'POST /calculate-delivery-fee',
+        method: 'POST',
+        url: ApiConfig.getEndpointUrl(ApiConfig.calculateDeliveryFee),
+        request: payload,
+        statusCode: result.statusCode,
+        responseBody: result.rawBody,
+      );
+
       if (result.statusCode != 200 && result.statusCode != 201) {
         var formBody = 'distance_text=${Uri.encodeComponent(normalizedKey)}';
         if (knownDeliveryFee != null && knownDeliveryFee > 0) {
@@ -1307,6 +1317,16 @@ class DeliveryService {
           body: formBody,
           formEncoded: true,
           timeout: _apiTimeout,
+        );
+        ExpressPayApiLog.exchange(
+          step: forceRefresh
+              ? 'Pre-ExpressPay → POST /calculate-delivery-fee (form fallback)'
+              : 'POST /calculate-delivery-fee (form fallback)',
+          method: 'POST',
+          url: ApiConfig.getEndpointUrl(ApiConfig.calculateDeliveryFee),
+          requestRaw: formBody,
+          statusCode: result.statusCode,
+          responseBody: result.rawBody,
         );
       }
 

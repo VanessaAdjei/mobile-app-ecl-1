@@ -718,6 +718,11 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     final isRead = _convertToBoolean(notification['is_read']);
     final iconData = _getNotificationIcon(notification);
     final iconColor = _getNotificationColor(notification);
+    final status = notification['status']?.toString() ?? '';
+    final isDeclined = _isOrderDeclined(status);
+    final hasOrderRef =
+        (notification['order_id']?.toString() ?? '').isNotEmpty ||
+            (notification['order_number']?.toString() ?? '').isNotEmpty;
     final cardBg = isRead
         ? theme.sheetBg
         : (theme.isDark
@@ -745,10 +750,18 @@ class NotificationsScreenState extends State<NotificationsScreen> {
           borderRadius: BorderRadius.circular(14),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            onTap: () => _showNotificationDetails(
-              notification,
-              relatedUpdates: relatedUpdates,
-            ),
+            onTap: () async {
+              if (isDeclined && hasOrderRef) {
+                await _markNotificationAsRead(notification);
+                if (!mounted) return;
+                await _handleNotificationAction(notification);
+                return;
+              }
+              _showNotificationDetails(
+                notification,
+                relatedUpdates: relatedUpdates,
+              );
+            },
             splashColor: accent.withValues(alpha: 0.08),
             highlightColor: accent.withValues(alpha: 0.04),
             child: Ink(
@@ -863,6 +876,8 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ],
+                                  if (isDeclined && hasOrderRef && !compact)
+                                    _buildDeclinedOrderMessage(theme.isDark),
                                 ],
                               ),
                             ),
@@ -1455,6 +1470,8 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     if (!mounted) return;
     final totalAmount = notification['total_amount']?.toString() ?? '0.00';
     final status = notification['status']?.toString() ?? 'Order Placed';
+    final isDeclined = _isOrderDeclined(status);
+    final hasOrderRef = orderId.isNotEmpty || orderNumber.isNotEmpty;
     final iconData = _getNotificationIcon(notification);
     final iconColor = _getNotificationColor(notification);
 
@@ -1645,6 +1662,10 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                 ),
                                 const SizedBox(height: 14),
                               ],
+                              if (isDeclined && hasOrderRef) ...[
+                                _buildDeclinedOrderMessage(theme.isDark),
+                                const SizedBox(height: 14),
+                              ],
                               if (items.isNotEmpty) ...[
                                 Text(
                                   'Items',
@@ -1757,15 +1778,25 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                     vertical: 5,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: theme.isDark
-                                        ? AppColors.primary.withValues(alpha: 0.16)
-                                        : const Color(0xFFECFDF5),
+                                    color: isDeclined
+                                        ? (theme.isDark
+                                            ? Colors.red.shade900
+                                                .withValues(alpha: 0.25)
+                                            : Colors.red.shade50)
+                                        : (theme.isDark
+                                            ? AppColors.primary
+                                                .withValues(alpha: 0.16)
+                                            : const Color(0xFFECFDF5)),
                                     borderRadius: BorderRadius.circular(999),
                                     border: Border.all(
-                                      color: theme.isDark
-                                          ? AppColors.primary
-                                              .withValues(alpha: 0.28)
-                                          : const Color(0xFFBBF7D0),
+                                      color: isDeclined
+                                          ? (theme.isDark
+                                              ? Colors.red.shade700
+                                              : Colors.red.shade200)
+                                          : (theme.isDark
+                                              ? AppColors.primary
+                                                  .withValues(alpha: 0.28)
+                                              : const Color(0xFFBBF7D0)),
                                     ),
                                   ),
                                   child: Text(
@@ -1773,15 +1804,18 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                     style: GoogleFonts.poppins(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600,
-                                      color: accent,
+                                      color: isDeclined
+                                          ? (theme.isDark
+                                              ? Colors.red.shade200
+                                              : Colors.red.shade800)
+                                          : accent,
                                       letterSpacing: 0.5,
                                     ),
                                   ),
                                 ),
                                 const SizedBox(height: 14),
                               ],
-                              if (notification['order_id'] != null ||
-                                  notification['order_number'] != null)
+                              if (hasOrderRef)
                                 SizedBox(
                                   width: double.infinity,
                                   child: FilledButton(
@@ -1806,7 +1840,9 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                       ),
                                     ),
                                     child: Text(
-                                      'Track order',
+                                      isDeclined
+                                          ? 'View order details'
+                                          : 'Track order',
                                       style: GoogleFonts.poppins(
                                         fontWeight: FontWeight.w600,
                                         fontSize: 14,
@@ -1889,6 +1925,50 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                   size: 24,
                 ),
               ),
+      ),
+    );
+  }
+
+  bool _isOrderDeclined(String status) {
+    final lowerStatus = status.toLowerCase();
+    return lowerStatus.contains('declined') ||
+        lowerStatus.contains('failed') ||
+        lowerStatus.contains('cancelled') ||
+        lowerStatus.contains('rejected');
+  }
+
+  Widget _buildDeclinedOrderMessage(bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.red.shade900.withValues(alpha: 0.25)
+            : Colors.red.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isDark ? Colors.red.shade700 : Colors.red.shade200,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.error_outline_rounded,
+            color: isDark ? Colors.red.shade300 : Colors.red.shade600,
+            size: 19,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Payment failed — tap to view order details',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: isDark ? Colors.red.shade200 : Colors.red.shade800,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

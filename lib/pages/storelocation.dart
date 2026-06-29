@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:shimmer/shimmer.dart';
 import '../services/delivery_service.dart';
 import '../services/location_service.dart';
+import '../services/background_store_data_service.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/store_location_model.dart';
 import 'store_map_page.dart';
@@ -80,9 +81,68 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     _scrollController.addListener(_onScroll);
 
     // load the data when page starts
-    _loadRegions();
-    _loadAllStores();
+    _bootstrapStoreData();
     _initializeLocation();
+  }
+
+  Future<void> _bootstrapStoreData() async {
+    final cached = await BackgroundStoreDataService.readStoreSelectionSnapshot();
+    if (cached != null && mounted) {
+      setState(() {
+        regions = cached.regions;
+        allStores = cached.stores;
+        isLoadingRegions = false;
+        isLoadingAllStores = false;
+        regionsError = null;
+        allStoresError = null;
+      });
+    } else if (mounted) {
+      setState(() {
+        isLoadingRegions = true;
+        isLoadingAllStores = true;
+      });
+    }
+
+    await _refreshStoreData(showLoadingWhenEmpty: cached == null);
+  }
+
+  Future<void> _refreshStoreData({bool showLoadingWhenEmpty = true}) async {
+    if (showLoadingWhenEmpty && allStores.isEmpty && mounted) {
+      setState(() {
+        isLoadingRegions = true;
+        isLoadingAllStores = true;
+        regionsError = null;
+        allStoresError = null;
+      });
+    }
+
+    final snapshot =
+        await BackgroundStoreDataService.fetchStoreSelectionSnapshot(
+      forceRefresh: true,
+    );
+
+    if (!mounted) return;
+
+    if (snapshot != null) {
+      setState(() {
+        regions = snapshot.regions;
+        allStores = snapshot.stores;
+        isLoadingRegions = false;
+        isLoadingAllStores = false;
+        regionsError = null;
+        allStoresError = null;
+      });
+      return;
+    }
+
+    if (allStores.isEmpty) {
+      setState(() {
+        regionsError ??= 'Failed to load regions';
+        allStoresError ??= 'Failed to load stores';
+        isLoadingRegions = false;
+        isLoadingAllStores = false;
+      });
+    }
   }
 
   @override
@@ -384,194 +444,12 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
 
   // Load regions from API
   Future<void> _loadRegions() async {
-    debugPrint('=== STORE LOCATION: Loading regions ===');
-    setState(() {
-      isLoadingRegions = true;
-      regionsError = null;
-    });
-
-    try {
-      debugPrint('Calling DeliveryService.getRegions()...');
-      final result = await DeliveryService.getRegions();
-
-      if (result['success']) {
-        final regionsData = result['data'] ?? [];
-        debugPrint('Regions data received: ${regionsData.length} regions');
-        debugPrint('Regions: $regionsData');
-
-        // Filter to only show Greater Accra, Ashanti, and Western regions
-        final allowedRegionNames = [
-          'greater accra',
-          'ashanti',
-          'western',
-          'accra', // Also allow "Accra" as it might be named differently
-        ];
-
-        final filteredRegions = regionsData.where((region) {
-          final regionName =
-              (region['description'] ?? '').toString().toLowerCase().trim();
-          final isAllowed =
-              allowedRegionNames.any((allowed) => regionName.contains(allowed));
-
-          if (!isAllowed) {
-            debugPrint(
-                '❌ Region filtered out: "$regionName" (original: "${region['description']}")');
-          } else {
-            debugPrint(
-                '✅ Region allowed: "$regionName" (original: "${region['description']}")');
-          }
-
-          return isAllowed;
-        }).toList();
-
-        debugPrint('📋 Total regions from API: ${regionsData.length}');
-        debugPrint('📋 Filtered regions count: ${filteredRegions.length}');
-        debugPrint(
-            '📋 Filtered region names: ${filteredRegions.map((r) => r['description']).toList()}');
-
-        setState(() {
-          regions = _dedupeLocationOptions(filteredRegions);
-          isLoadingRegions = false;
-        });
-        debugPrint(
-            'Regions loaded successfully: ${regions.length} regions (filtered from ${regionsData.length})');
-      } else {
-        debugPrint('Regions API failed: ${result['message']}');
-        setState(() {
-          regionsError = result['message'] ?? 'Failed to load regions';
-          isLoadingRegions = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading regions: $e');
-      setState(() {
-        regionsError = 'Network error: ${e.toString()}';
-        isLoadingRegions = false;
-      });
-    }
+    await _refreshStoreData(showLoadingWhenEmpty: regions.isEmpty);
   }
 
   // Load ALL stores with parallel processing for speed
   Future<void> _loadAllStores() async {
-    debugPrint('=== STORE LOCATION: Loading ALL stores ===');
-    setState(() {
-      isLoadingAllStores = true;
-      allStoresError = null;
-    });
-
-    try {
-      // Get all regions
-      final regionsResult = await DeliveryService.getRegions();
-      if (!regionsResult['success']) {
-        setState(() {
-          allStoresError = regionsResult['message'] ?? 'Failed to load regions';
-          isLoadingAllStores = false;
-        });
-        return;
-      }
-
-      final regionsData = regionsResult['data'] ?? [];
-
-      // Filter to only show Greater Accra, Ashanti, and Western regions
-      final allowedRegionNames = [
-        'greater accra',
-        'ashanti',
-        'western',
-        'accra', // Also allow "Accra" as it might be named differently
-      ];
-
-      final filteredRegions = regionsData.where((region) {
-        final regionName =
-            (region['description'] ?? '').toString().toLowerCase().trim();
-        final isAllowed =
-            allowedRegionNames.any((allowed) => regionName.contains(allowed));
-
-        if (!isAllowed) {
-          debugPrint(
-              '❌ Region filtered out in _loadAllStores: "$regionName" (original: "${region['description']}")');
-        }
-
-        return isAllowed;
-      }).toList();
-
-      debugPrint(
-          '🗺️ Filtered regions: ${filteredRegions.length} out of ${regionsData.length} total');
-      for (var region in filteredRegions) {
-        debugPrint('  ✅ Allowed region: ${region['description']}');
-      }
-
-      List<dynamic> allStoresList = [];
-
-      // Load all cities for filtered regions in parallel
-      List<Future<Map<String, dynamic>>> cityFutures = [];
-      for (var region in filteredRegions) {
-        final regionId = int.tryParse(region['id'].toString()) ?? 0;
-        cityFutures.add(DeliveryService.getCitiesByRegion(regionId));
-      }
-
-      // Wait for all city requests to complete
-      final cityResults = await Future.wait(cityFutures);
-
-      // Load all stores for all cities in parallel
-      List<Future<Map<String, dynamic>>> storeFutures = [];
-      Map<int, Map<String, String>> cityInfo = {};
-
-      for (int i = 0; i < cityResults.length; i++) {
-        if (cityResults[i]['success']) {
-          final citiesData = cityResults[i]['data'] ?? [];
-          final region = filteredRegions[i];
-
-          for (var city in citiesData) {
-            final cityId = int.tryParse(city['id'].toString()) ?? 0;
-            cityInfo[cityId] = {
-              'region_name': region['description']?.toString() ?? '',
-              'city_name': city['description']?.toString() ?? '',
-            };
-            storeFutures.add(DeliveryService.getStoresByCity(cityId));
-          }
-        }
-      }
-
-      // Wait for all store requests to complete
-      final storeResults = await Future.wait(storeFutures);
-      // Process all store results
-      for (var storeResult in storeResults) {
-        if (storeResult['success']) {
-          final storesData = storeResult['data'] ?? [];
-          for (var store in storesData) {
-            final raw = Map<String, dynamic>.from(store as Map);
-            final cityId = int.tryParse(raw['city_id'].toString()) ?? 0;
-            var model = StoreLocationModel.fromApiJson(raw);
-            if (cityInfo.containsKey(cityId)) {
-              model = model.copyWith(
-                regionName: cityInfo[cityId]!['region_name'],
-                cityName: cityInfo[cityId]!['city_name'],
-              );
-            }
-            final normalized = model.toMap();
-
-            debugPrint('🔍 STORE DATA STRUCTURE ===');
-            debugPrint('Store: ${normalized['description']}');
-            debugPrint(
-                'Hours: ${normalized['opening_time']} – ${normalized['closing_time']}');
-            debugPrint('==========================');
-
-            allStoresList.add(normalized);
-          }
-        }
-      }
-
-      setState(() {
-        allStores = allStoresList;
-        isLoadingAllStores = false;
-      });
-    } catch (e) {
-      debugPrint('Error loading all stores: $e');
-      setState(() {
-        allStoresError = 'Network error: ${e.toString()}';
-        isLoadingAllStores = false;
-      });
-    }
+    await _refreshStoreData(showLoadingWhenEmpty: allStores.isEmpty);
   }
 
   @override

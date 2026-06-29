@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../../utils/checkout_log.dart';
+import '../../utils/express_pay_api_log.dart';
 
 import '../../config/api_config.dart';
 import '../../models/category_fetch_result.dart';
@@ -48,8 +49,28 @@ void _logPaymentHttpResponse({
   required String tag,
   required int statusCode,
   required String body,
+  String? method,
+  String? url,
+  Map<String, dynamic>? request,
 }) {
+  if (tag.contains('expresspayment') ||
+      tag.contains('check-payment') ||
+      tag.contains('EXPRESS') ||
+      tag.contains('CHECK PAYMENT')) {
+    ExpressPayApiLog.exchange(
+      step: tag,
+      method: method ?? 'POST',
+      url: url ?? '',
+      request: request,
+      statusCode: statusCode,
+      responseBody: body,
+    );
+    return;
+  }
   checkoutLog('[$tag] ← HTTP $statusCode');
+  if (body.trim().isNotEmpty) {
+    checkoutLog('[$tag] body=$body');
+  }
 }
 
 class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
@@ -122,9 +143,12 @@ class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
       }
 
       _logPaymentHttpResponse(
-        tag: 'EXPRESS PAYMENT SUBMIT',
+        tag: 'POST /expresspayment',
         statusCode: response.statusCode,
         body: response.body,
+        method: 'POST',
+        url: url,
+        request: params,
       );
 
       return CategoryFetchResult.fromResponse(
@@ -165,9 +189,12 @@ class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
       ).timeout(timeout);
 
       _logPaymentHttpResponse(
-        tag: 'CHECK PAYMENT',
+        tag: 'POST /check-payment',
         statusCode: response.statusCode,
         body: response.body,
+        method: 'POST',
+        url: url,
+        request: body,
       );
 
       return CategoryFetchResult.fromResponse(

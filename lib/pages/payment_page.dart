@@ -17,6 +17,7 @@ import '../models/cart_item.dart';
 import '../config/api_config.dart';
 import '../utils/checkout_order_totals.dart';
 import '../utils/checkout_log.dart';
+import '../utils/express_pay_api_log.dart';
 import '../utils/payment_redirect_url.dart';
 import '../widgets/payment/payment_bill_summary_section.dart';
 import '../widgets/payment/payment_delivery_details_card.dart';
@@ -335,7 +336,15 @@ class PaymentPageState extends State<PaymentPage> {
 
   /// Re-sync delivery fee to the server cart immediately before ExpressPay.
   Future<void> _syncServerCartBeforeExpressPay(double deliveryCharge) async {
-    if (!widget._isDelivery || deliveryCharge <= 0) return;
+    ExpressPayApiLog.section('Pre-ExpressPay cart sync starting');
+
+    if (!widget._isDelivery || deliveryCharge <= 0) {
+      ExpressPayApiLog.message(
+        'Skipping delivery cart sync (isDelivery=${widget._isDelivery}, '
+        'deliveryCharge=$deliveryCharge)',
+      );
+      return;
+    }
 
     final distanceText = await DeliveryService.resolveDistanceTextForDeliveryFee(
       feeDistanceText: widget.feeDistanceText,
@@ -383,6 +392,7 @@ class PaymentPageState extends State<PaymentPage> {
       ),
       emergencyOrderFee: xpressFee > 0 ? xpressFee : null,
       clearStaleUrgentFee: !widget.isOrderUrgent,
+      expressPayFlow: true,
     );
 
     if (distanceText != null && distanceText.isNotEmpty) {
@@ -396,6 +406,8 @@ class PaymentPageState extends State<PaymentPage> {
     if (widget.isOrderUrgent && xpressFee > 0) {
       await DeliveryService.addXpressFee();
     }
+
+    ExpressPayApiLog.section('Pre-ExpressPay cart sync complete');
   }
 
   Map<String, dynamic> _buildExpressPaySubmitParams({
@@ -743,6 +755,9 @@ class PaymentPageState extends State<PaymentPage> {
         if (widget.lng != null) 'lng': widget.lng,
       };
 
+      ExpressPayApiLog.section('Submitting to POST /expresspayment');
+      ExpressPayApiLog.message('Payload: $expressPayParams');
+
       final purchasedItems = List<CartItem>.from(selectedItems);
       final transactionId = orderId;
 
@@ -759,6 +774,9 @@ class PaymentPageState extends State<PaymentPage> {
               final responseBody = await _checkoutPaymentService
                   .submitExpressPayment(params: expressPayParams);
               final redirectUrl = prepareExpressPayPortalUrl(responseBody);
+              ExpressPayApiLog.message(
+                'ExpressPay portal URL: ${redirectUrl ?? responseBody}',
+              );
               if (redirectUrl == null || redirectUrl.isEmpty) {
                 throw Exception(
                   'Could not read a payment page URL from the server. '
