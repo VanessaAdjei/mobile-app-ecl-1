@@ -28,6 +28,8 @@ This document defines the standard architecture for the ECL ecommerce app. All n
 | **Model** | Data structures: entities, DTOs, request/response shapes. | `lib/models/` | Plain classes, fromJson/toJson. No logic. |
 | **Database** | Actual persistence: remote (API client) and/or local (SharedPreferences, SecureStorage, SQLite). | `lib/database/` | Low-level read/write. Used only by Repository. |
 
+On-device storage rules (keys, logout vs cache) are documented in [STORAGE_POLICY.md](STORAGE_POLICY.md).
+
 ## Folder structure
 
 ```

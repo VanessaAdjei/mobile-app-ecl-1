@@ -409,7 +409,7 @@ class HomePageState extends State<HomePage>
   /// Categorize on a worker when the catalog is large enough to jank the UI.
   static const int _isolateProcessThreshold = 50;
 
-  /// Grid sections on home (Wellness, Selfcare, etc.) show up to this many cards.
+  /// Grid sections on home show up to this many cards (backing list is uncapped).
   static const int _homeGridSectionVisibleCount = 6;
   bool _spotlightTourScheduled = false;
   bool _isRoutePushInProgress = false;
@@ -578,14 +578,10 @@ class HomePageState extends State<HomePage>
     _markHomeHydratedOnce();
   }
 
-  /// Fast shuffle — only randomize a small pool per section (not 1000+ items).
-  List<Product> _shuffledSectionPool(List<Product> source, {int pool = 40}) {
+  /// Shuffles the full catalog bucket for a home section (no pool cap).
+  List<Product> _shuffledSectionPool(List<Product> source) {
     if (source.isEmpty) return [];
-    if (source.length <= pool) {
-      return List<Product>.from(source)..shuffle();
-    }
-    final copy = List<Product>.from(source)..shuffle();
-    return copy.take(pool).toList();
+    return List<Product>.from(source)..shuffle();
   }
 
   bool _tryApplyPreparedSectionPools() {
@@ -638,9 +634,10 @@ class HomePageState extends State<HomePage>
         buckets['accessories']!.isNotEmpty) {
       accessoriesProducts = _shuffledSectionPool(buckets['accessories']!);
     }
-    if (_sectionPoolUnderfilled(prescribedProducts) &&
-        buckets['prescribed']!.isNotEmpty) {
-      prescribedProducts = _shuffledSectionPool(buckets['prescribed']!);
+    final prescribedBucket = buckets['prescribed']!;
+    if (prescribedBucket.isNotEmpty &&
+        prescribedBucket.length > prescribedProducts.length) {
+      prescribedProducts = _shuffledSectionPool(prescribedBucket);
     }
   }
 
@@ -1950,7 +1947,7 @@ class HomePageState extends State<HomePage>
                         child: _buildProductSection(
                           'Medication',
                           Colors.green[700]!,
-                          _getLimitedProducts(drugsSectionProducts),
+                          drugsSectionProducts,
                           'drugs',
                           fontSize: cardFontSize,
                           padding: cardPadding,
@@ -1965,7 +1962,7 @@ class HomePageState extends State<HomePage>
                     child: _buildProductSection(
                       'Wellness',
                       Colors.purple[700]!,
-                      _getLimitedProducts(wellnessProducts),
+                      wellnessProducts,
                       'wellness',
                       fontSize: cardFontSize,
                       padding: cardPadding,
@@ -2048,7 +2045,7 @@ class HomePageState extends State<HomePage>
                     child: _buildProductSection(
                       'Selfcare',
                       Colors.orange[700]!,
-                      _getLimitedProducts(selfcareProducts),
+                      selfcareProducts,
                       'selfcare',
                       fontSize: cardFontSize,
                       padding: cardPadding,
@@ -2060,7 +2057,7 @@ class HomePageState extends State<HomePage>
                     child: _buildProductSection(
                       'Accessories',
                       Colors.teal[700]!,
-                      _getLimitedProducts(accessoriesProducts),
+                      accessoriesProducts,
                       'accessories',
                       fontSize: cardFontSize,
                       padding: cardPadding,
@@ -2073,7 +2070,7 @@ class HomePageState extends State<HomePage>
                       child: _buildProductSection(
                         'PRESCRIPTION ONLY MEDICINE',
                         Colors.red[700]!,
-                        _getLimitedProducts(prescribedProducts),
+                        prescribedProducts,
                         'prescribed',
                         fontSize: cardFontSize,
                         padding: cardPadding,
@@ -2404,9 +2401,6 @@ class HomePageState extends State<HomePage>
   }
 
   // ─── Product section ───────────────────────────────────────────────────────
-  List<Product> _getLimitedProducts(List<Product> products, {int limit = 8}) =>
-      products.take(limit).toList();
-
   Widget _buildProductSection(
       String title, Color color, List<Product> products, String category,
       {required double fontSize,
@@ -2433,8 +2427,7 @@ class HomePageState extends State<HomePage>
           ),
           TextButton(
             onPressed: () {
-              // The section cards are capped on homepage; "See More" should open
-              // the full backing list for that section.
+              // Homepage grid shows 6; "See More" opens the full backing list.
               final filtered = switch (category.toLowerCase()) {
                 'drugs' => List<Product>.from(drugsSectionProducts),
                 'wellness' => List<Product>.from(wellnessProducts),
@@ -2459,7 +2452,9 @@ class HomePageState extends State<HomePage>
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         padding: EdgeInsets.zero,
-        itemCount: products.length > 6 ? 6 : products.length,
+        itemCount: products.length > _homeGridSectionVisibleCount
+            ? _homeGridSectionVisibleCount
+            : products.length,
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: isTablet ? 3 : 2,
           childAspectRatio: isTablet ? 1.2 : 1.0,

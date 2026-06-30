@@ -101,7 +101,7 @@ class RefillCatalogService {
       'with product ids: $productIds',
     );
 
-    final result = await _cartService.checkAuthWithProductCandidates(
+    final authResponse = await _cartService.checkAuthWithProductCandidates(
       headers: headers,
       productIds: productIds,
       quantity: 1,
@@ -117,11 +117,11 @@ class RefillCatalogService {
         debugPrint('📦 Add to cart response body: ${result.rawBody}');
       },
     );
-    _rethrowTransportError(result);
+    _rethrowTransportError(authResponse.result);
 
-    if (!CartService.isSuccessStatus(result.statusCode)) {
+    if (!CartService.isSuccessStatus(authResponse.result.statusCode)) {
       final message = RefillMedicineParser.errorMessageFromAddToCartBody(
-            result.rawBody,
+            authResponse.result.rawBody,
           ) ??
           'Failed to add ${medicine.name} to cart. Please try again.';
       throw Exception(message);

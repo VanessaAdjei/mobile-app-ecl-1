@@ -46,7 +46,6 @@ class HomePreloadService {
 
   static bool get isFullyReadyForHome => ProductCache.hasHomeRenderableCatalog;
 
-  static const int _sectionPoolSize = 40;
   static const int _visiblePerSection = 6;
 
   static List<Product> _preparedWellness = [];
@@ -58,25 +57,21 @@ class HomePreloadService {
 
   static bool get hasPreparedHomeSections => _homeSectionsPrepared;
 
-  static List<Product> _shuffledPool(List<Product> source, {int pool = _sectionPoolSize}) {
+  static List<Product> _fullShuffledPool(List<Product> source) {
     if (source.isEmpty) return [];
-    if (source.length <= pool) {
-      return List<Product>.from(source)..shuffle();
-    }
-    final copy = List<Product>.from(source)..shuffle();
-    return copy.take(pool).toList();
+    return List<Product>.from(source)..shuffle();
   }
 
-  /// Same shuffle home will use — avoids cache miss on different random 6.
+  /// Same shuffle home will use — avoids cache miss on different random order.
   static void prepareHomeSectionPools() {
     final catalog = ProductCache.cachedProducts;
     if (catalog.isEmpty) return;
     final sections = categorizeProductsForHome(catalog);
-    _preparedWellness = _shuffledPool(sections['wellness']!);
-    _preparedSelfcare = _shuffledPool(sections['selfcare']!);
-    _preparedAccessories = _shuffledPool(sections['accessories']!);
-    _preparedPrescribed = _shuffledPool(sections['prescribed']!);
-    _preparedDrugs = _shuffledPool(sections['drugs']!);
+    _preparedWellness = _fullShuffledPool(sections['wellness']!);
+    _preparedSelfcare = _fullShuffledPool(sections['selfcare']!);
+    _preparedAccessories = _fullShuffledPool(sections['accessories']!);
+    _preparedPrescribed = _fullShuffledPool(sections['prescribed']!);
+    _preparedDrugs = _fullShuffledPool(sections['drugs']!);
     _homeSectionsPrepared = true;
     debugPrint(
       'HomePreloadService: prepared home sections '

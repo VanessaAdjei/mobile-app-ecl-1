@@ -154,6 +154,10 @@ String alignExpressPayCheckoutUrl(String url, double expectedAmount) {
     changed = true;
   }
 
+  // Token-only checkout URLs cannot be corrected via query params — ExpressPay
+  // registers the bill amount server-side. Appending `amount=` only pollutes
+  // WebView scraping and hides merchandise-only undercharges.
+
   if (!changed) return url;
   return uri.replace(queryParameters: params).toString();
 }

@@ -11,7 +11,6 @@ import '../services/auth_service.dart';
 import '../utils/checkout_log.dart';
 import '../utils/payment_redirect_url.dart';
 import '../config/api_config.dart';
-import '../utils/app_error_utils.dart';
 import '../utils/expresspay_amount_guard.dart';
 import '../widgets/checkout_progress_stepper.dart';
 import 'post_checkout_order_page.dart';
@@ -311,12 +310,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
     try {
       final token = await AuthService.getToken();
       if (token == null) {
-        // if no token, show error and go back to payment page
-        if (mounted) {
-          AppErrorUtils.showSnack(
-              context, 'Session expired. Please log in again.');
-          unawaited(_exitWebView(false));
-        }
+        debugPrint('[EXPRESS PAY] No auth token — opening portal anyway');
       }
     } catch (e) {
       debugPrint('Auth refresh check failed: $e');
@@ -513,13 +507,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
 
       if (!mounted) return;
 
-      var resolved = parsePaymentRedirectUrl(targetUrl) ?? targetUrl;
-      final expectedAmount = double.tryParse(
-        widget.paymentParams['amount']?.toString().replaceAll(',', '') ?? '',
-      );
-      if (expectedAmount != null && expectedAmount > 0) {
-        resolved = alignExpressPayCheckoutUrl(resolved, expectedAmount);
-      }
+      final resolved = parsePaymentRedirectUrl(targetUrl) ?? targetUrl;
       if (resolved.isEmpty) {
         setState(() {
           _loadError =

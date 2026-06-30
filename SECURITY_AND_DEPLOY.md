@@ -72,9 +72,9 @@ Keys are **not** committed. Set them as follows for release and CI.
 
   The app reads `MAPS_API_KEY` via `build.gradle` and injects it into the manifest. If missing, the placeholder `YOUR_GOOGLE_MAPS_API_KEY` is used and Maps will not work until you set it.
 
-- **iOS:** the repo contains the placeholder `YOUR_GOOGLE_MAPS_API_KEY` in `ios/Runner/Info.plist` (no real key committed).
+- **iOS:** `ios/Runner/Info.plist` uses `$(GMS_API_KEY)` — never put a real key in that file.
 
-  - **Local run:** replace it manually with your key, or inject before building (see below).
+  - **Local run:** copy `ios/Flutter/Secrets.xcconfig.example` → `ios/Flutter/Secrets.xcconfig` (gitignored) and set `GMS_API_KEY=...`, **or** inject before building (see below).
   - **CI / release:** inject the key so it is never committed. Example (run from repo root, with `GMS_API_KEY` set in CI secrets):
 
     ```bash
@@ -121,5 +121,5 @@ If you see runtime crashes or missing classes in release, add keep rules for the
 | Gemini API key    | `--dart-define=GEMINI_API_KEY=...` for release; optional in-app entry. |
 | Google Maps (Dart) | `--dart-define=GOOGLE_MAPS_API_KEY=...` for release. |
 | Google Maps (Android) | `android/local.properties` → `MAPS_API_KEY=...`; do not commit. |
-| Google Maps (iOS) | Replace `YOUR_GOOGLE_MAPS_API_KEY` in `Info.plist` at build time; do not commit. |
+| Google Maps (iOS) | `ios/Flutter/Secrets.xcconfig` → `GMS_API_KEY=...` (from `.example`); do not commit. |
 | Payment redirect  | Default production URL; override with `--dart-define=PAYMENT_REDIRECT_URL=...` for test. |

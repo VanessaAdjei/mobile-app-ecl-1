@@ -65,11 +65,7 @@ class _LoggedOutScreenState extends State<LoggedOutScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 20),
-                  Image.asset(
-                    PostCheckoutDesign.logoAsset,
-                    height: 30,
-                    fit: BoxFit.contain,
-                  ).animate().fadeIn(duration: 500.ms),
+                  const _SignedOutLogo(),
                   const SizedBox(height: 22),
                   const _OrnamentalRule(),
                   const SizedBox(height: 28),
@@ -163,7 +159,8 @@ class _LoggedOutScreenState extends State<LoggedOutScreen> {
                         fontWeight: FontWeight.w500,
                         letterSpacing: 0.2,
                         decoration: TextDecoration.underline,
-                        decorationColor: AppColors.primary.withValues(alpha: 0.6),
+                        decorationColor:
+                            AppColors.primary.withValues(alpha: 0.6),
                       ),
                     ),
                   ).animate().fadeIn(duration: 500.ms, delay: 240.ms),
@@ -221,10 +218,9 @@ abstract final class _SignedOutPalette {
   static Color muted(AppThemeColors theme) =>
       theme.isDark ? const Color(0xFF9CA3AF) : const Color(0xFF78716C);
 
-  static Color line(AppThemeColors theme) =>
-      theme.isDark
-          ? Colors.white.withValues(alpha: 0.12)
-          : AppColors.primary.withValues(alpha: 0.18);
+  static Color line(AppThemeColors theme) => theme.isDark
+      ? Colors.white.withValues(alpha: 0.12)
+      : AppColors.primary.withValues(alpha: 0.18);
 }
 
 class _OrnamentalRule extends StatelessWidget {
@@ -257,6 +253,124 @@ class _OrnamentalRule extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _SignedOutLogo extends StatefulWidget {
+  const _SignedOutLogo();
+
+  @override
+  State<_SignedOutLogo> createState() => _SignedOutLogoState();
+}
+
+class _SignedOutLogoState extends State<_SignedOutLogo> {
+  static const _tapWindow = Duration(milliseconds: 600);
+
+  int _tapCount = 0;
+  DateTime? _lastTap;
+  bool _showVa = false;
+
+  void _onTap() {
+    final now = DateTime.now();
+    if (_lastTap != null && now.difference(_lastTap!) > _tapWindow) {
+      _tapCount = 0;
+    }
+    _lastTap = now;
+    _tapCount++;
+    if (_tapCount >= 5) {
+      _tapCount = 0;
+      setState(() => _showVa = !_showVa);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appColors;
+
+    return GestureDetector(
+      onTap: _onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedOpacity(
+            opacity: _showVa ? 0.45 : 1,
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOut,
+            child: Image.asset(
+              PostCheckoutDesign.logoAsset,
+              height: 86,
+              fit: BoxFit.contain,
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: _showVa
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: GestureDetector(
+                      onTap: () => setState(() => _showVa = false),
+                      child: _VaSealMark(isDark: theme.isDark),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 500.ms);
+  }
+}
+
+class _VaSealMark extends StatelessWidget {
+  const _VaSealMark({required this.isDark});
+
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [AppColors.primary, AppColors.primaryDark]
+              : [AppColors.primaryDark, const Color(0xFF0A5C38)],
+        ),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: isDark ? 0.2 : 0.3),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryDark.withValues(alpha: 0.18),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Text(
+          'VA',
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.8,
+            color: Colors.white.withValues(alpha: 0.95),
+            height: 1,
+          ),
+        ),
+      ),
+    ).animate().fadeIn(duration: 240.ms).scale(
+          begin: const Offset(0.85, 0.85),
+          end: const Offset(1, 1),
+          duration: 280.ms,
+          curve: Curves.easeOutBack,
+        );
   }
 }
 
@@ -360,8 +474,7 @@ class _BenefitRow extends StatelessWidget {
         child: Row(
           children: [
             for (var i = 0; i < _items.length; i++) ...[
-              if (i > 0)
-                VerticalDivider(width: 1, thickness: 1, color: line),
+              if (i > 0) VerticalDivider(width: 1, thickness: 1, color: line),
               Expanded(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,

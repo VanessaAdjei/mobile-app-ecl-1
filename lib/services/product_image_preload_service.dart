@@ -28,7 +28,7 @@ class ProductImagePreloadService {
   /// Must match category grid [CachedNetworkImage] disk resize.
   static const int categoryThumbDiskSize = 400;
 
-  /// Matches [_getLimitedProducts] on home (medication horizontal row).
+  /// First medication row images to warm before home paints (grid may show more).
   static const int homeMedicationVisibleCount = 8;
 
   static int get downloadedCount => _downloaded.length;

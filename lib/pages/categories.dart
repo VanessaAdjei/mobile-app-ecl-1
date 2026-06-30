@@ -3979,19 +3979,7 @@ class ProductListPageState extends State<ProductListPage> {
           Expanded(
             child: Container(
               color: SubcategoryDesign.canvasBg(context),
-              child: Column(
-                children: [
-                  CategorySectionHeader(
-                    title: widget.categoryName,
-                    subtitle: isLoading
-                        ? 'Curating products for you'
-                        : '${_allProducts.length} items in this department',
-                    itemCount:
-                        _allProducts.isEmpty ? null : _allProducts.length,
-                  ),
-                  Expanded(child: _buildProductsList()),
-                ],
-              ),
+              child: _buildProductsList(),
             ),
           ),
         ],

@@ -16,6 +16,12 @@ void main() {
           'https://sandbox.expresspaygh.com/api/checkout.php?token=abc&amount=135.00';
       expect(alignExpressPayCheckoutUrl(url, 135), url);
     });
+
+    test('leaves token-only checkout URL unchanged', () {
+      const url =
+          'https://sandbox.expresspaygh.com/api/checkout.php?token=abc123';
+      expect(alignExpressPayCheckoutUrl(url, 133.4), url);
+    });
   });
 
   group('prepareExpressPayPortalUrl', () {

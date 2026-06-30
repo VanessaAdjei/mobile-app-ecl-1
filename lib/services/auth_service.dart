@@ -5,6 +5,7 @@ import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../database/local_storage/local_storage_cleanup.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -1451,6 +1452,7 @@ class AuthService {
       _lastTokenVerification = null;
       _tokenRefreshTimer?.cancel();
       await _safeDeleteAll();
+      await LocalStorageCleanup.clearOnLogout();
     }
   }
 

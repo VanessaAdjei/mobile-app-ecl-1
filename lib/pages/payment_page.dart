@@ -116,6 +116,12 @@ class PaymentPageState extends State<PaymentPage> {
   final ScrollController _scrollController = ScrollController();
   bool _showScrollHint = false;
 
+  /// Merged totals for bill UI (widget + draft + server billing when needed).
+  CheckoutOrderTotals? _billTotals;
+
+  /// Latest fee from [/calculate-delivery-fee] for this checkout distance.
+  double? _liveDeliveryFee;
+
   double get _effectiveSubtotalFromApiOrCart {
     final fromTotals = widget.orderTotals?.merchandiseSubtotal;
     if (fromTotals != null && fromTotals >= 0) return fromTotals;
@@ -154,21 +160,47 @@ class PaymentPageState extends State<PaymentPage> {
   }
 
   bool _expectsDeliveryFee(CheckoutOrderTotals totals) {
-    if ((widget.lockedDeliveryFee ?? 0) > 0) return true;
+    if (_deliveryFeeFromDeliveryPage != null) return true;
     return (totals.isDelivery || widget._isDelivery) && !totals.shippingFree;
+  }
+
+  /// Fee confirmed on the delivery page via [/calculate-delivery-fee].
+  double? get _deliveryFeeFromDeliveryPage {
+    final fromOrder = widget.orderTotals?.deliveryFee ?? 0;
+    final locked = widget.lockedDeliveryFee ?? 0;
+    final best = fromOrder >= locked ? fromOrder : locked;
+    if (best > 0) return best;
+    return null;
+  }
+
+  /// Picks delivery fee — API quote from delivery page wins; live re-fetch is fallback.
+  double _pickBestDeliveryFee({
+    required double baseFee,
+    required double orderFee,
+    required double lockedFee,
+  }) {
+    final handedOff = _deliveryFeeFromDeliveryPage;
+    if (handedOff != null) return handedOff;
+    if (orderFee > 0) return orderFee;
+    if (lockedFee > 0) return lockedFee;
+    if (baseFee > 0) return baseFee;
+    final live = _liveDeliveryFee;
+    if (live != null && live > 0) return live;
+    return 0;
   }
 
   /// Sync totals for UI + payment — merges locked fee scalars and clears stale
   /// free-shipping when a delivery fee is actually owed.
   CheckoutOrderTotals _paymentTotals(CheckoutOrderTotals base) {
     final lockedDelivery = widget.lockedDeliveryFee ?? 0;
+    final fromOrder = widget.orderTotals?.deliveryFee ?? 0;
     final isDelivery = widget._isDelivery;
     final owedDelivery = isDelivery
-        ? (lockedDelivery > 0
-            ? lockedDelivery
-            : (base.deliveryFee > 0
-                ? base.deliveryFee
-                : (widget.orderTotals?.deliveryFee ?? 0)))
+        ? _pickBestDeliveryFee(
+            baseFee: base.deliveryFee,
+            orderFee: fromOrder,
+            lockedFee: lockedDelivery,
+          )
         : 0.0;
     final xpressFee = widget.lockedXpressFee ??
         (base.emergencyOrderFee > 0
@@ -188,22 +220,74 @@ class PaymentPageState extends State<PaymentPage> {
   }
 
   CheckoutOrderTotals get _displayTotals =>
-      _paymentTotals(_checkoutTotals);
+      _billTotals ?? _paymentTotals(_checkoutTotals);
 
-  /// Best-known delivery fee — locked scalars from delivery page win over API.
+  /// Fetches delivery fee from [/calculate-delivery-fee] when the delivery page
+  /// did not pass one (hot reload / draft recovery only).
+  Future<double?> _fetchLiveDeliveryFee() async {
+    if (!widget._isDelivery) return null;
+    if (_deliveryFeeFromDeliveryPage != null) {
+      return _deliveryFeeFromDeliveryPage;
+    }
+
+    final distanceText =
+        await DeliveryService.resolveDistanceTextForDeliveryFee(
+      feeDistanceText: widget.feeDistanceText,
+      knownDistanceKm: widget.distanceKm,
+      lat: widget.lat,
+      lng: widget.lng,
+    );
+
+    if (distanceText != null && distanceText.isNotEmpty) {
+      final result = await DeliveryService.fetchDeliveryFeeFromApi(
+        distanceText: distanceText,
+        fallbackToLocalEstimate: false,
+      );
+      final raw = result?['delivery_fee'];
+      if (raw is num && raw > 0) return raw.toDouble();
+      final parsed = double.tryParse('${raw ?? ''}');
+      if (parsed != null && parsed > 0) return parsed;
+    }
+
+    return null;
+  }
+
+  /// Syncs bill totals — uses the fee handed off from the delivery page.
+  Future<void> _refreshBillTotals() async {
+    final handedOff = _deliveryFeeFromDeliveryPage;
+    _liveDeliveryFee = handedOff ?? await _fetchLiveDeliveryFee();
+
+    var totals = await _resolveCheckoutTotalsForPayment();
+    if (widget._isDelivery &&
+        _liveDeliveryFee != null &&
+        _liveDeliveryFee! > 0) {
+      totals = totals.copyWith(
+        deliveryFee: _liveDeliveryFee,
+        shippingFree: false,
+        isDelivery: true,
+      );
+    }
+
+    totals = _paymentTotals(totals);
+    if (mounted) setState(() => _billTotals = totals);
+  }
+
+  /// Best-known delivery fee for ExpressPay.
   double _resolveDeliveryCharge(
     CheckoutOrderTotals totals, {
     Map<String, dynamic>? saveResult,
   }) {
-    final lockedScalar = widget.lockedDeliveryFee ?? 0;
-    if (widget.billingCartSynced && lockedScalar > 0) {
-      return lockedScalar;
-    }
+    final handedOff = _deliveryFeeFromDeliveryPage;
+    if (handedOff != null) return handedOff;
+
+    final live = _liveDeliveryFee;
+    if (live != null && live > 0) return live;
 
     if (!_expectsDeliveryFee(totals)) return 0;
     if (totals.chargedDeliveryFee > 0) return totals.chargedDeliveryFee;
     if (totals.deliveryFee > 0) return totals.deliveryFee;
 
+    final lockedScalar = widget.lockedDeliveryFee ?? 0;
     if (lockedScalar > 0) return lockedScalar;
 
     final fromOrderTotals = widget.orderTotals?.deliveryFee ?? 0;
@@ -219,6 +303,7 @@ class PaymentPageState extends State<PaymentPage> {
     CheckoutOrderTotals totals, {
     Map<String, dynamic>? saveResult,
   }) async {
+    _liveDeliveryFee ??= await _fetchLiveDeliveryFee();
     final syncCharge = _resolveDeliveryCharge(totals, saveResult: saveResult);
     if (syncCharge > 0) return syncCharge;
 
@@ -259,12 +344,13 @@ class PaymentPageState extends State<PaymentPage> {
     final locked = widget.orderTotals;
 
     double pickDeliveryFee() {
-      final lockedScalar = widget.lockedDeliveryFee ?? 0;
-      if (lockedScalar > 0) return lockedScalar;
+      final handedOff = _deliveryFeeFromDeliveryPage;
+      if (handedOff != null) return handedOff;
       if (totals.deliveryFee > 0) return totals.deliveryFee;
-      if (totals.chargedDeliveryFee > 0) return totals.deliveryFee;
       final fromLocked = locked?.deliveryFee ?? 0;
       if (fromLocked > 0) return fromLocked;
+      final lockedScalar = widget.lockedDeliveryFee ?? 0;
+      if (lockedScalar > 0) return lockedScalar;
       if (draft != null &&
           draft.deliveryOption == 'delivery' &&
           draft.deliveryFee > 0) {
@@ -335,8 +421,13 @@ class PaymentPageState extends State<PaymentPage> {
       widget.isOrderUrgent || totals.emergencyOrderFee > 0;
 
   /// Re-sync delivery fee to the server cart immediately before ExpressPay.
-  Future<void> _syncServerCartBeforeExpressPay(double deliveryCharge) async {
+  Future<void> _syncServerCartBeforeExpressPay(
+    CartProvider cart,
+    double deliveryCharge,
+  ) async {
     ExpressPayApiLog.section('Pre-ExpressPay cart sync starting');
+
+    await cart.ensureReadyForCheckoutPayment();
 
     if (!widget._isDelivery || deliveryCharge <= 0) {
       ExpressPayApiLog.message(
@@ -362,12 +453,25 @@ class PaymentPageState extends State<PaymentPage> {
         widget.orderTotals?.emergencyOrderFee ??
         0.0;
 
+    var regionId = widget.billingRegionId;
+    var cityId = widget.billingCityId;
+    final regionLabel = widget.deliveryRegion?.trim() ?? '';
+    final cityLabel = widget.deliveryCity?.trim() ?? '';
+    if ((regionId == null || cityId == null) && regionLabel.isNotEmpty) {
+      final ids = await DeliveryService.resolveBillingLocationIds(
+        regionLabel: regionLabel,
+        cityLabel: cityLabel,
+      );
+      regionId ??= ids.regionId;
+      cityId ??= ids.cityId;
+    }
+
     checkoutLog(
       '[PAYMENT] Pre-ExpressPay cart sync — delivery=$deliveryCharge, '
-      'distance=$distanceText',
+      'distance=$distanceText, regionId=$regionId, cityId=$cityId',
     );
 
-    await DeliveryService.saveDeliveryInfo(
+    final saveResult = await DeliveryService.saveDeliveryInfo(
       name: _userName.trim().isNotEmpty ? _userName.trim() : 'Customer',
       email: email.isNotEmpty ? email : 'guest@checkout.local',
       phone: phone,
@@ -375,11 +479,10 @@ class PaymentPageState extends State<PaymentPage> {
       region: widget.deliveryRegion,
       city: widget.deliveryCity,
       address: widget.streetAddress ?? widget.deliveryAddress,
-      regionId: widget.billingRegionId,
-      cityId: widget.billingCityId,
+      regionId: regionId,
+      cityId: cityId,
       lat: widget.lat,
       lng: widget.lng,
-      deliveryFee: deliveryCharge,
       distanceText: distanceText,
       orderUrgent: _isUrgentCheckout(
         widget.orderTotals ??
@@ -390,14 +493,20 @@ class PaymentPageState extends State<PaymentPage> {
               emergencyOrderFee: xpressFee,
             ),
       ),
-      emergencyOrderFee: xpressFee > 0 ? xpressFee : null,
-      clearStaleUrgentFee: !widget.isOrderUrgent,
       expressPayFlow: true,
     );
+
+    if (saveResult['success'] != true) {
+      checkoutLog(
+        '[PAYMENT] Pre-ExpressPay save-billing failed: '
+        '${saveResult['message']}',
+      );
+    }
 
     if (distanceText != null && distanceText.isNotEmpty) {
       await DeliveryService.applyDeliveryFeeToCart(
         distanceText: distanceText,
+        fallbackToLocalEstimate: false,
         forceRefresh: true,
         knownDeliveryFee: deliveryCharge,
       );
@@ -410,6 +519,7 @@ class PaymentPageState extends State<PaymentPage> {
     ExpressPayApiLog.section('Pre-ExpressPay cart sync complete');
   }
 
+  /// Fields sent to POST /expresspayment.
   Map<String, dynamic> _buildExpressPaySubmitParams({
     required String totalAmountDue,
     required String orderId,
@@ -418,6 +528,7 @@ class PaymentPageState extends State<PaymentPage> {
     required String lastName,
     required String accountNumber,
     required double deliveryCharge,
+    required double xpressCharge,
   }) {
     final deliveryOpt = widget.deliveryOption.toLowerCase().trim();
     final params = <String, dynamic>{
@@ -425,6 +536,7 @@ class PaymentPageState extends State<PaymentPage> {
       'order_id': orderId,
       'currency': 'GHS',
       'amount': totalAmountDue,
+      'total_amount': totalAmountDue,
       'order_desc': orderDesc,
       'first_name': firstName,
       'last_name': lastName,
@@ -433,8 +545,12 @@ class PaymentPageState extends State<PaymentPage> {
       'account_number': accountNumber,
       'shipping_type': deliveryOpt,
     };
+    // Backend uses these to register the ExpressPay bill (not just cart subtotal).
     if (deliveryOpt == 'delivery' && deliveryCharge > 0) {
       params['delivery_fee'] = deliveryCharge.toStringAsFixed(2);
+    }
+    if (xpressCharge > 0) {
+      params['emergency_order_fee'] = xpressCharge.toStringAsFixed(2);
     }
     return params;
   }
@@ -442,9 +558,21 @@ class PaymentPageState extends State<PaymentPage> {
   @override
   void initState() {
     super.initState();
+    final handedOff = _deliveryFeeFromDeliveryPage;
+    if (handedOff != null && widget._isDelivery) {
+      _liveDeliveryFee = handedOff;
+      _billTotals = _paymentTotals(
+        _checkoutTotals.copyWith(
+          deliveryFee: handedOff,
+          shippingFree: false,
+          isDelivery: true,
+        ),
+      );
+    }
     _scrollController.addListener(_onPaymentScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _loadUserData();
+      await _refreshBillTotals();
       if (mounted) _updateScrollHint();
     });
   }
@@ -496,6 +624,7 @@ class PaymentPageState extends State<PaymentPage> {
       cart.refreshLoginStatus(),
       cart.syncWithApi(),
     ]);
+    await _refreshBillTotals();
 
     final appliedPromo = _appliedPromoCode?.trim();
     if (appliedPromo != null && appliedPromo.isNotEmpty) {
@@ -666,7 +795,9 @@ class PaymentPageState extends State<PaymentPage> {
         throw Exception('Please provide a valid contact number for delivery.');
       }
 
-      var totals = _paymentTotals(await _resolveCheckoutTotalsForPayment());
+      await _refreshBillTotals();
+
+      var totals = _billTotals ?? _paymentTotals(await _resolveCheckoutTotalsForPayment());
 
       var deliveryCharge = await _resolveDeliveryChargeAsync(totals);
       totals = _withResolvedDeliveryFee(
@@ -736,6 +867,7 @@ class PaymentPageState extends State<PaymentPage> {
         lastName: lastName,
         accountNumber: accountNumber,
         deliveryCharge: deliveryCharge,
+        xpressCharge: totals.emergencyOrderFee,
       );
 
       // Local order metadata (WebView / post-checkout — not sent to ExpressPay).
@@ -770,14 +902,25 @@ class PaymentPageState extends State<PaymentPage> {
         MaterialPageRoute(
           builder: (context) => PaymentWebView(
             resolveRedirectUrl: () async {
-              await _syncServerCartBeforeExpressPay(deliveryCharge);
+              try {
+                await _syncServerCartBeforeExpressPay(cart, deliveryCharge);
+              } catch (e, st) {
+                debugPrint(
+                  '[EXPRESS PAY] Pre-sync skipped — continuing to portal: $e\n$st',
+                );
+              }
               final responseBody = await _checkoutPaymentService
                   .submitExpressPayment(params: expressPayParams);
-              final redirectUrl = prepareExpressPayPortalUrl(responseBody);
-              ExpressPayApiLog.message(
-                'ExpressPay portal URL: ${redirectUrl ?? responseBody}',
-              );
-              if (redirectUrl == null || redirectUrl.isEmpty) {
+              final parsedUrl =
+                  prepareExpressPayPortalUrl(responseBody) ??
+                      parsePaymentRedirectUrl(responseBody) ??
+                      responseBody.trim();
+              final expectedPayable = double.tryParse(totalAmountDue) ?? 0;
+              final redirectUrl = expectedPayable > 0
+                  ? alignExpressPayCheckoutUrl(parsedUrl, expectedPayable)
+                  : parsedUrl;
+              ExpressPayApiLog.message('ExpressPay portal URL: $redirectUrl');
+              if (redirectUrl.isEmpty) {
                 throw Exception(
                   'Could not read a payment page URL from the server. '
                   'Please try again or contact support if this continues.',
@@ -1565,6 +1708,7 @@ class PaymentPageState extends State<PaymentPage> {
             _promoError = null;
           });
           unawaited(_persistGuestCheckoutDraft());
+          unawaited(_refreshBillTotals());
         } else {
           final errorMessage = data['message'] ??
               data['error'] ??
@@ -1601,6 +1745,7 @@ class PaymentPageState extends State<PaymentPage> {
       _promoError = null;
     });
     unawaited(_persistGuestCheckoutDraft());
+    unawaited(_refreshBillTotals());
   }
 
   void _showPaymentFailureDialog(

@@ -182,6 +182,32 @@ class DeliveryService {
     return null;
   }
 
+  /// Resolves a backend city id for save-billing-add.
+  ///
+  /// Geocoded suburbs (e.g. Tema) may not appear in [/regions/{id}/cities];
+  /// in that case the first active city for the region is used so the API
+  /// receives a valid [city_id].
+  static Future<int?> resolveBillingCityId({
+    required int regionId,
+    required String cityLabel,
+  }) async {
+    if (regionId <= 0) return null;
+
+    final match = await findCityInRegion(regionId, cityLabel);
+    final matchedId = _locationIdFromMap(
+      match != null ? Map<String, dynamic>.from(match) : null,
+    );
+    if (matchedId != null) return matchedId;
+
+    final trimmed = cityLabel.trim();
+    if (trimmed.isEmpty) return null;
+
+    final cities = await getCitiesForRegionCached(regionId);
+    if (cities.isEmpty) return null;
+
+    return _locationIdFromMap(Map<String, dynamic>.from(cities.first));
+  }
+
   /// Cached city rows for a region (shared by billing lookup and pickup UI).
   static Future<List<Map<String, dynamic>>> getCitiesForRegionCached(
     int regionId,
@@ -411,7 +437,6 @@ class DeliveryService {
     int? storeId,
     double? lat,
     double? lng,
-    double? deliveryFee,
     String? distanceText,
     bool? orderUrgent,
     double? emergencyOrderFee,
@@ -486,12 +511,10 @@ class DeliveryService {
         requestBody['addr_1'] = address ?? 'Not specified';
         requestBody['region'] = region ?? 'Not specified';
         requestBody['city'] = city ?? 'Not specified';
-        if (deliveryFee != null && deliveryFee > 0) {
-          requestBody['delivery_fee'] = deliveryFee;
-        }
         final trimmedDistance = distanceText?.trim() ?? '';
         if (trimmedDistance.isNotEmpty) {
-          requestBody['distance_text'] = trimmedDistance;
+          requestBody['distance_text'] =
+              normalizeDistanceTextForFeeApi(trimmedDistance);
         }
       } else if (deliveryOption == 'pickup') {
         // if theyre picking it up, we need the store info
@@ -517,15 +540,14 @@ class DeliveryService {
 
       attachBillingCoordinates(requestBody, lat: lat, lng: lng);
 
-      if (emergencyOrderFee != null && emergencyOrderFee > 0) {
+      // Urgent flag only — fee amount is applied via GET /add-xpress-fee after
+      // calculate-delivery-fee. Sending xpress_fee on save-billing resets the
+      // ExpressPay bill to merchandise-only.
+      if (orderUrgent == true ||
+          (emergencyOrderFee != null && emergencyOrderFee > 0)) {
         requestBody['order_urgent'] = true;
         requestBody['is_urgent'] = true;
-        requestBody['emergency_order_fee'] = emergencyOrderFee;
-        requestBody['xpress_fee'] = emergencyOrderFee;
-      } else if (orderUrgent == true) {
-        requestBody['order_urgent'] = true;
-        requestBody['is_urgent'] = true;
-      } else if (clearStaleUrgentFee) {
+      } else if (clearStaleUrgentFee && !expressPayFlow) {
         requestBody['order_urgent'] = false;
         requestBody['is_urgent'] = false;
         requestBody['xpress_fee'] = 0;
@@ -788,25 +810,39 @@ class DeliveryService {
     return '${distanceKm.toStringAsFixed(1)} km';
   }
 
+  /// Nearest store with straight-line distance (km) from delivery coordinates.
+  static ({Map<String, dynamic> store, double distanceKm})? nearestStoreToCoordinates({
+    required double lat,
+    required double lng,
+    required List<Map<String, dynamic>> stores,
+  }) {
+    double? bestKm;
+    Map<String, dynamic>? bestStore;
+    for (final raw in stores) {
+      final store = Map<String, dynamic>.from(raw);
+      final parsed = StoreLocationModel.fromApiJson(store);
+      final storeLat = parsed.lat;
+      final storeLng = parsed.lng;
+      if (storeLat == null || storeLng == null) continue;
+      final meters = Geolocator.distanceBetween(lat, lng, storeLat, storeLng);
+      final km = meters / 1000.0;
+      if (bestKm == null || km < bestKm) {
+        bestKm = km;
+        bestStore = store;
+      }
+    }
+    if (bestKm == null || bestStore == null) return null;
+    return (store: bestStore, distanceKm: bestKm);
+  }
+
   /// Straight-line distance to the nearest store with valid coordinates (km).
   static double? nearestStoreDistanceKm({
     required double lat,
     required double lng,
     required List<Map<String, dynamic>> stores,
   }) {
-    double? bestKm;
-    for (final raw in stores) {
-      final store = StoreLocationModel.fromApiJson(
-        Map<String, dynamic>.from(raw),
-      );
-      final storeLat = store.lat;
-      final storeLng = store.lng;
-      if (storeLat == null || storeLng == null) continue;
-      final meters = Geolocator.distanceBetween(lat, lng, storeLat, storeLng);
-      final km = meters / 1000.0;
-      if (bestKm == null || km < bestKm) bestKm = km;
-    }
-    return bestKm;
+    return nearestStoreToCoordinates(lat: lat, lng: lng, stores: stores)
+        ?.distanceKm;
   }
 
   /// Instant fee estimate from map coordinates (no save-billing-add round trip).
@@ -815,17 +851,20 @@ class DeliveryService {
     required double lng,
     required List<Map<String, dynamic>> stores,
   }) {
-    final distanceKm = nearestStoreDistanceKm(
+    final nearest = nearestStoreToCoordinates(
       lat: lat,
       lng: lng,
       stores: stores,
     );
-    if (distanceKm == null) return null;
+    if (nearest == null) return null;
+    final distanceKm = nearest.distanceKm;
     final fee = calculateDeliveryFeeByDistance(distanceKm);
+    final storeId = _locationIdFromMap(nearest.store);
     return {
       'distance_km': distanceKm,
       'distance_text': formatDistanceText(distanceKm),
       'delivery_fee': fee,
+      if (storeId != null) 'store_id': storeId,
     };
   }
 
@@ -1153,9 +1192,9 @@ class DeliveryService {
     int? cityId;
     final trimmedCity = cityLabel.trim();
     if (trimmedCity.isNotEmpty) {
-      final cityMatch = await findCityInRegion(regionId, trimmedCity);
-      cityId = _locationIdFromMap(
-        cityMatch != null ? Map<String, dynamic>.from(cityMatch) : null,
+      cityId = await resolveBillingCityId(
+        regionId: regionId,
+        cityLabel: trimmedCity,
       );
     }
 
@@ -1168,7 +1207,7 @@ class DeliveryService {
   /// immediately before ExpressPay (cached quotes do not re-apply).
   static Future<Map<String, dynamic>?> applyDeliveryFeeToCart({
     required String distanceText,
-    bool fallbackToLocalEstimate = true,
+    bool fallbackToLocalEstimate = false,
     bool forceRefresh = false,
     double? knownDeliveryFee,
   }) async {
@@ -1225,7 +1264,6 @@ class DeliveryService {
     int? cityId,
     double? lat,
     double? lng,
-    double? deliveryFee,
     String? distanceText,
   }) async {
     debugPrint(
@@ -1244,7 +1282,6 @@ class DeliveryService {
       cityId: cityId,
       lat: lat,
       lng: lng,
-      deliveryFee: deliveryFee,
       distanceText: distanceText,
       orderUrgent: false,
       clearStaleUrgentFee: true,

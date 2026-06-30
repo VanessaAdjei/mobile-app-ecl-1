@@ -126,7 +126,8 @@ class CartService {
         timeout: timeout,
       );
 
-  Future<CategoryFetchResult> checkAuthWithProductCandidates({
+  Future<({CategoryFetchResult result, int? acceptedProductId})>
+      checkAuthWithProductCandidates({
     required Map<String, String> headers,
     required List<int> productIds,
     required int quantity,
@@ -168,7 +169,7 @@ class CartService {
           result: result,
         );
         if (isSuccessStatus(result.statusCode)) {
-          return result;
+          return (result: result, acceptedProductId: productId);
         }
         if (result.statusCode == 404) {
           debugPrint(
@@ -185,12 +186,15 @@ class CartService {
           await Future<void>.delayed(Duration(milliseconds: delayMs));
           continue;
         }
-        return result;
+        return (result: result, acceptedProductId: null);
       }
     }
 
-    return lastResult ??
-        CategoryFetchResult(statusCode: 0, error: StateError('No product ids'));
+    return (
+      result: lastResult ??
+          CategoryFetchResult(statusCode: 0, error: StateError('No product ids')),
+      acceptedProductId: null,
+    );
   }
 
   Future<CategoryFetchResult> removeCartLine({

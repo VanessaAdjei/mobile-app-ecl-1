@@ -88,6 +88,9 @@ class DeliveryPageState extends State<DeliveryPage> {
   /// True when [deliveryFee] came from `/calculate-delivery-fee` (or its local formula fallback).
   bool _deliveryFeeFromApi = false;
 
+  /// True while `/calculate-delivery-fee` is in flight after a map pick / geocode.
+  bool _isFetchingDeliveryFee = false;
+
   /// Order summary amounts — from get-billing-add or save-billing-add.
   double? _apiSubtotal;
   double _apiDiscount = 0;
@@ -293,29 +296,43 @@ class DeliveryPageState extends State<DeliveryPage> {
   bool _isFeeGenerationCurrent(int generation) =>
       mounted && generation == _feeUpdateGeneration;
 
-  Future<void> _applyProvisionalFeeEstimate(
+  /// Nearest-store distance label used to call `/calculate-delivery-fee`.
+  Future<String?> _resolveDistanceTextForCoordinates(
     double lat,
     double lng,
     int generation,
   ) async {
-    if (_effectiveShippingFree) return;
-
-    final cached = DeliveryService.cachedStoresForFeeEstimate;
-    if (cached != null && cached.isNotEmpty) {
-      _applyProvisionalFeeFromStores(lat, lng, generation, cached);
-      return;
+    if (!_isFeeGenerationCurrent(generation) || _effectiveShippingFree) {
+      return null;
     }
 
-    // Never block the UI on getAllStores — load in background, then refresh.
-    unawaited(
-      DeliveryService.getStoresForFeeEstimate().then((stores) {
-        if (!_isFeeGenerationCurrent(generation) || stores.isEmpty) return;
-        _applyProvisionalFeeFromStores(lat, lng, generation, stores);
-      }),
+    var stores = DeliveryService.cachedStoresForFeeEstimate;
+    if (stores == null || stores.isEmpty) {
+      stores = await DeliveryService.getStoresForFeeEstimate();
+    }
+    if (!_isFeeGenerationCurrent(generation) || stores.isEmpty) {
+      return null;
+    }
+
+    final estimate = DeliveryService.estimateFeeFromCoordinates(
+      lat: lat,
+      lng: lng,
+      stores: stores,
     );
+    if (estimate == null) return null;
+
+    final distanceKm = _toDouble(estimate['distance_km']);
+    final distanceText = estimate['distance_text']?.toString().trim();
+    if (distanceText == null || distanceText.isEmpty) return null;
+
+    _setStateIfMounted(() {
+      if (distanceKm != null) _distanceKm = distanceKm;
+      _lastFeeDistanceText = distanceText;
+    });
+    return distanceText;
   }
 
-  void _applyProvisionalFeeFromStores(
+  void _applyLocalFeeFallbackFromStores(
     double lat,
     double lng,
     int generation,
@@ -333,13 +350,11 @@ class DeliveryPageState extends State<DeliveryPage> {
     final parsedFee = _toDouble(estimate['delivery_fee']);
     if (parsedFee == null) return;
 
-    final distanceKm = _toDouble(estimate['distance_km']);
-    final distanceText = estimate['distance_text']?.toString();
-
     _applyInstantDeliveryFee(
       fee: parsedFee,
-      distanceText: distanceText,
-      distanceKm: distanceKm,
+      distanceText: estimate['distance_text']?.toString(),
+      distanceKm: _toDouble(estimate['distance_km']),
+      fromApi: false,
     );
   }
 
@@ -347,12 +362,13 @@ class DeliveryPageState extends State<DeliveryPage> {
     required double fee,
     String? distanceText,
     double? distanceKm,
+    bool fromApi = true,
   }) {
     if (_effectiveShippingFree) return;
     _setStateIfMounted(() {
       deliveryFee = fee;
       _apiDeliveryFeeAmount = fee;
-      _deliveryFeeFromApi = true;
+      _deliveryFeeFromApi = fromApi;
       if (distanceKm != null) {
         _distanceKm = distanceKm;
       }
@@ -394,6 +410,7 @@ class DeliveryPageState extends State<DeliveryPage> {
         fee: resolvedFee,
         distanceText: trimmedDistance.isNotEmpty ? trimmedDistance : null,
         distanceKm: _distanceKm,
+        fromApi: false,
       );
     }
   }
@@ -405,15 +422,58 @@ class DeliveryPageState extends State<DeliveryPage> {
     return left.isNotEmpty && left == right;
   }
 
-  /// Local fee estimate only — `/save-billing-add` runs on Continue.
+  /// Prices delivery via `/calculate-delivery-fee` as soon as coordinates are known.
   Future<void> _refreshDeliveryFeeForCoordinates(
     double lat,
     double lng,
   ) async {
-    if (deliveryOption == 'pickup' || !mounted) return;
+    if (deliveryOption == 'pickup' || !mounted || _effectiveShippingFree) {
+      return;
+    }
 
     final generation = ++_feeUpdateGeneration;
-    await _applyProvisionalFeeEstimate(lat, lng, generation);
+
+    _setStateIfMounted(() {
+      _isFetchingDeliveryFee = true;
+      _deliveryFeeFromApi = false;
+      _lastDeliveryErrorMessage = null;
+    });
+
+    try {
+      final distanceText =
+          await _resolveDistanceTextForCoordinates(lat, lng, generation);
+      if (!_isFeeGenerationCurrent(generation) ||
+          distanceText == null ||
+          distanceText.isEmpty) {
+        return;
+      }
+
+      final apiFee = await _applyDeliveryFeeFromDistanceText(
+        distanceText,
+        generation: generation,
+        forceRefresh: false,
+      );
+
+      if (!_isFeeGenerationCurrent(generation)) return;
+
+      if (apiFee == null) {
+        final stores = DeliveryService.cachedStoresForFeeEstimate ??
+            await DeliveryService.getStoresForFeeEstimate();
+        if (stores.isNotEmpty) {
+          _applyLocalFeeFallbackFromStores(lat, lng, generation, stores);
+        }
+      }
+    } catch (e, st) {
+      debugPrint('❌ [DELIVERY] refreshDeliveryFeeForCoordinates: $e\n$st');
+      if (_isFeeGenerationCurrent(generation)) {
+        _lastDeliveryErrorMessage =
+            'Could not calculate delivery fee. Please try again.';
+      }
+    } finally {
+      if (_isFeeGenerationCurrent(generation)) {
+        _setStateIfMounted(() => _isFetchingDeliveryFee = false);
+      }
+    }
   }
 
   /// Map pick / coords update: reverse-geocode first (no save-billing until Continue).
@@ -436,6 +496,9 @@ class DeliveryPageState extends State<DeliveryPage> {
         _longitude = lng;
         if (deliveryOption == 'delivery') {
           _deliveryFeeFromApi = false;
+          _isFetchingDeliveryFee = true;
+          deliveryFee = 0;
+          _apiDeliveryFeeAmount = 0;
           if (preferredAddress != null) {
             _addressController.text = preferredAddress;
             _highlightAddressField = false;
@@ -587,7 +650,7 @@ class DeliveryPageState extends State<DeliveryPage> {
 
     final calcResult = await DeliveryService.fetchDeliveryFeeFromApi(
       distanceText: trimmedDistance,
-      fallbackToLocalEstimate: true,
+      fallbackToLocalEstimate: false,
     );
     if (!_isFeeGenerationCurrent(generation)) return;
 
@@ -656,6 +719,11 @@ class DeliveryPageState extends State<DeliveryPage> {
     // Order summary always follows the latest successful save-billing response.
     _applyOrderSummaryFromSaveResult(result);
 
+    final serverDistance = _distanceTextFromSaveResult(result);
+    if (serverDistance != null && serverDistance.isNotEmpty) {
+      _lastFeeDistanceText = serverDistance;
+    }
+
     final closestStore =
         result['closest_store'] ?? result['data']?['closest_store'];
     if (closestStore != null && closestStore['duration_text'] != null) {
@@ -718,7 +786,7 @@ class DeliveryPageState extends State<DeliveryPage> {
     try {
       final feeResult = await DeliveryService.fetchDeliveryFeeFromApi(
         distanceText: trimmed,
-        fallbackToLocalEstimate: true,
+        fallbackToLocalEstimate: false,
         forceRefresh: forceRefresh,
       );
       if (!_isFeeGenerationCurrent(generation)) return null;
@@ -774,13 +842,23 @@ class DeliveryPageState extends State<DeliveryPage> {
           generation: _feeUpdateGeneration,
         );
       }
-      if (_deliveryFeeFromApi && !forceRefreshBeforePayment) {
-        return deliveryFee;
-      }
 
       final distanceText = saveResult != null
           ? _distanceTextFromSaveResult(saveResult)
           : _lastFeeDistanceText;
+
+      // save-billing side effects already priced closest_store distance.
+      if (_deliveryFeeFromApi &&
+          deliveryFee > 0 &&
+          distanceText != null &&
+          _distanceTextsMatch(_lastFeeDistanceText, distanceText)) {
+        return deliveryFee;
+      }
+
+      if (_deliveryFeeFromApi && !forceRefreshBeforePayment) {
+        return deliveryFee;
+      }
+
       if (distanceText != null && distanceText.isNotEmpty) {
         await _applyDeliveryFeeFromDistanceText(
           distanceText,
@@ -930,10 +1008,12 @@ class DeliveryPageState extends State<DeliveryPage> {
       );
     } else if (data is Map) {
       final map = Map<String, dynamic>.from(data);
-      _applyDeliveryFeeFromBillingFields(
-        fee: _toDouble(map['delivery_fee']),
-        distanceText: map['distance_text']?.toString(),
-      );
+      if (!_deliveryFeeFromApi || deliveryFee <= 0) {
+        _applyDeliveryFeeFromBillingFields(
+          fee: _toDouble(map['delivery_fee']),
+          distanceText: map['distance_text']?.toString(),
+        );
+      }
     }
 
     if (deliveryOption == 'delivery' &&
@@ -973,10 +1053,13 @@ class DeliveryPageState extends State<DeliveryPage> {
     final xpressFee = _toDouble(checkout['xpress_fee']) ??
         _toDouble(checkout['emergency_order_fee']);
 
-    _applyDeliveryFeeFromBillingFields(
-      fee: DeliveryService.deliveryFeeFromSaveResult(normalized),
-      distanceText: distanceText,
-    );
+    // Never overwrite a calculate-delivery-fee quote with save-billing store fee.
+    if (!_deliveryFeeFromApi || deliveryFee <= 0) {
+      _applyDeliveryFeeFromBillingFields(
+        fee: DeliveryService.deliveryFeeFromSaveResult(normalized),
+        distanceText: distanceText,
+      );
+    }
 
     if (urgent || (xpressFee != null && xpressFee > 0)) {
       _setStateIfMounted(() {
@@ -1304,6 +1387,53 @@ class DeliveryPageState extends State<DeliveryPage> {
     }
   }
 
+  Future<int?> _nearestDeliveryStoreId({
+    required double lat,
+    required double lng,
+  }) async {
+    final stores = DeliveryService.cachedStoresForFeeEstimate ??
+        await DeliveryService.getStoresForFeeEstimate();
+    if (stores.isEmpty) return null;
+    final nearest = DeliveryService.nearestStoreToCoordinates(
+      lat: lat,
+      lng: lng,
+      stores: stores,
+    );
+    if (nearest == null) return null;
+    return _idFromLocationMap(nearest.store);
+  }
+
+  /// Ensures the server checkout session has cart lines and delivery fee before
+  /// save-billing-add (avoids backend null cart / delivery_fee assignment).
+  Future<void> _prepareServerCartForSaveBilling() async {
+    if (!mounted) return;
+
+    try {
+      final cart = Provider.of<CartProvider>(context, listen: false);
+      await cart.ensureReadyForCheckoutPayment();
+      await cart.reaffirmSelectedItemsOnServer();
+    } catch (e, st) {
+      debugPrint('❌ [DELIVERY] reaffirm cart before save-billing: $e\n$st');
+    }
+
+    if (deliveryOption != 'delivery' || _effectiveShippingFree) return;
+
+    final distance = _lastFeeDistanceText?.trim() ?? '';
+    if (distance.isEmpty) return;
+
+    try {
+      await DeliveryService.applyDeliveryFeeToCart(
+        distanceText: distance,
+        fallbackToLocalEstimate: false,
+        forceRefresh: true,
+      );
+    } catch (e, st) {
+      debugPrint(
+        '❌ [DELIVERY] apply delivery fee before save-billing: $e\n$st',
+      );
+    }
+  }
+
   void _recordBillingSync(Map<String, dynamic> result) {
     if (result['success'] != true) return;
     final serverDistance = DeliveryService.distanceTextFromSaveResult(result);
@@ -1354,10 +1484,9 @@ class DeliveryPageState extends State<DeliveryPage> {
 
     int? cityId;
     if (cityLabel.isNotEmpty) {
-      final cityMatch =
-          await DeliveryService.findCityInRegion(regionId, cityLabel);
-      cityId = _idFromLocationMap(
-        cityMatch != null ? Map<String, dynamic>.from(cityMatch) : null,
+      cityId = await DeliveryService.resolveBillingCityId(
+        regionId: regionId,
+        cityLabel: cityLabel,
       );
       final cachedRows =
           await DeliveryService.getCitiesForRegionCached(regionId);
@@ -2503,6 +2632,7 @@ class DeliveryPageState extends State<DeliveryPage> {
         _isOrderUrgent = false;
         _emergencyOrderFee = null;
       });
+      unawaited(_clearStaleUrgentFeeIfNeeded());
       return;
     }
 
@@ -2541,6 +2671,31 @@ class DeliveryPageState extends State<DeliveryPage> {
       duration: const Duration(seconds: 2),
     );
     return false;
+  }
+
+  Future<void> _clearStaleUrgentFeeIfNeeded() async {
+    if (!mounted) return;
+    final locationIds = await _resolveBillingLocationIdsSafe(skipLookup: true);
+    final billingCoords = _billingCoordinates();
+    await DeliveryService.clearStaleUrgentFeeOnServer(
+      name: _nameController.text.trim(),
+      email: _emailController.text.trim(),
+      phone: _phoneController.text,
+      deliveryOption: deliveryOption,
+      region: deliveryOption == 'delivery'
+          ? _regionController.text.trim()
+          : null,
+      city:
+          deliveryOption == 'delivery' ? _cityController.text.trim() : null,
+      address: deliveryOption == 'delivery'
+          ? _addressController.text.trim()
+          : null,
+      regionId: locationIds.regionId,
+      cityId: locationIds.cityId,
+      lat: billingCoords.lat,
+      lng: billingCoords.lng,
+      distanceText: _lastFeeDistanceText,
+    );
   }
 
   Widget _buildUrgentOption() {
@@ -2708,11 +2863,10 @@ class DeliveryPageState extends State<DeliveryPage> {
     final emergencyOrderFee = _emergencyOrderFee ?? 0.0;
     final isDelivery = deliveryOption == 'delivery';
     final subtotalLoading = !_hasMerchandiseSubtotalForSummary;
-    final deliveryFeeResolved = _effectiveShippingFree ||
-        _deliveryFeeFromApi ||
-        deliveryFee > 0;
-    final deliveryFeeLoading =
-        isDelivery && !_effectiveShippingFree && !deliveryFeeResolved;
+    final deliveryFeeLoading = isDelivery &&
+        !_effectiveShippingFree &&
+        (_isFetchingDeliveryFee ||
+            (!_deliveryFeeFromApi && deliveryFee <= 0));
 
     if (subtotalLoading && deliveryFeeLoading) {
       return Container(
@@ -3039,18 +3193,30 @@ class DeliveryPageState extends State<DeliveryPage> {
                     setState(() => _isProceedingToPayment = true);
 
                     // Always save billing on Continue so delivery fee is on the server cart.
+                    await _prepareServerCartForSaveBilling();
+                    if (!mounted) return;
+
                     final locationIds = await _resolveBillingLocationIdsSafe(
                       skipLookup: false,
                     );
+                    final billingCoords = _billingCoordinates();
+                    int? nearestStoreId;
+                    if (deliveryOption == 'delivery' &&
+                        billingCoords.lat != null &&
+                        billingCoords.lng != null) {
+                      nearestStoreId = await _nearestDeliveryStoreId(
+                        lat: billingCoords.lat!,
+                        lng: billingCoords.lng!,
+                      );
+                    }
                     Map<String, dynamic> saveResult;
                     if (kDebugMode) {
                       debugPrint(
                         '[DELIVERY] Continue → calling /save-billing-add '
-                        '(deliveryFee=$deliveryFee, distance=$_lastFeeDistanceText)',
+                        '(distance=$_lastFeeDistanceText)',
                       );
                     }
                     try {
-                      final billingCoords = _billingCoordinates();
                       saveResult = await DeliveryService.saveDeliveryInfo(
                         name: _nameController.text.trim(),
                         email: _emailController.text.trim(),
@@ -3080,18 +3246,12 @@ class DeliveryPageState extends State<DeliveryPage> {
                             : null,
                         regionId: locationIds.regionId,
                         cityId: locationIds.cityId,
-                        storeId: locationIds.storeId,
+                        storeId: locationIds.storeId ?? nearestStoreId,
                         lat: billingCoords.lat,
                         lng: billingCoords.lng,
-                        deliveryFee: deliveryOption == 'delivery' &&
-                                !_effectiveShippingFree &&
-                                deliveryFee > 0
-                            ? deliveryFee
-                            : null,
                         distanceText: _lastFeeDistanceText,
                         orderUrgent: _isOrderUrgent,
-                        emergencyOrderFee: _emergencyOrderFee,
-                        clearStaleUrgentFee: !_isOrderUrgent,
+                        clearStaleUrgentFee: false,
                       );
                     } catch (e, st) {
                       debugPrint(
@@ -3224,17 +3384,21 @@ class DeliveryPageState extends State<DeliveryPage> {
     unawaited(_persistGuestCheckoutDraft());
 
     final totals = _checkoutTotals;
+    final confirmedDeliveryFee =
+        deliveryOption == 'delivery' ? totals.deliveryFee : 0.0;
     checkoutLog(
       '[DELIVERY] → PaymentPage totals: merchandise=${totals.merchandiseSubtotal}, '
       'delivery(raw)=${totals.deliveryFee}, delivery(charged)=${totals.chargedDeliveryFee}, '
-      'xpress=${totals.emergencyOrderFee}, total=${totals.payableAmount}',
+      'xpress=${totals.emergencyOrderFee}, total=${totals.payableAmount}, '
+      'confirmedDeliveryFee=$confirmedDeliveryFee',
     );
 
     _pushPageOnce(
       MaterialPageRoute(
         builder: (context) => PaymentPage(
           orderTotals: totals,
-          lockedDeliveryFee: deliveryOption == 'delivery' ? deliveryFee : 0,
+          lockedDeliveryFee:
+              confirmedDeliveryFee > 0 ? confirmedDeliveryFee : null,
           lockedXpressFee: totals.emergencyOrderFee,
           deliveryAddress: deliveryAddress,
           contactNumber: _phoneController.text,

@@ -165,6 +165,26 @@ void main() {
       expect(item.batchNo, 'B1');
     });
 
+    test('flattenServerLine uses productID not nested id for catalog id', () {
+      final flat = CartItem.flattenServerLine({
+        'id': 'line-1',
+        'product_id': 355,
+        'qty': 1,
+        'product': {
+          'id': 355,
+          'productID': 1801,
+          'name': 'Test Product',
+          'price': 19.5,
+          'batch_no': 'ecl345',
+        },
+      });
+
+      final item = CartItem.fromServerJson(flat);
+      expect(item.productId, '355');
+      expect(item.serverProductId, 355);
+      expect(item.originalProductId, '1801');
+    });
+
     test('copyWith preserves unchanged fields', () {
       final item = CartItem(
         id: '1',

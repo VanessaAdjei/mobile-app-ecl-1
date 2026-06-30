@@ -38,6 +38,7 @@ class CartProvider with ChangeNotifier {
   }
 
   String? _pendingOriginalProductId;
+  int? _pendingCheckAuthProductId;
   String? _pendingItemName;
   String? _pendingItemBatch;
 
@@ -282,8 +283,11 @@ class CartProvider with ChangeNotifier {
       }
       if (matchingLocal != null) {
         cartItem = cartItem.copyWith(
-          originalProductId:
-              matchingLocal.originalProductId ?? matchingLocal.productId,
+          originalProductId: matchingLocal.originalProductId ??
+              (matchingLocal.checkAuthProductId?.toString()) ??
+              _pendingOriginalProductId,
+          checkAuthProductId:
+              matchingLocal.checkAuthProductId ?? _pendingCheckAuthProductId,
           image: matchingLocal.image.isNotEmpty
               ? matchingLocal.image
               : cartItem.image,
@@ -294,12 +298,14 @@ class CartProvider with ChangeNotifier {
               _productNamesLooselyMatch(cartItem.name, _pendingItemName!))) {
         cartItem = cartItem.copyWith(
           originalProductId: _pendingOriginalProductId,
+          checkAuthProductId: _pendingCheckAuthProductId,
         );
       }
       items[i] = cartItem;
     }
 
     _pendingOriginalProductId = null;
+    _pendingCheckAuthProductId = null;
     _pendingItemName = null;
     _pendingItemBatch = null;
 
@@ -446,8 +452,9 @@ class CartProvider with ChangeNotifier {
 
       if (matchingLocalItem != null) {
         cartItem = cartItem.copyWith(
-          originalProductId:
-              matchingLocalItem.originalProductId ?? matchingLocalItem.productId,
+          originalProductId: matchingLocalItem.originalProductId ??
+              (matchingLocalItem.checkAuthProductId?.toString()),
+          checkAuthProductId: matchingLocalItem.checkAuthProductId,
           image: matchingLocalItem.image.isNotEmpty
               ? matchingLocalItem.image
               : cartItem.image,
@@ -458,6 +465,7 @@ class CartProvider with ChangeNotifier {
               _productNamesLooselyMatch(cartItem.name, _pendingItemName!))) {
         cartItem = cartItem.copyWith(
           originalProductId: _pendingOriginalProductId,
+          checkAuthProductId: _pendingCheckAuthProductId,
         );
       }
 
@@ -465,6 +473,7 @@ class CartProvider with ChangeNotifier {
     }
 
     _pendingOriginalProductId = null;
+    _pendingCheckAuthProductId = null;
     _pendingItemName = null;
     _pendingItemBatch = null;
 
@@ -575,6 +584,24 @@ class CartProvider with ChangeNotifier {
     return true;
   }
 
+  /// Waits for qty/delete mutations to finish, then reloads cart from the server.
+  /// Use immediately before ExpressPay so billing sync runs on a settled session.
+  Future<void> ensureReadyForCheckoutPayment() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 12));
+    while (_updatingItemIds.isNotEmpty || _remoteSyncPaused) {
+      if (DateTime.now().isAfter(deadline)) {
+        debugPrint(
+          '⚠️ Cart checkout wait timed out '
+          '(updating=${_updatingItemIds.length}, '
+          'syncPaused=$_remoteSyncPaused)',
+        );
+        break;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+    }
+    await syncWithApi();
+  }
+
   Future<void> syncWithApi() async {
     if (_remoteSyncPaused) {
       debugPrint('⏸️ Cart sync skipped (local cart mutation in progress)');
@@ -671,7 +698,7 @@ class CartProvider with ChangeNotifier {
       }
 
       final qtyToSend = quantity > 0 ? quantity : 1;
-      final response = await _cartService.checkAuthWithProductCandidates(
+      final authResponse = await _cartService.checkAuthWithProductCandidates(
         headers: headers,
         productIds: candidates,
         quantity: qtyToSend,
@@ -693,12 +720,13 @@ class CartProvider with ChangeNotifier {
         },
       );
 
-      if (!CartService.isSuccessStatus(response.statusCode)) {
-        debugPrint('Add to cart failed: ${response.statusCode}');
+      if (!CartService.isSuccessStatus(authResponse.result.statusCode)) {
+        debugPrint('Add to cart failed: ${authResponse.result.statusCode}');
         return false;
       }
 
-      final data = CartService.decodeBody(response);
+      _pendingCheckAuthProductId = authResponse.acceptedProductId;
+      final data = CartService.decodeBody(authResponse.result);
       return _applyCheckAuthCartResponse(data, productHint: item);
     } catch (e) {
       debugPrint('Error adding/updating cart item on server: $e');
@@ -969,7 +997,7 @@ class CartProvider with ChangeNotifier {
     );
   }
 
-  /// Catalog `productID` first — check-auth rejects server `product_id` (404).
+  /// Catalog `productID` first — check-auth rejects server cart-line `product_id`.
   List<int> _productIdCandidatesForCheckAuth(CartItem item) {
     final ids = <int>[];
     void add(int? value) {
@@ -978,6 +1006,7 @@ class CartProvider with ChangeNotifier {
       }
     }
 
+    add(item.checkAuthProductId);
     add(int.tryParse(item.originalProductId ?? ''));
     add(int.tryParse(item.productId));
     add(item.serverProductId);
@@ -1024,7 +1053,7 @@ class CartProvider with ChangeNotifier {
     if (candidates.isEmpty) return false;
 
     final headers = _cartAuthHeaders(token, isLoggedIn);
-    final response = await _cartService.checkAuthWithProductCandidates(
+    final authResponse = await _cartService.checkAuthWithProductCandidates(
       headers: headers,
       productIds: candidates,
       quantity: targetQuantity,
@@ -1046,11 +1075,12 @@ class CartProvider with ChangeNotifier {
       },
     );
 
-    if (!CartService.isSuccessStatus(response.statusCode)) {
+    if (!CartService.isSuccessStatus(authResponse.result.statusCode)) {
       return false;
     }
 
-    final data = CartService.decodeBody(response);
+    _pendingCheckAuthProductId = authResponse.acceptedProductId;
+    final data = CartService.decodeBody(authResponse.result);
     return _applyCheckAuthCartResponse(
       data,
       productHint: item,
@@ -1162,13 +1192,29 @@ class CartProvider with ChangeNotifier {
       '[CartProvider] Reaffirming ${selected.length} selected item(s) on server cart',
     );
     for (final item in selected) {
-      await _setQuantityViaCheckAuth(
+      var ok = await _setQuantityViaCheckAuth(
         item,
         item.quantity,
         token,
         auth.isLoggedIn,
         previousQuantity: item.quantity,
       );
+      if (!ok) {
+        debugPrint(
+          '[CartProvider] reaffirm failed for ${item.name}, re-adding via check-auth',
+        );
+        ok = await _syncAddToServer(
+          item,
+          quantity: item.quantity,
+          token: token,
+          isLoggedIn: auth.isLoggedIn,
+        );
+      }
+      if (!ok) {
+        debugPrint(
+          '⚠️ [CartProvider] could not reaffirm ${item.name} on server cart',
+        );
+      }
     }
   }
 

@@ -106,6 +106,65 @@ ExpressPayPageSignal expressPayPageSignal(String pageText, {String? pageUrl}) {
   return ExpressPayPageSignal.none;
 }
 
+final _ghsAmountPattern = RegExp(
+  r'GHS\s*([\d,]+\.?\d*)',
+  caseSensitive: false,
+);
+
+Set<double> _collectGhsAmounts(String pageText) {
+  final amounts = <double>{};
+  for (final match in _ghsAmountPattern.allMatches(pageText)) {
+    final raw = match.group(1)?.replaceAll(',', '').trim();
+    final value = double.tryParse(raw ?? '');
+    if (value != null && value > 0) {
+      amounts.add(value);
+    }
+  }
+  return amounts;
+}
+
+/// Best-effort parse of the payable amount shown on ExpressPay checkout.
+double? parseExpressPayDisplayedAmount(String pageText) {
+  final amounts = _collectGhsAmounts(pageText);
+  if (amounts.isEmpty) return null;
+  return amounts.reduce((a, b) => a > b ? a : b);
+}
+
+/// Resolves the amount the customer will actually be charged.
+///
+/// When multiple GHS values appear (e.g. portal bill GHS 70 plus a higher value
+/// from URL `amount=` mirrored in hidden fields), prefer the lower value if it
+/// is below [expectedAmount] — that is usually the registered bill total.
+double? resolveExpressPayPayableAmount({
+  required String pageText,
+  required double expectedAmount,
+}) {
+  final amounts = _collectGhsAmounts(pageText);
+  if (amounts.isEmpty) return null;
+  if (amounts.length == 1) return amounts.first;
+
+  final sorted = amounts.toList()..sort();
+  final min = sorted.first;
+  final max = sorted.last;
+
+  if (min + 0.01 < expectedAmount) return min;
+  return max;
+}
+
+/// True when the portal shows less than [expectedAmount] (merchandise-only bill).
+bool expressPayAmountIsUndercharged({
+  required String pageText,
+  required double expectedAmount,
+}) {
+  if (expectedAmount <= 0) return false;
+  final displayed = resolveExpressPayPayableAmount(
+    pageText: pageText,
+    expectedAmount: expectedAmount,
+  );
+  if (displayed == null) return false;
+  return displayed + 0.01 < expectedAmount;
+}
+
 bool expressPayPageLooksFailed(String text) {
   const phrases = <String>[
     'payment failed',

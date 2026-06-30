@@ -8,6 +8,8 @@ class CartItem {
   final String productId;
   final int? serverProductId;
   final String? originalProductId;
+  /// Catalog `productID` that succeeded on the last check-auth call.
+  final int? checkAuthProductId;
   final String name;
   final double price;
   final double? originalPrice;
@@ -27,6 +29,7 @@ class CartItem {
     required this.productId,
     this.serverProductId,
     this.originalProductId,
+    this.checkAuthProductId,
     required this.name,
     required this.price,
     this.originalPrice,
@@ -131,6 +134,7 @@ class CartItem {
       'batch_no': batchNo,
       'product_id': productId,
       'original_product_id': originalProductId,
+      'check_auth_product_id': checkAuthProductId,
       'server_product_id': serverProductId,
       'is_selected': isSelected,
       'served_by': servedBy,
@@ -147,6 +151,7 @@ class CartItem {
           ? int.tryParse(json['server_product_id'].toString())
           : null,
       originalProductId: json['original_product_id']?.toString(),
+      checkAuthProductId: _parseNullableInt(json['check_auth_product_id']),
       name: json['product_name'] ?? json['name'] ?? '',
       price: price,
       originalPrice: json['original_price'] != null
@@ -176,13 +181,15 @@ class CartItem {
       }
     }
     final resolvedQty = quantity > 0 ? quantity : 1;
+    final catalogProductId = flat['catalog_product_id']?.toString() ??
+        flat['productID']?.toString();
     return CartItem(
       id: flat['id']?.toString() ?? '',
       productId: flat['product_id']?.toString() ?? '',
       serverProductId: flat['product_id'] is int
           ? flat['product_id']
           : int.tryParse(flat['product_id']?.toString() ?? ''),
-      originalProductId: flat['product_id']?.toString(),
+      originalProductId: catalogProductId,
       name: flat['product_name']?.toString() ??
           flat['name']?.toString() ??
           'Unknown Item',
@@ -219,6 +226,10 @@ class CartItem {
         () => p['price'] ?? p['selling_price'] ?? p['unit_price'],
       );
       line.putIfAbsent('batch_no', () => p['batch_no'] ?? p['batchNo']);
+      final catalogId = p['productID'] ?? p['catalog_id'];
+      if (catalogId != null) {
+        line['catalog_product_id'] = catalogId;
+      }
     }
     return line;
   }
@@ -233,6 +244,7 @@ class CartItem {
     String? productId,
     int? serverProductId,
     String? originalProductId,
+    int? checkAuthProductId,
     String? name,
     double? price,
     double? originalPrice,
@@ -251,6 +263,7 @@ class CartItem {
       productId: productId ?? this.productId,
       serverProductId: serverProductId ?? this.serverProductId,
       originalProductId: originalProductId ?? this.originalProductId,
+      checkAuthProductId: checkAuthProductId ?? this.checkAuthProductId,
       name: name ?? this.name,
       price: price ?? this.price,
       originalPrice: originalPrice ?? this.originalPrice,
