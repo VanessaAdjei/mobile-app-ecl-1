@@ -169,6 +169,87 @@ class OrderTrackingModel {
   int get totalQuantity =>
       items.fold<int>(0, (sum, item) => sum + item.quantity);
 
+  /// ExpressPay `amount` sent at checkout — authoritative when present.
+  double get checkoutGrandTotal {
+    for (final key in ['amount', 'total_amount', 'total']) {
+      final parsed = _parseParamAmount(paymentParams[key]);
+      if (parsed > 0) return parsed;
+    }
+    return 0;
+  }
+
+  /// Grand total charged at checkout (subtotal + delivery − discount).
+  ///
+  /// Prefers the ExpressPay amount in [paymentParams] over API merchandise totals.
+  double get payableTotal {
+    final checkout = checkoutGrandTotal;
+    if (checkout > subtotal + 0.01) return checkout;
+
+    var fee = deliveryFee ?? 0;
+    if (fee <= 0.01) {
+      for (final key in ['delivery_fee', 'deliveryFee']) {
+        final parsed = _parseParamAmount(paymentParams[key]);
+        if (parsed > 0) {
+          fee = parsed;
+          break;
+        }
+      }
+    }
+
+    final computed =
+        (subtotal + fee - discount).clamp(0.0, double.infinity);
+
+    if (totalAmount > subtotal + 0.01) return totalAmount;
+
+    if (fee > 0.01 && (totalAmount - subtotal).abs() < 0.01) {
+      return computed;
+    }
+
+    for (final key in ['amount', 'total_amount', 'total']) {
+      final parsed = _parseParamAmount(paymentParams[key]);
+      if (parsed > subtotal + 0.01) return parsed;
+    }
+
+    final merchandise = _parseParamAmount(paymentParams['merchandise_subtotal']);
+    if (merchandise > 0 && fee > 0.01) {
+      final fromParts =
+          (merchandise + fee - discount).clamp(0.0, double.infinity);
+      if (fromParts > subtotal + 0.01) return fromParts;
+    }
+
+    if (computed > 0) return computed;
+    return totalAmount > 0 ? totalAmount : subtotal;
+  }
+
+  static double _parseParamAmount(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  /// Delivery fee from model field, checkout params, or inferred from totals.
+  double get resolvedDeliveryFee {
+    var fee = deliveryFee ?? 0;
+    if (fee <= 0.01) {
+      for (final key in ['delivery_fee', 'deliveryFee']) {
+        final parsed = _parseParamAmount(paymentParams[key]);
+        if (parsed > 0) return parsed;
+      }
+    } else {
+      return fee;
+    }
+
+    if (totalAmount > subtotal + discount + 0.01) {
+      return totalAmount - subtotal + discount;
+    }
+
+    final payable = payableTotal;
+    if (payable > subtotal + discount + 0.01) {
+      return payable - subtotal + discount;
+    }
+
+    return 0;
+  }
+
   bool get supportsCourierDetails =>
       (courierName?.isNotEmpty ?? false) ||
       (courierPhone?.isNotEmpty ?? false) ||

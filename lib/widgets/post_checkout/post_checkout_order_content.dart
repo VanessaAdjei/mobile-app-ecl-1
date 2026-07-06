@@ -7,6 +7,7 @@ import 'package:eclapp/widgets/post_checkout/post_checkout_action_buttons.dart';
 import 'package:eclapp/widgets/post_checkout/post_checkout_entrance.dart';
 import 'package:eclapp/widgets/post_checkout/post_checkout_order_items_card.dart';
 import 'package:eclapp/widgets/post_checkout/post_checkout_order_progress_card.dart';
+import 'package:eclapp/widgets/post_checkout/post_checkout_payment_summary_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -44,6 +45,17 @@ class _PostCheckoutOrderContentState extends State<PostCheckoutOrderContent> {
 
   bool get _isPickup =>
       order.deliveryOption.toLowerCase().replaceAll('-', '').contains('pickup');
+
+  Widget _paymentSummaryCard(int index) {
+    return _enter(
+      PostCheckoutPaymentSummaryCard(
+        order: order,
+        accent: accent,
+        isPickup: _isPickup,
+      ),
+      index,
+    );
+  }
 
   String get _orderRef =>
       order.orderNumber.isNotEmpty ? order.orderNumber : order.transactionId;
@@ -184,13 +196,15 @@ class _PostCheckoutOrderContentState extends State<PostCheckoutOrderContent> {
                   _enter(
                     _OrderPlacedDetailsCard(
                       placedAt: placedAt,
-                      totalAmount: order.totalAmount,
+                      totalAmount: order.payableTotal,
                       address: address,
                       isPickup: _isPickup,
                       accent: accent,
                     ),
                     index++,
                   ),
+                  const SizedBox(height: 12),
+                  _paymentSummaryCard(index++),
                 ],
                 if (order.contactNumber.trim().isNotEmpty) ...[
                   const SizedBox(height: 6),
@@ -443,16 +457,25 @@ class _PostCheckoutPendingContentState
                   index: 1,
                   child: _OrderPlacedDetailsCard(
                     placedAt: placedAt,
-                    totalAmount: order.totalAmount,
+                    totalAmount: order.payableTotal,
                     address: address,
                     isPickup: _isPickup,
                     accent: accent,
                   ),
                 ),
+                const SizedBox(height: 10),
+                PostCheckoutEntrance(
+                  index: 2,
+                  child: PostCheckoutPaymentSummaryCard(
+                    order: order,
+                    accent: accent,
+                    isPickup: _isPickup,
+                  ),
+                ),
                 if (order.items.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   PostCheckoutEntrance(
-                    index: 2,
+                    index: 3,
                     child: PostCheckoutOrderItemsCard(
                       items: order.items,
                       accent: accent,
@@ -462,7 +485,7 @@ class _PostCheckoutPendingContentState
                 ],
                 const SizedBox(height: 14),
                 PostCheckoutEntrance(
-                  index: 3,
+                  index: 4,
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -485,7 +508,7 @@ class _PostCheckoutPendingContentState
                 ),
                 const SizedBox(height: 16),
                 PostCheckoutEntrance(
-                  index: 4,
+                  index: 5,
                   child: PostCheckoutActionButtons(
                     accent: accent,
                     onHome: widget.onHome,

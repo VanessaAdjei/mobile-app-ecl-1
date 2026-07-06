@@ -1,8 +1,48 @@
+import 'package:eclapp/models/cart_item.dart';
 import 'package:eclapp/models/order_tracking_model.dart';
 import 'package:eclapp/services/order_tracking_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('OrderTrackingService.createInitialOrder', () {
+    final service = OrderTrackingService();
+
+    test('stores delivery fee from payment params', () {
+      final order = service.createInitialOrder(
+        paymentParams: {
+          'amount': '56.50',
+          'delivery_fee': 20,
+        },
+        purchasedItems: [
+          CartItem(
+            id: '1',
+            productId: '100',
+            name: 'Test Product',
+            price: 36.5,
+            quantity: 1,
+            image: '',
+            batchNo: 'b1',
+            urlName: 'test',
+            totalPrice: 36.5,
+          ),
+        ],
+        paymentMethod: 'ExpressPay',
+        initialTransactionId: 'ORDER-1',
+        deliveryAddress: 'Tema',
+        contactNumber: '0500000000',
+        deliveryOption: 'delivery',
+        estimatedDeliveryTime: '30 min',
+        deliveryFee: 20,
+        discount: 0,
+        initialStatus: 'paid',
+      );
+
+      expect(order.deliveryFee, 20);
+      expect(order.subtotal, 36.5);
+      expect(order.totalAmount, 56.5);
+    });
+  });
+
   group('OrderTrackingService.buildTimeline', () {
     final service = OrderTrackingService();
     final placedAt = DateTime(2026, 6, 8, 11, 44, 2);

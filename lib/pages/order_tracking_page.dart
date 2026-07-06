@@ -14,6 +14,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../database/local_storage/storage_keys.dart';
 import '../providers/order_tracking_provider.dart';
 import '../services/order_tracking_service.dart';
 import '../services/auth_service.dart';
@@ -182,15 +183,6 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     );
     _loadDeliveryInfo();
     OrderTrackingProvider.registerPushRefresh(_onPushStatusRefresh);
-
-    // If delivery fee is missing, try to retrieve it from stored preferences
-    final hasDeliveryFee = widget.orderDetails['delivery_fee'] != null ||
-        widget.orderDetails['deliveryFee'] != null;
-    if (!hasDeliveryFee) {
-      debugPrint(
-          '🔍 Delivery fee missing - trying to retrieve from stored data...');
-      _loadStoredDeliveryFee();
-    }
 
     // Start periodic refresh so order status updates automatically while page is open
     unawaited(_fetchOrderDetailsFromAPI());
@@ -377,6 +369,9 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       if (key.isNotEmpty) {
         _orderTrackingService.persistMonotonicIndexAsync(key, apiStage);
       }
+
+      await _loadStoredOrderAmounts();
+
       if (!mounted) return;
       setState(() {
         _deliveryAddress = notificationAddress ??
@@ -416,55 +411,49 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     }
   }
 
-  // Load delivery fee from SharedPreferences if it was stored when order was placed
-  Future<void> _loadStoredDeliveryFee() async {
+  Future<void> _loadStoredOrderAmounts() async {
     try {
-      final transactionId = widget.orderDetails['transaction_id']?.toString() ??
-          widget.orderDetails['delivery_id']?.toString() ??
-          widget.orderDetails['order_id']?.toString();
+      final candidates = <String>{
+        widget.orderDetails['transaction_id']?.toString() ?? '',
+        widget.orderDetails['delivery_id']?.toString() ?? '',
+        widget.orderDetails['order_id']?.toString() ?? '',
+        widget.orderDetails['order_number']?.toString() ?? '',
+        widget.orderDetails['id']?.toString() ?? '',
+        _orderStorageKey(),
+      }..removeWhere((value) => value.trim().isEmpty);
 
-      if (transactionId == null || transactionId.isEmpty) {
-        debugPrint('🔍 Cannot load stored delivery fee: no transaction_id');
-        return;
-      }
+      if (candidates.isEmpty) return;
 
       final prefs = await SharedPreferences.getInstance();
+      double? storedDeliveryFee;
+      double? storedTotal;
 
-      // Try with the transaction_id/delivery_id as-is (could be ECL format)
-      String deliveryFeeKey = 'order_delivery_fee_$transactionId';
-      String totalKey = 'order_total_$transactionId';
+      for (final id in candidates) {
+        storedDeliveryFee ??=
+            prefs.getDouble(StorageKeys.orderDeliveryFee(id));
+        storedTotal ??= prefs.getDouble(StorageKeys.orderTotal(id));
+        if (storedDeliveryFee != null && storedTotal != null) break;
+      }
 
-      double? storedDeliveryFee = prefs.getDouble(deliveryFeeKey);
-      double? storedTotal = prefs.getDouble(totalKey);
-
-      // If not found and transactionId is ECL format, also try with ORDER_ prefix
-      // (in case it was stored with ORDER_ prefix from confirmation page)
-      if (storedDeliveryFee == null && transactionId.startsWith('ECL')) {
-        // Extract the numeric part from ECL format (timestamp + random chars)
-        final eclNumericPart = transactionId.replaceFirst('ECL', '');
-        // Try to find ORDER_ prefixed version by checking all keys
-        final allKeys = prefs.getKeys();
-        for (final key in allKeys) {
-          if (key.startsWith('order_delivery_fee_ORDER_')) {
-            // Extract numeric part from ORDER_ key
-            final orderNumericPart =
-                key.replaceFirst('order_delivery_fee_ORDER_', '');
-            // Try matching with different lengths (ECL might have shorter timestamp)
-            // Match if ORDER_ timestamp starts with ECL timestamp (or vice versa)
-            final minLength = eclNumericPart.length < orderNumericPart.length
-                ? eclNumericPart.length
-                : orderNumericPart.length;
-            if (minLength >= 10) {
-              // Try matching first 10 digits (common timestamp length)
-              final eclPrefix =
-                  eclNumericPart.substring(0, minLength > 10 ? 10 : minLength);
-              final orderPrefix = orderNumericPart.substring(
-                  0, minLength > 10 ? 10 : minLength);
-              if (eclPrefix == orderPrefix) {
-                deliveryFeeKey = key;
+      if (storedDeliveryFee == null || storedTotal == null) {
+        for (final key in prefs.getKeys()) {
+          if (storedDeliveryFee == null &&
+              key.startsWith('order_delivery_fee_')) {
+            for (final id in candidates) {
+              if (key.contains(id) || id.contains(key.replaceFirst(
+                    'order_delivery_fee_',
+                    '',
+                  ))) {
                 storedDeliveryFee = prefs.getDouble(key);
-                debugPrint(
-                    '🔍 Found delivery fee with ORDER_ prefix: $key (matched by timestamp prefix)');
+                break;
+              }
+            }
+          }
+          if (storedTotal == null && key.startsWith('order_total_')) {
+            for (final id in candidates) {
+              if (key.contains(id) ||
+                  id.contains(key.replaceFirst('order_total_', ''))) {
+                storedTotal = prefs.getDouble(key);
                 break;
               }
             }
@@ -472,62 +461,28 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         }
       }
 
-      // If still not found, try the reverse: if we have ORDER_ prefix, try ECL format
-      if (storedDeliveryFee == null && transactionId.startsWith('ORDER_')) {
-        final orderNumericPart = transactionId.replaceFirst('ORDER_', '');
-        // Try to find ECL format by searching for keys with matching timestamp prefix
-        final allKeys = prefs.getKeys();
-        for (final key in allKeys) {
-          if (key.startsWith('order_delivery_fee_ECL')) {
-            // Extract numeric part from ECL key
-            final eclNumericPart =
-                key.replaceFirst('order_delivery_fee_ECL', '');
-            // Try matching with different lengths
-            final minLength = eclNumericPart.length < orderNumericPart.length
-                ? eclNumericPart.length
-                : orderNumericPart.length;
-            if (minLength >= 10) {
-              // Try matching first 10 digits (common timestamp length)
-              final eclPrefix =
-                  eclNumericPart.substring(0, minLength > 10 ? 10 : minLength);
-              final orderPrefix = orderNumericPart.substring(
-                  0, minLength > 10 ? 10 : minLength);
-              if (eclPrefix == orderPrefix) {
-                deliveryFeeKey = key;
-                storedDeliveryFee = prefs.getDouble(key);
-                debugPrint(
-                    '🔍 Found delivery fee with ECL format: $key (matched by timestamp prefix)');
-                break;
-              }
-            }
-          }
-        }
-      }
-
+      if (!mounted) return;
       if (storedDeliveryFee != null && storedDeliveryFee > 0) {
-        debugPrint(
-            '🔍 ✅ Found stored delivery fee: $storedDeliveryFee for order $transactionId');
-        // Also get the total if available
-        if (storedTotal == null) {
-          totalKey = deliveryFeeKey.replaceFirst(
-              'order_delivery_fee_', 'order_total_');
-          storedTotal = prefs.getDouble(totalKey);
-        }
+        _actualDeliveryFee = storedDeliveryFee;
+      }
+      if (storedTotal != null && storedTotal > 0) {
+        _actualTotalAmount = storedTotal;
+      }
 
-        if (mounted) {
-          setState(() {
-            _actualDeliveryFee = storedDeliveryFee;
-            if (storedTotal != null && storedTotal > 0) {
-              _actualTotalAmount = storedTotal;
-            }
-          });
+      if (_actualDeliveryFee == null &&
+          _actualTotalAmount != null &&
+          _actualTotalAmount! > 0) {
+        final subtotal = getOrderItems().fold<double>(0, (sum, item) {
+          final price = (item['price'] ?? 0.0).toDouble();
+          final qty = item['qty'] ?? 1;
+          return sum + (price * qty);
+        });
+        if (_actualTotalAmount! > subtotal + 0.01) {
+          _actualDeliveryFee = _actualTotalAmount! - subtotal;
         }
-      } else {
-        debugPrint('🔍 No stored delivery fee found for order $transactionId');
-        debugPrint('🔍 Tried key: $deliveryFeeKey');
       }
     } catch (e) {
-      debugPrint('🔍 Error loading stored delivery fee: $e');
+      debugPrint('🔍 Error loading stored order amounts: $e');
     }
   }
 
@@ -652,100 +607,36 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         .fold(0, (sum, item) => sum + (item['qty'] ?? 1) as int);
   }
 
-  // Get total amount - use total_price from order if available (includes delivery fee),
-  // otherwise calculate from items and add delivery fee
-  double getTotalAmount() {
-    // Calculate subtotal from items first
-    final subtotal = getOrderItems().fold(0.0, (sum, item) {
-      final price = (item['price'] ?? 0.0).toDouble();
-      final qty = item['qty'] ?? 1;
-      return sum + (price * qty);
-    });
-
-    // Get discount if any
-    final discountValue = widget.orderDetails['discount'] ??
-        widget.orderDetails['discount_amount'];
-    final discount = discountValue != null
-        ? ((discountValue is num)
-            ? discountValue.toDouble()
-            : (double.tryParse(discountValue.toString()) ?? 0.0))
-        : 0.0;
-
-    // Get delivery fee from order details
-    final deliveryFeeValue = widget.orderDetails['delivery_fee'] ??
-        widget.orderDetails['deliveryFee'] ??
-        widget.orderDetails['delivery_fee_amount'] ??
-        widget.orderDetails['shipping_fee'] ??
-        widget.orderDetails['shippingFee'];
-    double deliveryFee = 0.0;
-    if (deliveryFeeValue != null) {
-      deliveryFee = (deliveryFeeValue is num)
-          ? deliveryFeeValue.toDouble()
-          : (double.tryParse(deliveryFeeValue.toString()) ?? 0.0);
+  Map<String, dynamic> _billingOrderDetails() {
+    final details = Map<String, dynamic>.from(widget.orderDetails);
+    if (_actualTotalAmount != null && _actualTotalAmount! > 0) {
+      details['amount'] = _actualTotalAmount;
+      details['total_amount'] = _actualTotalAmount;
+      details['total_price'] = _actualTotalAmount;
     }
-
-    // Try to use total_price/total_amount/amount from order details
-    final orderTotalPrice = widget.orderDetails['total_price'] ??
-        widget.orderDetails['total_amount'] ??
-        widget.orderDetails['amount'];
-
-    if (orderTotalPrice != null) {
-      final totalFromOrder = (orderTotalPrice is num)
-          ? orderTotalPrice.toDouble()
-          : (double.tryParse(orderTotalPrice.toString()) ?? 0.0);
-
-      if (totalFromOrder > 0) {
-        // Check if totalFromOrder equals subtotal exactly (within 0.01 tolerance)
-        // This means the API only returned subtotal, not the total with delivery fee
-        final isSubtotalOnly = (totalFromOrder - subtotal).abs() < 0.01;
-
-        if (isSubtotalOnly && deliveryFee <= 0.01) {
-          // total_price is just subtotal, and no delivery fee in order details
-          // Check if we fetched actual total/delivery fee from API
-          if (_actualTotalAmount != null && _actualTotalAmount! > subtotal) {
-            debugPrint(
-                '🔍 getTotalAmount: Using actual total fetched from API: $_actualTotalAmount');
-            return _actualTotalAmount!;
-          }
-          if (_actualDeliveryFee != null && _actualDeliveryFee! > 0) {
-            final calculatedTotal = subtotal + _actualDeliveryFee! - discount;
-            debugPrint(
-                '🔍 getTotalAmount: Using delivery fee fetched from API: $_actualDeliveryFee, total: $calculatedTotal');
-            return calculatedTotal;
-          }
-
-          // total_price is just subtotal, and no delivery fee in order details
-          // This means delivery fee is missing from API response
-          debugPrint(
-              '🔍 getTotalAmount: ⚠️ total_price ($totalFromOrder) equals subtotal ($subtotal) - delivery fee missing from API');
-          debugPrint(
-              '🔍 getTotalAmount: Returning subtotal only (delivery fee not available): $subtotal');
-          return subtotal;
-        } else if (isSubtotalOnly && deliveryFee > 0.01) {
-          // total_price is subtotal, but we have delivery fee from order details
-          final correctedTotal = totalFromOrder + deliveryFee - discount;
-          debugPrint(
-              '🔍 getTotalAmount: total_price is subtotal only. Adding delivery fee: $totalFromOrder + $deliveryFee - $discount = $correctedTotal');
-          return correctedTotal;
-        } else if (totalFromOrder > subtotal + 0.01) {
-          // totalFromOrder is greater than subtotal, so it likely includes delivery fee
-          debugPrint(
-              '🔍 getTotalAmount: Using total_price/total_amount/amount (includes delivery): $totalFromOrder');
-          return totalFromOrder;
-        } else {
-          // Use totalFromOrder as is (might be less than subtotal due to discount)
-          debugPrint(
-              '🔍 getTotalAmount: Using total_price/total_amount/amount: $totalFromOrder');
-          return totalFromOrder;
-        }
-      }
+    if (_actualDeliveryFee != null && _actualDeliveryFee! > 0) {
+      details['delivery_fee'] = _actualDeliveryFee;
+      details['deliveryFee'] = _actualDeliveryFee;
     }
+    return details;
+  }
 
-    // Fallback: calculate total from subtotal + delivery fee - discount
-    final calculatedTotal = subtotal + deliveryFee - discount;
-    debugPrint(
-        '🔍 getTotalAmount: Calculated total: subtotal $subtotal + deliveryFee $deliveryFee - discount $discount = $calculatedTotal');
-    return calculatedTotal;
+  ({
+    double subtotal,
+    double deliveryFee,
+    double discount,
+    double total,
+    bool showDeliveryFee,
+  }) _resolveBill({required bool isPickup}) {
+    final items =
+        getOrderItems().map(OrderTrackingItem.fromMap).toList(growable: false);
+    return _orderTrackingService.resolveBillSummary(
+      items: items,
+      orderDetails: _billingOrderDetails(),
+      storedDeliveryFee: _actualDeliveryFee,
+      storedTotal: _actualTotalAmount,
+      isPickup: isPickup,
+    );
   }
 
   // Helper method to format quantity text
@@ -897,66 +788,16 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     );
   }
 
-  ({
-    double subtotal,
-    double deliveryFee,
-    double discount,
-    double total,
-    bool showDeliveryFee,
-  }) _billSummary(double totalAmount) {
-    final orderItems = getOrderItems();
-    final subtotal = orderItems.fold(0.0, (sum, item) {
-      final price = (item['price'] ?? 0.0).toDouble();
-      final qty = item['qty'] ?? 1;
-      return sum + (price * qty);
-    });
-
-    final discountValue = widget.orderDetails['discount'] ??
-        widget.orderDetails['discount_amount'];
-    final discount = discountValue != null
-        ? ((discountValue is num)
-            ? discountValue.toDouble()
-            : (double.tryParse(discountValue.toString()) ?? 0.0))
-        : 0.0;
-
-    final deliveryFeeValue = widget.orderDetails['delivery_fee'] ??
-        widget.orderDetails['deliveryFee'];
-    var deliveryFee = 0.0;
-    if (deliveryFeeValue != null) {
-      deliveryFee = (deliveryFeeValue is num)
-          ? deliveryFeeValue.toDouble()
-          : (double.tryParse(deliveryFeeValue.toString()) ?? 0.0);
-    }
-    if (deliveryFee <= 0.01 &&
-        _actualDeliveryFee != null &&
-        _actualDeliveryFee! > 0.01) {
-      deliveryFee = _actualDeliveryFee!;
-    }
-    if (deliveryFee <= 0.01) {
-      final calculated = totalAmount - subtotal + discount;
-      if (calculated > 0.01) deliveryFee = calculated;
-    }
-
-    return (
-      subtotal: subtotal,
-      deliveryFee: deliveryFee,
-      discount: discount,
-      total: totalAmount,
-      showDeliveryFee: deliveryFee > 0.01 && !_isPickupOrder(),
-    );
-  }
-
   List<Widget> _trackOrderBody({
     required String status,
     required DateTime? orderDate,
     required List<Map<String, dynamic>> orderItems,
-    required double totalAmount,
     required String orderNumber,
     required bool isPickup,
   }) {
     final isDelivered = _isDeliveredStatus(status);
     final isFailed = _isFailedOrder(status);
-    final bill = _billSummary(totalAmount);
+    final bill = _resolveBill(isPickup: isPickup);
     final trackingItems =
         orderItems.map(OrderTrackingItem.fromMap).toList(growable: false);
     final timelineSteps = OrderTrackingTimelineHelper.build(
@@ -1062,19 +903,19 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
           _orderStatus ?? widget.orderDetails['status'] ?? 'Processing';
       final orderItems = getOrderItems();
       final totalQuantity = getTotalQuantity();
-      final totalAmount = getTotalAmount();
+      final isPickup = _isPickupOrder();
+      final bill = _resolveBill(isPickup: isPickup);
       final orderNumber = widget.orderDetails['order_number']?.toString() ??
           widget.orderDetails['delivery_id']?.toString() ??
           widget.orderDetails['transaction_id']?.toString() ??
           widget.orderDetails['order_id']?.toString() ??
           widget.orderDetails['id']?.toString() ??
           'N/A';
-      final isPickup = _isPickupOrder();
 
       debugPrint('🔍 Order date: $orderDate');
       debugPrint('🔍 Status: $status');
       debugPrint('🔍 Total quantity: $totalQuantity');
-      debugPrint('🔍 Total amount: $totalAmount');
+      debugPrint('🔍 Total amount: ${bill.total}');
 
       return Scaffold(
         backgroundColor: PostCheckoutDesign.pageBg(context),
@@ -1214,7 +1055,6 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
                             status: status,
                             orderDate: orderDate,
                             orderItems: orderItems,
-                            totalAmount: totalAmount,
                             orderNumber: orderNumber,
                             isPickup: isPickup,
                           ),

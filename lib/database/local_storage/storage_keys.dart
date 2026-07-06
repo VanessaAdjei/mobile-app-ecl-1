@@ -41,6 +41,7 @@ class StorageKeys {
   static const pendingPaymentCheckActive = 'pending_payment_check_active';
 
   static String orderTotal(String orderId) => 'order_total_$orderId';
+  static String orderDeliveryFee(String orderId) => 'order_delivery_fee_$orderId';
   static String orderStageTimestamps(String orderKey) =>
       'order_stage_ts_$orderKey';
   static String orderHighestTimelineIndex(String orderKey) =>

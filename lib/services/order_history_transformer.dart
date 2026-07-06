@@ -93,6 +93,40 @@ class OrderHistoryTransformer {
         '${order['created_at'] ?? DateTime.now().toIso8601String()}_${order['product_name'] ?? 'unknown'}';
   }
 
+  static Map<String, dynamic> attachBillingFields(
+    Map<String, dynamic> order,
+    double merchandiseSubtotal,
+  ) {
+    final deliveryFee = _asDouble(
+      order['delivery_fee'] ??
+          order['deliveryFee'] ??
+          order['shipping_fee'] ??
+          order['shippingFee'],
+    );
+    final discount = _asDouble(
+      order['discount'] ?? order['discount_amount'],
+    );
+    final apiTotal = _asDouble(
+      order['total_price'] ?? order['total_amount'] ?? order['amount'],
+    );
+    final computedGrand = merchandiseSubtotal + deliveryFee - discount;
+    final grandTotal = apiTotal > merchandiseSubtotal + 0.01
+        ? apiTotal
+        : (computedGrand > merchandiseSubtotal
+            ? computedGrand
+            : merchandiseSubtotal);
+
+    return {
+      ...order,
+      'merchandise_subtotal': merchandiseSubtotal,
+      if (deliveryFee > 0) ...{
+        'delivery_fee': deliveryFee,
+        'deliveryFee': deliveryFee,
+      },
+      'total_price': grandTotal,
+    };
+  }
+
   static Map<String, dynamic> processSingleOrder(
     dynamic order,
     String transactionId,
@@ -103,39 +137,58 @@ class OrderHistoryTransformer {
       if (items.isNotEmpty) {
         final first = items[0];
         if (first is! Map) {
-          return {
-            ...base,
-            'transaction_id': transactionId,
-          };
+          return attachBillingFields(
+            {
+              ...base,
+              'transaction_id': transactionId,
+            },
+            _asDouble(order['total_price']),
+          );
         }
         final firstItem = Map<String, dynamic>.from(first);
-        return {
-          ...base,
-          'product_name': firstItem['product_name'] ?? 'Unknown Product',
-          'product_img': firstItem['product_img'] ?? '',
-          'qty': items.length > 1
-              ? items.fold<int>(0, (sum, item) {
-                  if (item is! Map) return sum;
-                  return sum + _lineQty(Map<String, dynamic>.from(item));
-                })
-              : _lineQty(firstItem),
-          'price': firstItem['price'] ?? 0.0,
-          'total_price': _asDouble(order['total_price']),
-          'is_multi_item': items.length > 1,
-          'item_count': items.length,
-          'order_items': items
-              .whereType<Map>()
-              .map(Map<String, dynamic>.from)
-              .toList(),
-          'transaction_id': transactionId,
-        };
+        final merchandiseSubtotal = items.length > 1
+            ? items.fold<double>(0, (sum, item) {
+                if (item is! Map) return sum;
+                final im = Map<String, dynamic>.from(item);
+                return sum + _asDouble(im['price']) * _lineQty(im);
+              })
+            : _asDouble(firstItem['price']) * _lineQty(firstItem);
+        return attachBillingFields(
+          {
+            ...base,
+            'product_name': firstItem['product_name'] ?? 'Unknown Product',
+            'product_img': firstItem['product_img'] ?? '',
+            'qty': items.length > 1
+                ? items.fold<int>(0, (sum, item) {
+                    if (item is! Map) return sum;
+                    return sum + _lineQty(Map<String, dynamic>.from(item));
+                  })
+                : _lineQty(firstItem),
+            'price': firstItem['price'] ?? 0.0,
+            'is_multi_item': items.length > 1,
+            'item_count': items.length,
+            'order_items': items
+                .whereType<Map>()
+                .map(Map<String, dynamic>.from)
+                .toList(),
+            'transaction_id': transactionId,
+          },
+          merchandiseSubtotal,
+        );
       }
     }
 
-    return {
-      ...base,
-      'transaction_id': transactionId,
-    };
+    final merchandiseSubtotal =
+        _asDouble(order['price']) * _lineQty(Map<String, dynamic>.from(order));
+    return attachBillingFields(
+      {
+        ...base,
+        'transaction_id': transactionId,
+      },
+      merchandiseSubtotal > 0
+          ? merchandiseSubtotal
+          : _asDouble(order['total_price']),
+    );
   }
 
   static Map<String, dynamic> processMultiOrder(
@@ -189,19 +242,21 @@ class OrderHistoryTransformer {
 
     final firstItem = allItems.isNotEmpty ? allItems.first : <String, dynamic>{};
 
-    return {
-      ...Map<String, dynamic>.from(orders.first as Map),
-      'product_name': firstItem['product_name'] ?? 'Unknown Product',
-      'product_img': firstItem['product_img'] ?? '',
-      'qty': totalQuantity,
-      'price': firstItem['price'] ?? 0.0,
-      'total_price': totalAmount,
-      'is_multi_item': true,
-      'item_count': allItems.length,
-      'order_items': allItems,
-      'transaction_id': transactionId,
-      'payment_method': paymentMethod,
-    };
+    return attachBillingFields(
+      {
+        ...Map<String, dynamic>.from(orders.first as Map),
+        'product_name': firstItem['product_name'] ?? 'Unknown Product',
+        'product_img': firstItem['product_img'] ?? '',
+        'qty': totalQuantity,
+        'price': firstItem['price'] ?? 0.0,
+        'is_multi_item': true,
+        'item_count': allItems.length,
+        'order_items': allItems,
+        'transaction_id': transactionId,
+        'payment_method': paymentMethod,
+      },
+      totalAmount,
+    );
   }
 
   static Map<String, dynamic> processCashOnDeliveryOrder(
@@ -232,16 +287,18 @@ class OrderHistoryTransformer {
           _asDouble(o['price']) * _lineQty(Map<String, dynamic>.from(o));
     });
 
-    return {
-      ...Map<String, dynamic>.from(orders.first as Map),
-      'order_items': orderItems,
-      'qty': totalQuantity,
-      'total_price': totalAmount,
-      'is_multi_item': true,
-      'item_count': orders.length,
-      'transaction_id': transactionId,
-      'payment_method': paymentMethod,
-    };
+    return attachBillingFields(
+      {
+        ...Map<String, dynamic>.from(orders.first as Map),
+        'order_items': orderItems,
+        'qty': totalQuantity,
+        'is_multi_item': true,
+        'item_count': orders.length,
+        'transaction_id': transactionId,
+        'payment_method': paymentMethod,
+      },
+      totalAmount,
+    );
   }
 
   static Map<String, dynamic> processServerOrder(
@@ -272,16 +329,18 @@ class OrderHistoryTransformer {
           _asDouble(o['price']) * _lineQty(Map<String, dynamic>.from(o));
     });
 
-    return {
-      ...Map<String, dynamic>.from(orders.first as Map),
-      'order_items': orderItems,
-      'qty': totalQuantity,
-      'total_price': totalAmount,
-      'is_multi_item': true,
-      'item_count': orders.length,
-      'transaction_id': transactionId,
-      'payment_method': paymentMethod,
-    };
+    return attachBillingFields(
+      {
+        ...Map<String, dynamic>.from(orders.first as Map),
+        'order_items': orderItems,
+        'qty': totalQuantity,
+        'is_multi_item': true,
+        'item_count': orders.length,
+        'transaction_id': transactionId,
+        'payment_method': paymentMethod,
+      },
+      totalAmount,
+    );
   }
 
   static bool shouldReplaceOrderWithData(

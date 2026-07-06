@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/order_tracking_model.dart';
 import '../../services/order_notification_service.dart';
 import '../../utils/order_timestamp_parser.dart';
+import '../local_storage/storage_keys.dart';
 
 abstract class OrderTrackingLocalDataSource {
   Future<void> storeOrderAmounts({
@@ -63,15 +64,27 @@ class OrderTrackingLocalDataSourceImpl implements OrderTrackingLocalDataSource {
     if (orderId.isEmpty) return;
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('order_total_$orderId', order.totalAmount);
+    final payableTotal = order.payableTotal;
+    final fee = order.deliveryFee ?? 0;
+
+    await prefs.setDouble(StorageKeys.orderTotal(orderId), payableTotal);
+    if (fee > 0.01) {
+      await prefs.setDouble(StorageKeys.orderDeliveryFee(orderId), fee);
+    }
 
     if (initialTransactionId != null &&
         initialTransactionId.isNotEmpty &&
         initialTransactionId != orderId) {
       await prefs.setDouble(
-        'order_total_$initialTransactionId',
-        order.totalAmount,
+        StorageKeys.orderTotal(initialTransactionId),
+        payableTotal,
       );
+      if (fee > 0.01) {
+        await prefs.setDouble(
+          StorageKeys.orderDeliveryFee(initialTransactionId),
+          fee,
+        );
+      }
     }
   }
 

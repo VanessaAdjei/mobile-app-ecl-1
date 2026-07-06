@@ -20,6 +20,11 @@ abstract class OrderTrackingRepository {
     bool isGuestCheckout = false,
   });
 
+  Future<void> persistCheckoutBilling({
+    required OrderTrackingModel order,
+    String? initialTransactionId,
+  });
+
   Future<Map<String, DateTime>> loadStageTimestamps(String orderKey);
 
   Future<void> recordStageTimestampIfAbsent(
@@ -106,6 +111,17 @@ class OrderTrackingRepositoryImpl implements OrderTrackingRepository {
     await _localDataSource.createOrderPlacedNotification(
       order,
       isGuestCheckout: isGuestCheckout,
+    );
+  }
+
+  @override
+  Future<void> persistCheckoutBilling({
+    required OrderTrackingModel order,
+    String? initialTransactionId,
+  }) {
+    return _localDataSource.storeOrderAmounts(
+      order: order,
+      initialTransactionId: initialTransactionId,
     );
   }
 

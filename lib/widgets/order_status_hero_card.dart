@@ -160,7 +160,7 @@ class OrderStatusHeroCard extends StatelessWidget {
                   Text(
                     order.stage == OrderTrackingStage.failed
                         ? order.stageMessage
-                        : 'Placed ${DateFormat('MMM d, y · h:mm a').format(order.createdAt)} · GHS ${order.totalAmount.toStringAsFixed(2)}',
+                        : 'Placed ${DateFormat('MMM d, y · h:mm a').format(order.createdAt)} · GHS ${order.payableTotal.toStringAsFixed(2)}',
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       color: PostCheckoutDesign.muted(context),
@@ -270,7 +270,7 @@ class OrderStatusHeroCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'GHS ${order.totalAmount.toStringAsFixed(2)}',
+                  'GHS ${order.payableTotal.toStringAsFixed(2)}',
                   style: TextStyle(
                     color: Colors.grey.shade900,
                     fontSize: 16,

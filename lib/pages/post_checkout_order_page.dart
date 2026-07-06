@@ -23,6 +23,7 @@ import 'package:eclapp/widgets/post_checkout/post_checkout_design.dart';
 import 'package:eclapp/widgets/post_checkout/post_checkout_entrance.dart';
 import 'package:eclapp/widgets/post_checkout/post_checkout_order_content.dart';
 import 'package:eclapp/widgets/post_checkout/post_checkout_order_items_card.dart';
+import 'package:eclapp/widgets/post_checkout/post_checkout_payment_summary_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -208,6 +209,13 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
       deliveryFee: widget.deliveryFee,
       discount: widget.discount,
       initialStatus: widget.initialStatus,
+    );
+
+    unawaited(
+      _service.persistCheckoutBilling(
+        order: initialOrder,
+        initialTransactionId: widget.initialTransactionId,
+      ),
     );
 
     // On-page provider owns polling; stop any background handoff from a prior visit.
@@ -718,7 +726,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                   ),
                                 ),
                                 Text(
-                                  'GHS ${order.totalAmount.toStringAsFixed(2)} total',
+                                  'GHS ${order.payableTotal.toStringAsFixed(2)} total',
                                   style: TextStyle(
                                     fontSize: 9,
                                     color: Colors.grey.shade600,
@@ -1106,7 +1114,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                             ),
                           ),
                           Text(
-                            'GHS ${order.totalAmount.toStringAsFixed(2)}',
+                            'GHS ${order.payableTotal.toStringAsFixed(2)}',
                             style: GoogleFonts.poppins(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
@@ -1137,6 +1145,15 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                     ),
                 ],
               ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _FadeInUp(
+            duration: const Duration(milliseconds: 420),
+            child: PostCheckoutPaymentSummaryCard(
+              order: order,
+              accent: brandGreen,
+              isPickup: true,
             ),
           ),
           if (order.items.isNotEmpty) ...[
@@ -1406,6 +1423,15 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
           const SizedBox(height: 8),
           _staggerReveal(
             1,
+            PostCheckoutPaymentSummaryCard(
+              order: order,
+              accent: accent,
+              isPickup: true,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _staggerReveal(
+            2,
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 500),
               switchInCurve: Curves.easeOutCubic,
@@ -1561,7 +1587,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
           ),
           const SizedBox(height: 8),
           _staggerReveal(
-            2,
+            3,
             Container(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
               decoration: PostCheckoutDesign.compactCard(context),
@@ -1588,7 +1614,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
           if (order.items.isNotEmpty) ...[
             const SizedBox(height: 8),
             _staggerReveal(
-              3,
+              4,
               Container(
                 padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
                 decoration: PostCheckoutDesign.compactCard(context),
@@ -1642,7 +1668,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
           ],
           const SizedBox(height: 8),
           _staggerReveal(
-            4,
+            5,
             Material(
               color: Colors.transparent,
               child: InkWell(

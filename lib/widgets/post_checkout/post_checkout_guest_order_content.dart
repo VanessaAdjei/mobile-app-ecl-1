@@ -157,7 +157,10 @@ class _PostCheckoutGuestOrderContentState
                   _GuestReceiptSection(
                     accent: accent,
                     placedAt: placedAt,
-                    totalAmount: order.totalAmount,
+                    subtotal: order.subtotal,
+                    deliveryFee: order.deliveryFee ?? 0,
+                    discount: order.discount,
+                    totalAmount: order.payableTotal,
                     address: address,
                     isPickup: widget.isPickup,
                     paymentMethod: order.paymentMethod,
@@ -558,6 +561,9 @@ class _GuestReceiptSection extends StatelessWidget {
   const _GuestReceiptSection({
     required this.accent,
     required this.placedAt,
+    required this.subtotal,
+    required this.deliveryFee,
+    required this.discount,
     required this.totalAmount,
     required this.address,
     required this.isPickup,
@@ -568,6 +574,9 @@ class _GuestReceiptSection extends StatelessWidget {
 
   final Color accent;
   final String placedAt;
+  final double subtotal;
+  final double deliveryFee;
+  final double discount;
   final double totalAmount;
   final String address;
   final bool isPickup;
@@ -626,6 +635,31 @@ class _GuestReceiptSection extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
               _detailRow(context, 'Placed', placedAt),
+              const SizedBox(height: 10),
+              _detailRow(
+                context,
+                'Subtotal',
+                NumberFormat.currency(symbol: 'GHS ', decimalDigits: 2)
+                    .format(subtotal),
+              ),
+              if (!isPickup && deliveryFee > 0.01) ...[
+                const SizedBox(height: 10),
+                _detailRow(
+                  context,
+                  'Delivery fee',
+                  NumberFormat.currency(symbol: 'GHS ', decimalDigits: 2)
+                      .format(deliveryFee),
+                ),
+              ],
+              if (discount > 0) ...[
+                const SizedBox(height: 10),
+                _detailRow(
+                  context,
+                  'Discount',
+                  '-${NumberFormat.currency(symbol: 'GHS ', decimalDigits: 2).format(discount)}',
+                  valueColor: accent,
+                ),
+              ],
               const SizedBox(height: 10),
               _detailRow(
                 context,

@@ -40,8 +40,14 @@ class OrderTrackingService {
           .toList(growable: false),
     );
     final subtotal = items.fold<double>(0, (sum, item) => sum + item.lineTotal);
-    final total = _parseDouble(paymentParams['amount']);
-    final normalizedTotal = total > 0 ? total : subtotal - discount;
+    final resolvedDeliveryFee = resolveDeliveryFee(
+      deliveryFee: deliveryFee,
+      paymentParams: paymentParams,
+    );
+    final total = _parseCheckoutAmount(paymentParams);
+    final normalizedTotal = total > 0
+        ? total
+        : (subtotal + resolvedDeliveryFee - discount).clamp(0.0, double.infinity);
     final stage = normalizeStage(initialStatus);
     final createdAt = DateTime.now();
 
@@ -57,7 +63,7 @@ class OrderTrackingService {
       deliveryOption: deliveryOption,
       estimatedDeliveryTime: estimatedDeliveryTime,
       subtotal: subtotal,
-      // deliveryFee removed
+      deliveryFee: resolvedDeliveryFee > 0 ? resolvedDeliveryFee : null,
       discount: discount,
       totalAmount: normalizedTotal,
       rawStatus: initialStatus,
@@ -94,6 +100,17 @@ class OrderTrackingService {
     Map<String, dynamic> orderDetails,
   ) {
     return resolveOrderTrackingPageDetails(orderDetails);
+  }
+
+  /// Saves ExpressPay grand total + delivery fee for track-order / purchases.
+  Future<void> persistCheckoutBilling({
+    required OrderTrackingModel order,
+    String? initialTransactionId,
+  }) {
+    return _repository.persistCheckoutBilling(
+      order: order,
+      initialTransactionId: initialTransactionId,
+    );
   }
 
   Future<Map<String, dynamic>?> fetchSavedDeliveryInfo() async {
@@ -582,13 +599,19 @@ class OrderTrackingService {
     final refreshedItems = _extractItems(snapshot, currentOrder.items);
     final subtotal =
         refreshedItems.fold<double>(0, (sum, item) => sum + item.lineTotal);
-    // deliveryFee removed
+    final resolvedDeliveryFee = _extractDeliveryFee(
+      snapshot,
+      fallback: currentOrder.deliveryFee,
+      paymentParams: currentOrder.paymentParams,
+    );
     final discount = _extractDiscount(snapshot, currentOrder.discount);
-    final totalAmount = _extractTotal(
+    final totalAmount = _resolveGrandTotal(
       snapshot: snapshot,
-      fallback: currentOrder.totalAmount,
+      paymentParams: currentOrder.paymentParams,
       subtotal: subtotal,
       discount: discount,
+      deliveryFee: resolvedDeliveryFee,
+      fallback: currentOrder.payableTotal,
     );
 
     final orderId = snapshot['delivery_id']?.toString() ??
@@ -636,7 +659,9 @@ class OrderTrackingService {
       transactionId: transactionId,
       items: refreshedItems,
       subtotal: subtotal,
-      // deliveryFee removed
+      deliveryFee: resolvedDeliveryFee > 0
+          ? resolvedDeliveryFee
+          : currentOrder.deliveryFee,
       discount: discount,
       totalAmount: totalAmount,
       rawStatus: rawStatus,
@@ -1082,21 +1107,193 @@ class OrderTrackingService {
     return parsed > 0 ? parsed : fallback;
   }
 
+  /// Delivery fee from checkout params or API snapshot (closest store).
+  double resolveDeliveryFee({
+    double? deliveryFee,
+    Map<String, dynamic>? paymentParams,
+    Map<String, dynamic>? snapshot,
+  }) {
+    if (deliveryFee != null && deliveryFee > 0) return deliveryFee;
+
+    for (final source in [paymentParams, snapshot]) {
+      if (source == null) continue;
+      for (final key in [
+        'delivery_fee',
+        'deliveryFee',
+        'delivery_fee_amount',
+        'shipping_fee',
+        'shippingFee',
+      ]) {
+        final parsed = _parseDouble(source[key]);
+        if (parsed > 0) return parsed;
+      }
+    }
+
+    if (snapshot != null) {
+      final closest = snapshot['closest_store'];
+      if (closest is Map) {
+        final parsed = _parseDouble(
+          closest['delivery_fee'] ?? closest['deliveryFee'],
+        );
+        if (parsed > 0) return parsed;
+      }
+    }
+
+    return 0;
+  }
+
+  /// Subtotal, delivery fee, discount, and payable total for order history / track-order.
+  ({
+    double subtotal,
+    double deliveryFee,
+    double discount,
+    double total,
+    bool showDeliveryFee,
+  }) resolveBillSummary({
+    required List<OrderTrackingItem> items,
+    required Map<String, dynamic> orderDetails,
+    double? storedDeliveryFee,
+    double? storedTotal,
+    bool isPickup = false,
+  }) {
+    final subtotal =
+        items.fold<double>(0, (sum, item) => sum + item.lineTotal);
+    final discount = _extractDiscount(orderDetails, 0);
+    var fallbackTotal = storedTotal ?? 0;
+    if (fallbackTotal <= 0) {
+      fallbackTotal = _parseCheckoutAmount(orderDetails);
+    }
+
+    var deliveryFee = resolveDeliveryFee(
+      deliveryFee: storedDeliveryFee,
+      paymentParams: orderDetails,
+      snapshot: orderDetails,
+    );
+
+    if (deliveryFee <= 0.01 && fallbackTotal > subtotal + discount + 0.01) {
+      deliveryFee = fallbackTotal - subtotal + discount;
+    } else if (deliveryFee <= 0.01) {
+      final checkoutTotal = _parseCheckoutAmount(orderDetails);
+      if (checkoutTotal > subtotal + discount + 0.01) {
+        deliveryFee = checkoutTotal - subtotal + discount;
+        fallbackTotal = checkoutTotal;
+      }
+    }
+
+    final total = _extractTotal(
+      snapshot: orderDetails,
+      fallback: fallbackTotal > 0 ? fallbackTotal : subtotal,
+      subtotal: subtotal,
+      discount: discount,
+      deliveryFee: deliveryFee,
+      paymentParams: orderDetails,
+    );
+
+    return (
+      subtotal: subtotal,
+      deliveryFee: deliveryFee,
+      discount: discount,
+      total: total,
+      showDeliveryFee: !isPickup && deliveryFee > 0.01,
+    );
+  }
+
+  double _extractDeliveryFee(
+    Map<String, dynamic> snapshot, {
+    double? fallback,
+    required Map<String, dynamic> paymentParams,
+  }) {
+    final fromSnapshot = resolveDeliveryFee(
+      paymentParams: paymentParams,
+      snapshot: snapshot,
+    );
+    if (fromSnapshot > 0) return fromSnapshot;
+    if (fallback != null && fallback > 0) return fallback;
+    return resolveDeliveryFee(paymentParams: paymentParams);
+  }
+
+  double parseCheckoutAmount(Map<String, dynamic>? paymentParams) {
+    return _parseCheckoutAmount(paymentParams);
+  }
+
+  double _parseCheckoutAmount(Map<String, dynamic>? paymentParams) {
+    if (paymentParams == null) return 0;
+    for (final key in ['amount', 'total_amount', 'total']) {
+      final parsed = _parseDouble(paymentParams[key]);
+      if (parsed > 0) return parsed;
+    }
+    return 0;
+  }
+
+  double _resolveGrandTotal({
+    required Map<String, dynamic> snapshot,
+    required Map<String, dynamic> paymentParams,
+    required double subtotal,
+    required double discount,
+    required double deliveryFee,
+    required double fallback,
+  }) {
+    final checkoutAmount = _parseCheckoutAmount(paymentParams);
+    final extracted = _extractTotal(
+      snapshot: snapshot,
+      fallback: fallback,
+      subtotal: subtotal,
+      discount: discount,
+      deliveryFee: deliveryFee,
+      paymentParams: paymentParams,
+    );
+
+    if (checkoutAmount > subtotal + 0.01) {
+      final apiLooksLikeMerchandiseOnly =
+          (extracted - subtotal).abs() < 0.01 || extracted <= 0;
+      if (apiLooksLikeMerchandiseOnly || checkoutAmount >= extracted - 0.01) {
+        return checkoutAmount;
+      }
+    }
+
+    return extracted > 0 ? extracted : (checkoutAmount > 0 ? checkoutAmount : fallback);
+  }
+
   double _extractTotal({
     required Map<String, dynamic> snapshot,
     required double fallback,
     required double subtotal,
     required double discount,
+    double deliveryFee = 0,
+    Map<String, dynamic>? paymentParams,
   }) {
+    final fromCheckout = _parseCheckoutAmount(paymentParams);
+
     final amount = snapshot['total_price'] ??
         snapshot['total_amount'] ??
         snapshot['amount'];
     final parsed = _parseDouble(amount);
-    if (parsed > 0) {
-      return parsed;
+    final isSubtotalOnly = parsed > 0 && (parsed - subtotal).abs() < 0.01;
+
+    // ExpressPay amount wins over API merchandise-only totals.
+    if (fromCheckout > subtotal + 0.01 &&
+        (parsed <= 0 || isSubtotalOnly || fromCheckout > parsed + 0.01)) {
+      return fromCheckout;
     }
-    final computed = subtotal - discount;
-    return computed > 0 ? computed : fallback;
+
+    if (parsed > 0) {
+      if (isSubtotalOnly && deliveryFee > 0.01) {
+        return (parsed + deliveryFee - discount).clamp(0.0, double.infinity);
+      }
+      if (parsed > subtotal + 0.01) {
+        return parsed;
+      }
+      if (!isSubtotalOnly) {
+        return parsed;
+      }
+    }
+
+    final computed =
+        (subtotal + deliveryFee - discount).clamp(0.0, double.infinity);
+    if (computed > 0) return computed;
+    if (fallback > subtotal + 0.01) return fallback;
+    if (fromCheckout > 0) return fromCheckout;
+    return parsed;
   }
 
   String _buildLiveTrackingNote(Map<String, dynamic> snapshot) {
