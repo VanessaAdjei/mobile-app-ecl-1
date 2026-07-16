@@ -13,6 +13,8 @@ class PaymentBillSummarySection extends StatelessWidget {
   final double deliveryFee;
   final bool showDeliveryFee;
   final double emergencyOrderFee;
+  /// When true, show the xPress row even if [emergencyOrderFee] is 0.
+  final bool showEmergencyOrderFee;
   final double discountAmount;
   final double? runningSubtotal;
   final bool useRawDeliveryFee;
@@ -32,6 +34,7 @@ class PaymentBillSummarySection extends StatelessWidget {
     required this.deliveryFee,
     required this.showDeliveryFee,
     required this.emergencyOrderFee,
+    this.showEmergencyOrderFee = false,
     required this.discountAmount,
     this.runningSubtotal,
     this.useRawDeliveryFee = false,
@@ -120,11 +123,12 @@ class PaymentBillSummarySection extends StatelessWidget {
                   icon: Icons.local_shipping_outlined,
                 ),
               ],
-              if (emergencyOrderFee > 0) ...[
+              if (showEmergencyOrderFee || emergencyOrderFee > 0) ...[
                 const SizedBox(height: 6),
                 PaymentSummaryRow(
                   label: 'xPress order fee',
                   value: emergencyOrderFee,
+                  isFree: emergencyOrderFee <= 0,
                   icon: Icons.bolt_rounded,
                 ),
               ],

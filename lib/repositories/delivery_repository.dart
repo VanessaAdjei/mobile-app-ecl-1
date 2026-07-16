@@ -20,10 +20,6 @@ abstract class DeliveryRepository {
     required bool formEncoded,
     Duration timeout,
   });
-  Future<CategoryFetchResult> addXpressFee({
-    required Map<String, String> headers,
-    Duration timeout,
-  });
   Future<CategoryFetchResult> fetchDeliveryGeofence({
     required Map<String, String> headers,
     Duration timeout,
@@ -93,13 +89,6 @@ class DeliveryRepositoryImpl implements DeliveryRepository {
         formEncoded: formEncoded,
         timeout: timeout,
       );
-
-  @override
-  Future<CategoryFetchResult> addXpressFee({
-    required Map<String, String> headers,
-    Duration timeout = const Duration(seconds: 5),
-  }) =>
-      _remote.addXpressFee(headers: headers, timeout: timeout);
 
   @override
   Future<CategoryFetchResult> fetchDeliveryGeofence({

@@ -33,6 +33,7 @@ import '../utils/product_tap_guard.dart';
 import '../services/category_optimization_service.dart';
 import '../services/product_catalog_service.dart';
 import '../utils/app_theme_colors.dart';
+import '../widgets/order_threshold_promo_banner.dart';
 import '../utils/category_utils.dart';
 import '../utils/app_error_utils.dart';
 import 'categories.dart';
@@ -2309,14 +2310,15 @@ class HomePageState extends State<HomePage>
                       fontWeight: FontWeight.bold,
                       fontSize: 14)),
               const SizedBox(height: 4),
-              Text('Free delivery on GHS 150+ · 5% off on GHS 500+',
+              Text(
+                  'Free delivery on GHS ${OrderThresholdPromoBanner.freeDeliveryThresholdAmount.toStringAsFixed(0)}+ · 5% off on GHS ${OrderThresholdPromoBanner.discountThresholdAmount.toStringAsFixed(0)}+',
                   style: TextStyle(
                       color: theme.ink,
                       fontSize: 12,
                       fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
               Text(
-                  'Enjoy free delivery for orders of GHS 150 and above, plus 5% off all orders of GHS 500 and above.',
+                  'Enjoy free delivery for orders of GHS ${OrderThresholdPromoBanner.freeDeliveryThresholdAmount.toStringAsFixed(0)} and above, plus 5% off all orders of GHS ${OrderThresholdPromoBanner.discountThresholdAmount.toStringAsFixed(0)} and above.',
                   style:
                       TextStyle(color: theme.muted, fontSize: 11, height: 1.3)),
             ]),

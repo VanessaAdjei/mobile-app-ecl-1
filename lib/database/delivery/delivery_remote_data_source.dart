@@ -35,11 +35,6 @@ abstract class DeliveryRemoteDataSource {
     Duration timeout = const Duration(seconds: 5),
   });
 
-  Future<CategoryFetchResult> addXpressFee({
-    required Map<String, String> headers,
-    Duration timeout = const Duration(seconds: 5),
-  });
-
   Future<CategoryFetchResult> fetchDeliveryGeofence({
     required Map<String, String> headers,
     Duration timeout = const Duration(seconds: 8),
@@ -175,25 +170,6 @@ class DeliveryRemoteDataSourceImpl implements DeliveryRemoteDataSource {
       'Content-Type': 'application/json',
     };
     return _post(uri, jsonHeaders, body, timeout);
-  }
-
-  @override
-  Future<CategoryFetchResult> addXpressFee({
-    required Map<String, String> headers,
-    Duration timeout = const Duration(seconds: 5),
-  }) async {
-    try {
-      final response = await HttpClientService.get(
-        Uri.parse(ApiConfig.getEndpointUrl('/add-xpress-fee')),
-        headers: headers,
-      ).timeout(timeout);
-      return CategoryFetchResult.fromResponse(
-        response.statusCode,
-        response.body,
-      );
-    } catch (e) {
-      return CategoryFetchResult(statusCode: 0, error: e);
-    }
   }
 
   @override

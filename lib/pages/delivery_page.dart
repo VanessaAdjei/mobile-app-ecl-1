@@ -120,7 +120,8 @@ class DeliveryPageState extends State<DeliveryPage> {
         merchandiseSubtotal: _merchandiseSubtotalForSummary,
         discount: _apiDiscount,
         deliveryFee: deliveryOption == 'delivery' ? deliveryFee : 0,
-        emergencyOrderFee: _emergencyOrderFee ?? 0,
+        emergencyOrderFee:
+            _isOrderUrgent ? (_emergencyOrderFee ?? _apiXpressFee ?? 0) : 0,
         runningSubtotal: _apiRunningSubtotal,
         shippingFree: _effectiveShippingFree,
         isDelivery: deliveryOption == 'delivery',
@@ -151,6 +152,9 @@ class DeliveryPageState extends State<DeliveryPage> {
 
   bool _isOrderUrgent = false;
   double? _emergencyOrderFee;
+
+  /// Latest `xpress_fee` from `/calculate-delivery-fee` (used when urgent is on).
+  double? _apiXpressFee;
 
   // data for pickup locations (regions, cities, stores)
   List<Map<String, dynamic>> regions = [];
@@ -425,8 +429,9 @@ class DeliveryPageState extends State<DeliveryPage> {
   /// Prices delivery via `/calculate-delivery-fee` as soon as coordinates are known.
   Future<void> _refreshDeliveryFeeForCoordinates(
     double lat,
-    double lng,
-  ) async {
+    double lng, {
+    bool forceRefresh = false,
+  }) async {
     if (deliveryOption == 'pickup' || !mounted || _effectiveShippingFree) {
       return;
     }
@@ -451,7 +456,7 @@ class DeliveryPageState extends State<DeliveryPage> {
       final apiFee = await _applyDeliveryFeeFromDistanceText(
         distanceText,
         generation: generation,
-        forceRefresh: false,
+        forceRefresh: forceRefresh,
       );
 
       if (!_isFeeGenerationCurrent(generation)) return;
@@ -751,11 +756,12 @@ class DeliveryPageState extends State<DeliveryPage> {
     required int generation,
   }) {
     if (!_isFeeGenerationCurrent(generation) || _effectiveShippingFree) return;
-    final rawFee = feeResult['delivery_fee'];
-    final parsedFee =
-        rawFee is num ? rawFee.toDouble() : double.tryParse('$rawFee');
+    final parsedFee = DeliveryService.roundMoney(feeResult['delivery_fee']);
     if (parsedFee == null) return;
     final rawDist = feeResult['distance'];
+    final parsedXpress = DeliveryService.roundMoney(
+      feeResult['xpress_fee'] ?? feeResult['xpressFee'],
+    );
     _setStateIfMounted(() {
       deliveryFee = parsedFee;
       if (fromApi) {
@@ -767,6 +773,12 @@ class DeliveryPageState extends State<DeliveryPage> {
       _deliveryFeeFromApi = fromApi;
       if (rawDist is num) {
         _distanceKm = rawDist.toDouble();
+      }
+      if (parsedXpress != null) {
+        _apiXpressFee = parsedXpress;
+        if (_isOrderUrgent) {
+          _emergencyOrderFee = parsedXpress;
+        }
       }
     });
   }
@@ -1061,12 +1073,21 @@ class DeliveryPageState extends State<DeliveryPage> {
       );
     }
 
-    if (urgent || (xpressFee != null && xpressFee > 0)) {
+    if (xpressFee != null) {
+      _apiXpressFee = xpressFee;
+    }
+
+    // Urgent is user-selected only — API may always return xpress_fee rate.
+    if (urgent) {
       _setStateIfMounted(() {
-        _isOrderUrgent = urgent || (xpressFee ?? 0) > 0;
-        if (xpressFee != null && xpressFee > 0) {
-          _emergencyOrderFee = xpressFee;
+        _isOrderUrgent = true;
+        if (_apiXpressFee != null) {
+          _emergencyOrderFee = _apiXpressFee;
         }
+      });
+    } else if (_isOrderUrgent && _apiXpressFee != null) {
+      _setStateIfMounted(() {
+        _emergencyOrderFee = _apiXpressFee;
       });
     }
   }
@@ -2633,44 +2654,54 @@ class DeliveryPageState extends State<DeliveryPage> {
         _emergencyOrderFee = null;
       });
       unawaited(_clearStaleUrgentFeeIfNeeded());
+      // Still refresh fee quote when a location is already set.
+      unawaited(_recalculateDeliveryFeeForUrgentToggle());
       return;
     }
 
-    // Defer add-xpress-fee API until continue (after calculate-delivery-fee).
-    // Calling it here leaves the server cart at merchandise + xpress only.
+    // Toggle immediately; fee fills in from calculate-delivery-fee (now or when
+    // the user picks a location later).
+    final fromApi = _apiXpressFee;
     _setStateIfMounted(() {
       _isOrderUrgent = true;
-      _emergencyOrderFee ??= DeliveryService.defaultXpressFee;
+      _emergencyOrderFee = fromApi; // may be null until calculate-delivery-fee
     });
+    unawaited(_recalculateDeliveryFeeForUrgentToggle());
   }
 
-  Future<bool> _applyUrgentFeeToServerCart() async {
-    if (!_isOrderUrgent) return true;
+  /// Calls `/calculate-delivery-fee` after an xPress toggle when location exists.
+  Future<void> _recalculateDeliveryFeeForUrgentToggle() async {
+    if (!mounted || deliveryOption != 'delivery') return;
+    if (_effectiveShippingFree) return;
 
-    final result = await DeliveryService.addXpressFee();
-    if (!mounted) return false;
+    final lat = _latitude;
+    final lng = _longitude;
+    final distanceText = _lastFeeDistanceText?.trim();
 
-    if (result != null && result['xpress_fee'] != null) {
-      _setStateIfMounted(() {
-        _emergencyOrderFee = (result['xpress_fee'] is num)
-            ? (result['xpress_fee'] as num).toDouble()
-            : double.tryParse(result['xpress_fee'].toString());
-      });
-      return true;
+    if (lat != null && lng != null) {
+      await _refreshDeliveryFeeForCoordinates(lat, lng, forceRefresh: true);
+      return;
     }
 
-    _setStateIfMounted(() {
-      _isOrderUrgent = false;
-      _emergencyOrderFee = null;
-    });
-    if (!mounted) return false;
-    AppErrorUtils.showSnack(
-      context,
-      'Urgent delivery is unavailable right now. Please try again.',
-      isError: true,
-      duration: const Duration(seconds: 2),
-    );
-    return false;
+    if (distanceText != null && distanceText.isNotEmpty) {
+      final generation = ++_feeUpdateGeneration;
+      _setStateIfMounted(() {
+        _isFetchingDeliveryFee = true;
+        _lastDeliveryErrorMessage = null;
+      });
+      try {
+        await _applyDeliveryFeeFromDistanceText(
+          distanceText,
+          generation: generation,
+          forceRefresh: true,
+        );
+      } finally {
+        if (_isFeeGenerationCurrent(generation)) {
+          _setStateIfMounted(() => _isFetchingDeliveryFee = false);
+        }
+      }
+    }
+    // No location yet — keep toggle state; fee API runs on map/address pick.
   }
 
   Future<void> _clearStaleUrgentFeeIfNeeded() async {
@@ -2823,9 +2854,11 @@ class DeliveryPageState extends State<DeliveryPage> {
                   ),
                   const SizedBox(height: 1),
                   Text(
-                    isOn
-                        ? 'Prioritized for faster delivery.'
-                        : 'Delivered sooner — extra fee applies.',
+                    !isOn
+                        ? 'Delivered sooner — extra fee applies.'
+                        : _apiXpressFee != null
+                            ? 'Prioritized for faster delivery · +GHS ${_apiXpressFee!.toStringAsFixed(2)}'
+                            : 'Prioritized for faster delivery — fee adds when address is set.',
                     style: TextStyle(
                       fontSize: 10,
                       height: 1.25,
@@ -2860,7 +2893,8 @@ class DeliveryPageState extends State<DeliveryPage> {
   }
 
   Widget _buildOrderSummary() {
-    final emergencyOrderFee = _emergencyOrderFee ?? 0.0;
+    final emergencyOrderFee =
+        _isOrderUrgent ? (_emergencyOrderFee ?? _apiXpressFee ?? 0.0) : 0.0;
     final isDelivery = deliveryOption == 'delivery';
     final subtotalLoading = !_hasMerchandiseSubtotalForSummary;
     final deliveryFeeLoading = isDelivery &&
@@ -2958,10 +2992,14 @@ class DeliveryPageState extends State<DeliveryPage> {
                     isLoading: deliveryFeeLoading,
                   ),
                 ],
-                if (emergencyOrderFee > 0) ...[
+                if (_isOrderUrgent) ...[
                   const SizedBox(height: 8),
-                  _buildSummaryRow('Xpress order fee', emergencyOrderFee,
-                      icon: Icons.flash_on),
+                  _buildSummaryRow(
+                    'Xpress order fee',
+                    emergencyOrderFee,
+                    icon: Icons.flash_on,
+                    isFree: emergencyOrderFee <= 0,
+                  ),
                 ],
                 Divider(height: 20, thickness: 1, color: _theme.border),
                 _buildSummaryRow(
@@ -3285,7 +3323,18 @@ class DeliveryPageState extends State<DeliveryPage> {
                     );
                     if (!mounted) return;
 
-                    if (!await _applyUrgentFeeToServerCart()) return;
+                    if (_isOrderUrgent) {
+                      // Prefer calculated rate (including 0). Only block if never received.
+                      if (_apiXpressFee == null && _emergencyOrderFee == null) {
+                        _showDeliverySnack(
+                          'Urgent fee is still calculating. Please wait a moment and try again.',
+                        );
+                        return;
+                      }
+                      _emergencyOrderFee = _apiXpressFee ?? _emergencyOrderFee ?? 0;
+                    } else {
+                      _emergencyOrderFee = null;
+                    }
 
                     if (!mounted) return;
 
@@ -3399,7 +3448,7 @@ class DeliveryPageState extends State<DeliveryPage> {
           orderTotals: totals,
           lockedDeliveryFee:
               confirmedDeliveryFee > 0 ? confirmedDeliveryFee : null,
-          lockedXpressFee: totals.emergencyOrderFee,
+          lockedXpressFee: _isOrderUrgent ? totals.emergencyOrderFee : null,
           deliveryAddress: deliveryAddress,
           contactNumber: _phoneController.text,
           deliveryOption: deliveryOption,

@@ -202,10 +202,11 @@ class PaymentPageState extends State<PaymentPage> {
             lockedFee: lockedDelivery,
           )
         : 0.0;
-    final xpressFee = widget.lockedXpressFee ??
-        (base.emergencyOrderFee > 0
-            ? base.emergencyOrderFee
-            : (widget.orderTotals?.emergencyOrderFee ?? 0));
+    final xpressFee = !widget.isOrderUrgent
+        ? 0.0
+        : (widget.lockedXpressFee ??
+            widget.orderTotals?.emergencyOrderFee ??
+            base.emergencyOrderFee);
     var shippingFree = base.shippingFree;
     if (isDelivery && owedDelivery > 0) {
       shippingFree = false;
@@ -244,9 +245,8 @@ class PaymentPageState extends State<PaymentPage> {
         fallbackToLocalEstimate: false,
       );
       final raw = result?['delivery_fee'];
-      if (raw is num && raw > 0) return raw.toDouble();
-      final parsed = double.tryParse('${raw ?? ''}');
-      if (parsed != null && parsed > 0) return parsed;
+      final rounded = DeliveryService.roundMoney(raw);
+      if (rounded != null && rounded > 0) return rounded;
     }
 
     return null;
@@ -359,19 +359,16 @@ class PaymentPageState extends State<PaymentPage> {
       return 0;
     }
 
+    final urgent =
+        widget.isOrderUrgent || (draft?.isOrderUrgent ?? false);
+
     double pickXpressFee() {
-      if (totals.emergencyOrderFee > 0) return totals.emergencyOrderFee;
-      final fromLocked = locked?.emergencyOrderFee ?? 0;
-      if (fromLocked > 0) return fromLocked;
-      final fromScalar = widget.lockedXpressFee ?? 0;
-      if (fromScalar > 0) return fromScalar;
-      if (draft?.emergencyOrderFee != null && draft!.emergencyOrderFee! > 0) {
-        return draft.emergencyOrderFee!;
-      }
-      final urgent =
-          widget.isOrderUrgent || (draft?.isOrderUrgent ?? false);
-      if (urgent) return DeliveryService.defaultXpressFee;
-      return 0;
+      if (!urgent) return 0;
+      // Prefer locked rate from delivery (including 0 from calculate-delivery-fee).
+      if (widget.lockedXpressFee != null) return widget.lockedXpressFee!;
+      if (locked != null) return locked.emergencyOrderFee;
+      if (draft?.emergencyOrderFee != null) return draft!.emergencyOrderFee!;
+      return totals.emergencyOrderFee;
     }
 
     final deliveryFee = pickDeliveryFee();
@@ -388,13 +385,12 @@ class PaymentPageState extends State<PaymentPage> {
     }
 
     if (deliveryFee > 0 ||
-        xpressFee > 0 ||
+        urgent ||
         isDelivery != totals.isDelivery ||
         shippingFree != totals.shippingFree) {
       totals = totals.copyWith(
         deliveryFee: deliveryFee > 0 ? deliveryFee : totals.deliveryFee,
-        emergencyOrderFee:
-            xpressFee > 0 ? xpressFee : totals.emergencyOrderFee,
+        emergencyOrderFee: urgent ? xpressFee : 0,
         isDelivery: isDelivery,
         shippingFree: shippingFree,
       );
@@ -512,9 +508,8 @@ class PaymentPageState extends State<PaymentPage> {
       );
     }
 
-    if (widget.isOrderUrgent && xpressFee > 0) {
-      await DeliveryService.addXpressFee();
-    }
+    // Urgent fee is taken from `/calculate-delivery-fee` xpress_fee at checkout
+    // (included in ExpressPay amount). /add-xpress-fee is no longer used.
 
     ExpressPayApiLog.section('Pre-ExpressPay cart sync complete');
   }
@@ -549,7 +544,7 @@ class PaymentPageState extends State<PaymentPage> {
     if (deliveryOpt == 'delivery' && deliveryCharge > 0) {
       params['delivery_fee'] = deliveryCharge.toStringAsFixed(2);
     }
-    if (xpressCharge > 0) {
+    if (widget.isOrderUrgent || xpressCharge > 0) {
       params['emergency_order_fee'] = xpressCharge.toStringAsFixed(2);
     }
     return params;
@@ -812,7 +807,10 @@ class PaymentPageState extends State<PaymentPage> {
         );
       }
 
-      if (_isUrgentCheckout(totals) && totals.emergencyOrderFee <= 0) {
+      // Urgent can have a calculated xpress_fee of 0 — that is a valid quote.
+      if (_isUrgentCheckout(totals) &&
+          widget.lockedXpressFee == null &&
+          widget.orderTotals == null) {
         throw Exception(
           'Urgent order fee is missing. Please go back to delivery details and try again.',
         );
@@ -1136,6 +1134,8 @@ class PaymentPageState extends State<PaymentPage> {
                                           totals.isDelivery || widget._isDelivery,
                                       emergencyOrderFee:
                                           totals.emergencyOrderFee,
+                                      showEmergencyOrderFee:
+                                          widget.isOrderUrgent,
                                       discountAmount: totals.discount,
                                       runningSubtotal: totals.runningSubtotal,
                                       useRawDeliveryFee: true,

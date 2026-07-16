@@ -65,5 +65,31 @@ void main() {
       // base 20 + (9.5 - 3) * rate — fee should be > base.
       expect(parsed['fee'], greaterThan(20));
     });
+
+    test('parseCalculateDeliveryFeePayload reads new API shape and rounds money',
+        () {
+      final parsed = DeliveryService.parseCalculateDeliveryFeePayload({
+        'distance': 25.199999999999999289457264239899814128875732421875,
+        'delivery_fee': 50.39999999999999857891452847979962825775146484375,
+        'xpress_fee': 25.199999999999999289457264239899814128875732421875,
+      });
+
+      expect(parsed, isNotNull);
+      expect(parsed!['from_api'], isTrue);
+      expect(parsed['distance'], closeTo(25.2, 0.0001));
+      expect(parsed['delivery_fee'], 50.40);
+      expect(parsed['xpress_fee'], 25.20);
+    });
+
+    test('roundMoney trims float noise to 2 decimals', () {
+      expect(
+        DeliveryService.roundMoney(
+          50.39999999999999857891452847979962825775146484375,
+        ),
+        50.40,
+      );
+      expect(DeliveryService.roundMoney('25.20'), 25.20);
+      expect(DeliveryService.roundMoney(null), isNull);
+    });
   });
 }

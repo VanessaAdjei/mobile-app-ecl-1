@@ -3,24 +3,24 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('OrderThresholdPromoBanner free delivery', () {
-    test('qualifies at GHS 150+', () {
+    test('qualifies at GHS 350+', () {
       expect(
-        OrderThresholdPromoBanner.qualifiesForFreeDelivery(149.99),
+        OrderThresholdPromoBanner.qualifiesForFreeDelivery(349.99),
         isFalse,
       );
       expect(
-        OrderThresholdPromoBanner.qualifiesForFreeDelivery(150),
+        OrderThresholdPromoBanner.qualifiesForFreeDelivery(350),
         isTrue,
       );
       expect(
-        OrderThresholdPromoBanner.qualifiesForFreeDelivery(200),
+        OrderThresholdPromoBanner.qualifiesForFreeDelivery(400),
         isTrue,
       );
     });
 
     test('displayDeliveryFee is zero when subtotal qualifies', () {
       expect(
-        OrderThresholdPromoBanner.displayDeliveryFee(200, 25),
+        OrderThresholdPromoBanner.displayDeliveryFee(400, 25),
         0,
       );
       expect(
@@ -57,7 +57,7 @@ void main() {
       expect(
         OrderThresholdPromoBanner.shippingFreeFromPromo({
           'shipping_free': false,
-          'delivery_threshold': 150,
+          'delivery_threshold': 350,
           'subtotal': 83,
         }),
         isFalse,
@@ -65,8 +65,8 @@ void main() {
       expect(
         OrderThresholdPromoBanner.shippingFreeFromPromo({
           'shipping_free': false,
-          'delivery_threshold': 150,
-          'subtotal': 150,
+          'delivery_threshold': 350,
+          'subtotal': 350,
         }),
         isTrue,
       );
@@ -92,7 +92,7 @@ void main() {
       expect(
         OrderThresholdPromoBanner.effectiveShippingFree(
           apiShippingFree: false,
-          merchandiseSubtotal: 175,
+          merchandiseSubtotal: 375,
           isDelivery: true,
         ),
         isTrue,

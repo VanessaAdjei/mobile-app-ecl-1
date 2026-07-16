@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:eclapp/pages/homepage.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,8 +29,7 @@ class HomePageTourTargets {
 class HomePageTour {
   HomePageTour._();
 
-  /// [HomePageState]'s own [BuildContext] is not an *ancestor* of [HomePage],
-  /// so we must accept the state's element directly.
+
   static bool _isHomePageContext(BuildContext context) {
     final element = context as Element?;
     if (element is StatefulElement && element.state is HomePageState) {

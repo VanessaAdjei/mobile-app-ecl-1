@@ -5,7 +5,7 @@ import '../config/app_colors.dart';
 import '../utils/app_theme_colors.dart';
 
 /// Promo UI when order subtotal is GHS 500+ (5% off — display only).
-/// Free delivery applies from GHS 150+ via [qualifiesForFreeDelivery].
+/// Free delivery applies from GHS 350+ via [qualifiesForFreeDelivery].
 class OrderThresholdPromoBanner extends StatelessWidget {
   final double subtotal;
   final EdgeInsetsGeometry? margin;
@@ -18,7 +18,7 @@ class OrderThresholdPromoBanner extends StatelessWidget {
     this.compact = false,
   });
 
-  static const double freeDeliveryThresholdAmount = 150;
+  static const double freeDeliveryThresholdAmount = 350;
   static const double discountThresholdAmount = 500;
 
   static bool qualifiesForFreeDelivery(double subtotal) =>
@@ -61,7 +61,7 @@ class OrderThresholdPromoBanner extends StatelessWidget {
     return false;
   }
 
-  /// Free shipping from API flag and/or cart subtotal threshold (GHS 150+).
+  /// Free shipping from API flag and/or cart subtotal threshold (GHS 350+).
   static bool effectiveShippingFree({
     required bool apiShippingFree,
     required double merchandiseSubtotal,
@@ -73,7 +73,7 @@ class OrderThresholdPromoBanner extends StatelessWidget {
     return qualifiesForFreeDelivery(merchandiseSubtotal);
   }
 
-  /// Delivery fee shown in summaries; zero when free delivery applies (GHS 150+).
+  /// Delivery fee shown in summaries; zero when free delivery applies (GHS 350+).
   static double displayDeliveryFee(double subtotal, double deliveryFee) =>
       qualifiesForFreeDelivery(subtotal) ? 0.0 : deliveryFee;
 
@@ -115,7 +115,7 @@ class OrderThresholdPromoBanner extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Free delivery on orders GHS 150+ and 5% off orders GHS 500+',
+                'Free delivery on orders GHS ${freeDeliveryThresholdAmount.toStringAsFixed(0)}+ and 5% off orders GHS ${discountThresholdAmount.toStringAsFixed(0)}+',
                 style: GoogleFonts.poppins(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w600,
@@ -183,7 +183,7 @@ class OrderThresholdPromoBanner extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Free delivery for orders GHS 150 and above. 5% off all orders GHS 500 and above.',
+                      'Free delivery for orders GHS ${freeDeliveryThresholdAmount.toStringAsFixed(0)} and above. 5% off all orders GHS ${discountThresholdAmount.toStringAsFixed(0)} and above.',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -199,20 +199,21 @@ class OrderThresholdPromoBanner extends StatelessWidget {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: const [
-              _PromoChip(
+            children: [
+              const _PromoChip(
                 icon: Icons.percent_rounded,
                 label: '5% off @ GHS 500+',
               ),
               _PromoChip(
                 icon: Icons.local_shipping_rounded,
-                label: 'Free delivery @ GHS 150+',
+                label:
+                    'Free delivery @ GHS ${freeDeliveryThresholdAmount.toStringAsFixed(0)}+',
               ),
             ],
           ),
           const SizedBox(height: 10),
           Text(
-            'Free delivery applies on orders GHS 150+, and 5% off applies on all orders GHS 500+.',
+            'Free delivery applies on orders GHS ${freeDeliveryThresholdAmount.toStringAsFixed(0)}+, and 5% off applies on all orders GHS ${discountThresholdAmount.toStringAsFixed(0)}+.',
             style: GoogleFonts.poppins(
               fontSize: 10.5,
               fontWeight: FontWeight.w500,
@@ -226,7 +227,7 @@ class OrderThresholdPromoBanner extends StatelessWidget {
   }
 }
 
-/// Always-visible cart promo: free delivery GHS 150+ and 5% off GHS 500+.
+/// Always-visible cart promo: free delivery GHS 350+ and 5% off GHS 500+.
 class OrderThresholdPromoCartInfo extends StatelessWidget {
   final double subtotal;
 

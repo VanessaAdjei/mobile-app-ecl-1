@@ -61,77 +61,6 @@ class DeliveryService {
     return normalizeDeliveryStoreMap(raw);
   }
 
-  /// Call /add-xpress-fee API to add express/urgent delivery fee
-  static const Duration _feeApiRetryDelay = Duration(milliseconds: 400);
-
-  /// Default xpress surcharge for UI until continue confirms via API.
-  static const double defaultXpressFee = 15.0;
-
-  static Future<Map<String, dynamic>?> addXpressFee({
-    int maxAttempts = 2,
-  }) async {
-    try {
-      final isLoggedIn = await AuthService.isLoggedIn();
-      String? token;
-      String? guestId;
-      if (isLoggedIn) {
-        token = await AuthService.getToken();
-      } else {
-        final prefs = await SharedPreferences.getInstance();
-        guestId = prefs.getString('guest_id');
-      }
-      if (!isLoggedIn && (guestId == null || guestId.isEmpty)) {
-        debugPrint('add-xpress-fee: Guest auth required');
-        return null;
-      }
-      if (isLoggedIn && (token == null || token.isEmpty)) {
-        debugPrint('add-xpress-fee: Auth required');
-        return null;
-      }
-      final headers = <String, String>{
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        if (isLoggedIn) 'Authorization': 'Bearer $token',
-        if (!isLoggedIn && guestId != null) ...{
-          'Authorization': 'Guest $guestId',
-          'X-Guest-ID': guestId,
-        },
-      };
-
-      CategoryFetchResult? result;
-      final url = ApiConfig.getEndpointUrl('/add-xpress-fee');
-      for (var attempt = 1; attempt <= maxAttempts; attempt++) {
-        result = await _repository.addXpressFee(headers: headers);
-        ExpressPayApiLog.exchange(
-          step:
-              'Pre-ExpressPay → GET /add-xpress-fee (attempt $attempt/$maxAttempts)',
-          method: 'GET',
-          url: url,
-          statusCode: result.statusCode,
-          responseBody: result.rawBody,
-        );
-        if (result.statusCode == 200 || result.statusCode == 201) {
-          break;
-        }
-        if (attempt < maxAttempts) {
-          await Future<void>.delayed(_feeApiRetryDelay);
-        }
-      }
-
-      final last = result;
-      if (last == null) return null;
-      if (last.statusCode == 200 || last.statusCode == 201) {
-        final data = _decodedPayload(last);
-        if (data is Map<String, dynamic>) return data;
-        if (data is Map) return Map<String, dynamic>.from(data);
-      }
-      return null;
-    } catch (e) {
-      debugPrint('add-xpress-fee error: $e');
-      return null;
-    }
-  }
-
   static String _normalizeLocationLabel(String value) {
     return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
   }
@@ -540,9 +469,8 @@ class DeliveryService {
 
       attachBillingCoordinates(requestBody, lat: lat, lng: lng);
 
-      // Urgent flag only — fee amount is applied via GET /add-xpress-fee after
-      // calculate-delivery-fee. Sending xpress_fee on save-billing resets the
-      // ExpressPay bill to merchandise-only.
+      // Urgent flag only when selected. Fee amount comes from
+      // `/calculate-delivery-fee` xpress_fee and is charged via ExpressPay.
       if (orderUrgent == true ||
           (emergencyOrderFee != null && emergencyOrderFee > 0)) {
         requestBody['order_urgent'] = true;
@@ -1064,7 +992,17 @@ class DeliveryService {
     }
   }
 
+  /// Money amounts from calculate-delivery-fee / billing APIs (2 dp).
+  static double? roundMoney(dynamic raw) {
+    final value = _readAmount(raw);
+    if (value == null) return null;
+    return double.parse(value.toStringAsFixed(2));
+  }
+
   /// Parses calculate-delivery-fee JSON (supports nested `data` wrapper).
+  ///
+  /// Current API shape:
+  /// `{ "distance": 25.2, "delivery_fee": 50.4, "xpress_fee": 25.2 }`
   static Map<String, dynamic>? parseCalculateDeliveryFeePayload(
     Map<String, dynamic> root,
   ) {
@@ -1075,13 +1013,10 @@ class DeliveryService {
     }
 
     for (final map in payloads) {
-      final deliveryFeeRaw =
-          map['delivery_fee'] ?? map['deliveryFee'] ?? map['fee'];
-      if (deliveryFeeRaw == null) continue;
-
-      final feeValue = deliveryFeeRaw is num
-          ? deliveryFeeRaw.toDouble()
-          : (double.tryParse(deliveryFeeRaw.toString()) ?? 0.0);
+      final feeValue = roundMoney(
+        map['delivery_fee'] ?? map['deliveryFee'] ?? map['fee'],
+      );
+      if (feeValue == null) continue;
 
       final distance = map['distance'] ?? map['distance_km'];
       double? distanceKm;
@@ -1092,9 +1027,14 @@ class DeliveryService {
             parseDistanceTextToKm(distance.toString());
       }
 
+      final xpressFee = roundMoney(
+        map['xpress_fee'] ?? map['xpressFee'] ?? map['emergency_order_fee'],
+      );
+
       return {
         'distance': distanceKm,
         'delivery_fee': feeValue,
+        if (xpressFee != null) 'xpress_fee': xpressFee,
         'from_api': true,
       };
     }
@@ -1202,7 +1142,7 @@ class DeliveryService {
   }
 
   /// Applies delivery fee via POST [/calculate-delivery-fee].
-  /// Call after save-billing (and after add-xpress-fee when urgent).
+  /// Call after save-billing when distance is known.
   /// [forceRefresh] bypasses the fee cache so the server session is updated
   /// immediately before ExpressPay (cached quotes do not re-apply).
   static Future<Map<String, dynamic>?> applyDeliveryFeeToCart({
@@ -1368,9 +1308,23 @@ class DeliveryService {
       }
 
       if (result.statusCode != 200 && result.statusCode != 201) {
-        checkoutLog('❌ [CALCULATE-DELIVERY-FEE] Non-success status');
+        checkoutLog(
+          '❌ [CALCULATE-DELIVERY-FEE] Non-success status=${result.statusCode} '
+          'body=${result.rawBody}',
+        );
+        debugPrint(
+          '❌ [CALCULATE-DELIVERY-FEE] status=${result.statusCode} '
+          'response=${result.rawBody}',
+        );
         return fallbackToLocalEstimate ? _localEstimateResult(key) : null;
       }
+
+      debugPrint(
+        '📦 [CALCULATE-DELIVERY-FEE] raw response: ${result.rawBody}',
+      );
+      checkoutLog(
+        '📦 [CALCULATE-DELIVERY-FEE] raw response: ${result.rawBody}',
+      );
 
       final decoded = AppErrorUtils.tryDecodeJsonMap(result.rawBody ?? '');
       if (decoded == null) {
@@ -1383,6 +1337,17 @@ class DeliveryService {
         debugPrint('❌ [CALCULATE-DELIVERY-FEE] No delivery_fee in response');
         return fallbackToLocalEstimate ? _localEstimateResult(key) : null;
       }
+
+      debugPrint(
+        '✅ [CALCULATE-DELIVERY-FEE] parsed: distance=${parsed['distance']}, '
+        'delivery_fee=${parsed['delivery_fee']}, '
+        'xpress_fee=${parsed['xpress_fee']}',
+      );
+      checkoutLog(
+        '✅ [CALCULATE-DELIVERY-FEE] parsed: distance=${parsed['distance']}, '
+        'delivery_fee=${parsed['delivery_fee']}, '
+        'xpress_fee=${parsed['xpress_fee']}',
+      );
 
       _deliveryFeeApiCache[normalizedKey] = parsed;
       if (normalizedKey != key) {

@@ -132,7 +132,7 @@ class ApiConfig {
   static const String saveBillingAddress = '/save-billing-add';
   static const String getBillingAddress = '/get-billing-add';
   static const String calculateDeliveryFee =
-      '/calculate-delivery-fee'; // POST { distance_text } — apply after save-billing + xpress
+      '/calculate-delivery-fee'; // POST { distance_text } → distance, delivery_fee, xpress_fee
   static const String deliveryGeofence = '/delivery-geofence';
   static const String validateGeofence = '/validate-geofence';
   static const String regions = '/regions';
