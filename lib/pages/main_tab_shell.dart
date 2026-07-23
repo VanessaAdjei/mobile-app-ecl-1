@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../config/app_routes.dart';
 import '../utils/home_tour_gate.dart';
+import '../utils/profile_tour_gate.dart';
 import 'bottomnav.dart';
 import 'cart.dart';
 import 'categories.dart';
@@ -108,6 +111,10 @@ class MainTabShellState extends State<MainTabShell> {
     if (index < 0 || index >= _tabCount) return;
     if (index == 2) return;
     if (_selectedIndex == index) return;
+    if (index == 4) {
+      // Block taps as soon as Profile opens, until hints finish or are skipped.
+      unawaited(ProfileTourGate.armIfTourPending());
+    }
     _ensureTabBuilt(index);
     setState(() => _selectedIndex = index);
   }
@@ -138,9 +145,14 @@ class MainTabShellState extends State<MainTabShell> {
       ),
     );
 
-    return ValueListenableBuilder<bool>(
-      valueListenable: HomeTourGate.blocking,
-      builder: (context, blocking, child) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        HomeTourGate.blocking,
+        ProfileTourGate.blocking,
+      ]),
+      builder: (context, child) {
+        final blocking =
+            HomeTourGate.blocking.value || ProfileTourGate.blocking.value;
         if (!blocking) return child!;
         return Stack(
           children: [

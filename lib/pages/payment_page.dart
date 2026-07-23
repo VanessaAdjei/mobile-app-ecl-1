@@ -417,9 +417,11 @@ class PaymentPageState extends State<PaymentPage> {
       widget.isOrderUrgent || totals.emergencyOrderFee > 0;
 
   /// Re-sync delivery fee to the server cart immediately before ExpressPay.
-  Future<void> _syncServerCartBeforeExpressPay(
+  /// Returns the save-billing result (for merchandise / fee checks).
+  Future<Map<String, dynamic>?> _syncServerCartBeforeExpressPay(
     CartProvider cart,
     double deliveryCharge,
+    double expectedPayable,
   ) async {
     ExpressPayApiLog.section('Pre-ExpressPay cart sync starting');
 
@@ -430,7 +432,7 @@ class PaymentPageState extends State<PaymentPage> {
         'Skipping delivery cart sync (isDelivery=${widget._isDelivery}, '
         'deliveryCharge=$deliveryCharge)',
       );
-      return;
+      return null;
     }
 
     final distanceText = await DeliveryService.resolveDistanceTextForDeliveryFee(
@@ -464,6 +466,7 @@ class PaymentPageState extends State<PaymentPage> {
 
     checkoutLog(
       '[PAYMENT] Pre-ExpressPay cart sync — delivery=$deliveryCharge, '
+      'xpress=$xpressFee, expected=$expectedPayable, '
       'distance=$distanceText, regionId=$regionId, cityId=$cityId',
     );
 
@@ -480,6 +483,8 @@ class PaymentPageState extends State<PaymentPage> {
       lat: widget.lat,
       lng: widget.lng,
       distanceText: distanceText,
+      deliveryFee: deliveryCharge,
+      emergencyOrderFee: xpressFee > 0 ? xpressFee : null,
       orderUrgent: _isUrgentCheckout(
         widget.orderTotals ??
             CheckoutOrderTotals(
@@ -508,10 +513,29 @@ class PaymentPageState extends State<PaymentPage> {
       );
     }
 
-    // Urgent fee is taken from `/calculate-delivery-fee` xpress_fee at checkout
-    // (included in ExpressPay amount). /add-xpress-fee is no longer used.
+    // Re-save after calculate-delivery-fee so fee fields stick on the session
+    // ExpressPay reads when minting the checkout token.
+    final finalSave = await DeliveryService.saveDeliveryInfo(
+      name: _userName.trim().isNotEmpty ? _userName.trim() : 'Customer',
+      email: email.isNotEmpty ? email : 'guest@checkout.local',
+      phone: phone,
+      deliveryOption: 'delivery',
+      region: widget.deliveryRegion,
+      city: widget.deliveryCity,
+      address: widget.streetAddress ?? widget.deliveryAddress,
+      regionId: regionId,
+      cityId: cityId,
+      lat: widget.lat,
+      lng: widget.lng,
+      distanceText: distanceText,
+      deliveryFee: deliveryCharge,
+      emergencyOrderFee: xpressFee > 0 ? xpressFee : null,
+      orderUrgent: xpressFee > 0 || widget.isOrderUrgent,
+      expressPayFlow: true,
+    );
 
     ExpressPayApiLog.section('Pre-ExpressPay cart sync complete');
+    return finalSave['success'] == true ? finalSave : saveResult;
   }
 
   /// Fields sent to POST /expresspayment.
@@ -526,6 +550,9 @@ class PaymentPageState extends State<PaymentPage> {
     required double xpressCharge,
   }) {
     final deliveryOpt = widget.deliveryOption.toLowerCase().trim();
+    // Keep amount as a fixed decimal string — ExpressPay wrappers often bind
+    // string form fields; also send numeric aliases for JSON handlers.
+    final payable = double.tryParse(totalAmountDue) ?? 0;
     final params = <String, dynamic>{
       'request': 'submit',
       'order_id': orderId,
@@ -540,12 +567,19 @@ class PaymentPageState extends State<PaymentPage> {
       'account_number': accountNumber,
       'shipping_type': deliveryOpt,
     };
+    if (payable > 0) {
+      params['order_amount'] = payable;
+      params['payable_amount'] = payable;
+    }
     // Backend uses these to register the ExpressPay bill (not just cart subtotal).
     if (deliveryOpt == 'delivery' && deliveryCharge > 0) {
       params['delivery_fee'] = deliveryCharge.toStringAsFixed(2);
+      params['shipping_fee'] = deliveryCharge.toStringAsFixed(2);
     }
     if (widget.isOrderUrgent || xpressCharge > 0) {
       params['emergency_order_fee'] = xpressCharge.toStringAsFixed(2);
+      params['xpress_fee'] = xpressCharge.toStringAsFixed(2);
+      params['order_urgent'] = true;
     }
     return params;
   }
@@ -900,20 +934,25 @@ class PaymentPageState extends State<PaymentPage> {
         MaterialPageRoute(
           builder: (context) => PaymentWebView(
             resolveRedirectUrl: () async {
+              final expectedPayable = double.tryParse(totalAmountDue) ?? 0;
               try {
-                await _syncServerCartBeforeExpressPay(cart, deliveryCharge);
+                await _syncServerCartBeforeExpressPay(
+                  cart,
+                  deliveryCharge,
+                  expectedPayable,
+                );
               } catch (e, st) {
                 debugPrint(
                   '[EXPRESS PAY] Pre-sync skipped — continuing to portal: $e\n$st',
                 );
               }
+
               final responseBody = await _checkoutPaymentService
                   .submitExpressPayment(params: expressPayParams);
               final parsedUrl =
                   prepareExpressPayPortalUrl(responseBody) ??
                       parsePaymentRedirectUrl(responseBody) ??
                       responseBody.trim();
-              final expectedPayable = double.tryParse(totalAmountDue) ?? 0;
               final redirectUrl = expectedPayable > 0
                   ? alignExpressPayCheckoutUrl(parsedUrl, expectedPayable)
                   : parsedUrl;

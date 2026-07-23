@@ -4,6 +4,7 @@ import 'package:eclapp/pages/profile.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/profile_tour_gate.dart';
 import 'spotlight_tour.dart';
 
 /// SharedPreferences key — profile tab coach marks seen once.
@@ -135,39 +136,48 @@ class ProfilePageTour {
       await prefs.setBool(kProfileTourSeenKey, false);
     }
 
-    for (var i = 0; i < 80; i++) {
-      if (!context.mounted) return false;
-      if (_targetReady(targets.headerKey) && _targetReady(targets.accountKey)) {
-        break;
+    ProfileTourGate.arm();
+    try {
+      for (var i = 0; i < 80; i++) {
+        if (!context.mounted) return false;
+        if (_targetReady(targets.headerKey) &&
+            _targetReady(targets.accountKey)) {
+          break;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 50));
       }
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    }
 
-    if (!_targetReady(targets.headerKey) || !context.mounted) {
-      debugPrint('ProfilePageTour: skipped — header not laid out');
-      return false;
-    }
-
-    for (var i = 0; i < 80; i++) {
-      if (!context.mounted) return false;
-      if (_targetReady(targets.healthKey) && _targetReady(targets.supportKey)) {
-        break;
+      if (!_targetReady(targets.headerKey) || !context.mounted) {
+        debugPrint('ProfilePageTour: skipped — header not laid out');
+        return false;
       }
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      for (var i = 0; i < 80; i++) {
+        if (!context.mounted) return false;
+        if (_targetReady(targets.healthKey) &&
+            _targetReady(targets.supportKey)) {
+          break;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+
+      final steps = _buildSteps(targets, scrollController);
+      if (steps.isEmpty) return false;
+      if (!context.mounted) return false;
+
+      debugPrint('ProfilePageTour: showing ${steps.length} step(s)');
+      await SpotlightTour.show(
+        context: context,
+        steps: steps,
+        onFinished: () {
+          unawaited(prefs.setBool(kProfileTourSeenKey, true));
+          ProfileTourGate.release();
+        },
+      );
+      return true;
+    } finally {
+      ProfileTourGate.release();
     }
-
-    final steps = _buildSteps(targets, scrollController);
-    if (steps.isEmpty) return false;
-
-    debugPrint('ProfilePageTour: showing ${steps.length} step(s)');
-    await SpotlightTour.show(
-      context: context,
-      steps: steps,
-      onFinished: () {
-        unawaited(prefs.setBool(kProfileTourSeenKey, true));
-      },
-    );
-    return true;
   }
 
   static Future<void> _scrollToTop(ScrollController? controller) async {

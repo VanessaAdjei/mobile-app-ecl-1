@@ -1,7 +1,4 @@
-// services/homepage_optimization_service.dart
-// services/homepage_optimization_service.dart
-// services/homepage_optimization_service.dart
-// services/homepage_optimization_service.dart
+
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';

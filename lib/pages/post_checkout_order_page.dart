@@ -1773,7 +1773,13 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                       ? 'Delivered'
                       : 'Confirmation';
 
-          return Scaffold(
+          return PopScope(
+            canPop: false,
+            onPopInvokedWithResult: (didPop, _) {
+              if (didPop) return;
+              _goHome();
+            },
+            child: Scaffold(
             backgroundColor: isFailed
                 ? (theme.isDark
                     ? Colors.red.withValues(alpha: 0.08)
@@ -1847,6 +1853,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                 ),
               ],
             ),
+          ),
           );
         },
       ),

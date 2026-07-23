@@ -176,7 +176,7 @@ class _PromoCodeBlock extends StatelessWidget {
     final lockedLabel = appliedPromoCode ?? 'Server pricing';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: PaymentSectionStyle.innerPanelDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -190,17 +190,17 @@ class _PromoCodeBlock extends StatelessWidget {
                         children: [
                           Icon(
                             Icons.check_circle_outline,
-                            size: 16,
+                            size: 20,
                             color: AppColors.primary,
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               lockPromoEditing
                                   ? lockedLabel
                                   : appliedPromoCode!,
                               style: GoogleFonts.poppins(
-                                fontSize: 13,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w600,
                                 color: t.ink,
                               ),
@@ -214,7 +214,7 @@ class _PromoCodeBlock extends StatelessWidget {
                         enabled: !lockPromoEditing,
                         controller: promoCodeController,
                         style: GoogleFonts.poppins(
-                          fontSize: 13,
+                          fontSize: 15,
                           color: t.inputText,
                         ),
                         cursorColor: AppColors.primary,
@@ -223,16 +223,18 @@ class _PromoCodeBlock extends StatelessWidget {
                           hintText: 'Promo code',
                           hintStyle: GoogleFonts.poppins(
                             color: t.inputHint,
-                            fontSize: 13,
+                            fontSize: 15,
                           ),
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.zero,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                          ),
                         ),
                       ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               SizedBox(
-                height: 32,
+                height: 44,
                 child: TextButton(
                   onPressed: lockPromoEditing
                       ? null
@@ -254,17 +256,17 @@ class _PromoCodeBlock extends StatelessWidget {
                                 ? Colors.red.shade300
                                 : Colors.red.shade700)
                             : Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                   child: isApplyingPromo
                       ? const SizedBox(
-                          width: 14,
-                          height: 14,
+                          width: 18,
+                          height: 18,
                           child: CircularProgressIndicator(
                             color: Colors.white,
                             strokeWidth: 2,
@@ -277,7 +279,7 @@ class _PromoCodeBlock extends StatelessWidget {
                                   ? 'Remove'
                                   : 'Apply',
                           style: GoogleFonts.poppins(
-                            fontSize: 12,
+                            fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -286,30 +288,30 @@ class _PromoCodeBlock extends StatelessWidget {
             ],
           ),
           if (lockPromoEditing) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               'Pricing is set from your delivery quote.',
               style: GoogleFonts.poppins(
                 color: t.muted,
-                fontSize: 11,
+                fontSize: 12,
               ),
             ),
           ] else if (promoError != null) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               promoError!,
               style: GoogleFonts.poppins(
                 color: t.isDark ? Colors.red.shade300 : Colors.red.shade600,
-                fontSize: 11,
+                fontSize: 12,
               ),
             ),
           ] else if (hasApplied && discountAmount > 0) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               'You save GHS ${discountAmount.toStringAsFixed(2)}',
               style: GoogleFonts.poppins(
                 color: AppColors.primary,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
             ),

@@ -2279,7 +2279,7 @@ class HomePageState extends State<HomePage>
   Widget _buildSpecialOffers() {
     final theme = context.appColors;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const SizedBox(height: 12),
+      const SizedBox(height: 4),
       Container(
         margin: const EdgeInsets.symmetric(horizontal: 16),
         decoration:
@@ -2292,8 +2292,14 @@ class HomePageState extends State<HomePage>
         child: Column(children: [
           ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            child: Image.asset('assets/images/specialoffer.PNG',
-                fit: BoxFit.cover, width: double.infinity, height: 120),
+            child: AspectRatio(
+              aspectRatio: 1024 / 157,
+              child: Image.asset(
+                'assets/images/specialoffer.PNG',
+                fit: BoxFit.cover,
+                width: double.infinity,
+              ),
+            ),
           ),
           Container(
             width: double.infinity,
@@ -2325,7 +2331,7 @@ class HomePageState extends State<HomePage>
           ),
         ]),
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 8),
     ]);
   }
 

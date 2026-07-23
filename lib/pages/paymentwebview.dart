@@ -132,6 +132,9 @@ class PaymentWebViewState extends State<PaymentWebView> {
   String? _loadError;
   bool _checkoutNavigationStarted = false;
   bool _webViewTornDown = false;
+  bool _amountGuardChecked = false;
+  bool _amountGuardFailed = false;
+  bool _amountGuardInProgress = false;
   int _expressPayScanAttempts = 0;
   String? _lastExpressPayScanUrl;
   String? _initialExpressPayCheckoutUrl;
@@ -148,11 +151,118 @@ class PaymentWebViewState extends State<PaymentWebView> {
 
     _evaluatePaymentUrl(url, source: source);
 
+    if (expressPayUrlIsCheckoutEntry(url)) {
+      unawaited(_verifyExpressPayCheckoutAmount(url));
+    }
+
     if (_shouldScanExpressPayPage(url)) {
       _lastExpressPayScanUrl = null;
       _expressPayScanAttempts = 0;
       unawaited(_scanExpressPayPage(url));
     }
+  }
+
+  double? get _expectedPayableAmount {
+    final raw = widget.paymentParams['amount'] ??
+        widget.paymentParams['total_amount'] ??
+        widget.paymentParams['payable_amount'];
+    if (raw is num) return raw.toDouble();
+    return double.tryParse('${raw ?? ''}'.replaceAll(',', '').trim());
+  }
+
+  /// Blocks payment when ExpressPay shows merchandise-only (e.g. 19.50 vs 49.50).
+  Future<void> _verifyExpressPayCheckoutAmount(String url) async {
+    if (_amountGuardChecked ||
+        _amountGuardFailed ||
+        _amountGuardInProgress ||
+        _webViewTornDown ||
+        _checkoutNavigationStarted ||
+        !mounted) {
+      return;
+    }
+
+    final expected = _expectedPayableAmount;
+    if (expected == null || expected <= 0) return;
+
+    final controller = _controller;
+    if (controller == null) return;
+
+    _amountGuardInProgress = true;
+    try {
+      // Let the portal render the payable amount before scraping.
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      if (_amountGuardChecked ||
+          _amountGuardFailed ||
+          _webViewTornDown ||
+          _checkoutNavigationStarted ||
+          !mounted) {
+        return;
+      }
+
+      final raw = await controller.runJavaScriptReturningResult(
+        extractExpressPayPageTextJs,
+      );
+      var pageText = normalizeWebViewJsString(raw);
+      if (pageText.trim().isEmpty) {
+        // Retry once — checkout UI may still be hydrating.
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+        if (_webViewTornDown || !mounted) return;
+        final rawRetry = await controller.runJavaScriptReturningResult(
+          extractExpressPayPageTextJs,
+        );
+        pageText = normalizeWebViewJsString(rawRetry);
+        if (pageText.trim().isEmpty) return;
+      }
+      await _handleAmountGuardResult(
+        pageText: pageText,
+        expected: expected,
+        url: url,
+      );
+    } catch (e) {
+      debugPrint('[EXPRESS PAY] Amount guard skipped: $e');
+    } finally {
+      _amountGuardInProgress = false;
+    }
+  }
+
+  Future<void> _handleAmountGuardResult({
+    required String pageText,
+    required double expected,
+    required String url,
+  }) async {
+    if (_amountGuardChecked || _amountGuardFailed) return;
+
+    final displayed = resolveExpressPayPayableAmount(
+      pageText: pageText,
+      expectedAmount: expected,
+    );
+    debugPrint(
+      '[EXPRESS PAY] Amount guard on $url — '
+      'expected=$expected displayed=$displayed',
+    );
+
+    if (displayed == null) return; // Can't read yet; allow retry via URL events.
+
+    _amountGuardChecked = true;
+
+    if (!expressPayAmountIsUndercharged(
+      pageText: pageText,
+      expectedAmount: expected,
+    )) {
+      return;
+    }
+
+    _amountGuardFailed = true;
+    final shown = displayed.toStringAsFixed(2);
+    final due = expected.toStringAsFixed(2);
+    checkoutLog(
+      '[EXPRESS PAY] Undercharged portal — shown GHS $shown, expected GHS $due',
+    );
+    _showWebViewError(
+      'ExpressPay shows GHS $shown but your order total is GHS $due. '
+      'Delivery and urgent fees were not included in the payment session. '
+      'Please go back and try again, or contact support.',
+    );
   }
 
   bool _shouldScanExpressPayPage(String url) {

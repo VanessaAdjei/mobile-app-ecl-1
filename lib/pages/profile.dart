@@ -29,6 +29,7 @@ import '../providers/cart_provider.dart';
 import '../main.dart';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
+import '../utils/profile_tour_gate.dart';
 
 const Color _kProfilePageBg = Color(0xFFF6F8FA);
 const Color _kProfilePageBgMint = Color(0xFFEFFCF4);
@@ -313,6 +314,7 @@ class ProfileState extends State<Profile> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onScroll);
+    unawaited(ProfileTourGate.armIfTourPending());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeUserData();
       unawaited(_syncPushNotifications());
@@ -355,22 +357,28 @@ class ProfileState extends State<Profile> with WidgetsBindingObserver {
 
   Future<void> _runTourThenSwipeHint() async {
     if (!mounted) return;
-    final tourShown = await ProfilePageTour.maybeStart(
-      context: context,
-      targets: ProfilePageTourTargets(
-        headerKey: _tourHeaderKey,
-        preferencesKey: _tourPreferencesKey,
-        accountKey: _tourAccountKey,
-        healthKey: _tourHealthKey,
-        supportKey: _tourSupportKey,
-      ),
-      scrollController: _scrollController,
-    );
+    await ProfileTourGate.armIfTourPending();
     if (!mounted) return;
-    if (tourShown) {
-      _swipeHint.reset();
+    try {
+      final tourShown = await ProfilePageTour.maybeStart(
+        context: context,
+        targets: ProfilePageTourTargets(
+          headerKey: _tourHeaderKey,
+          preferencesKey: _tourPreferencesKey,
+          accountKey: _tourAccountKey,
+          healthKey: _tourHealthKey,
+          supportKey: _tourSupportKey,
+        ),
+        scrollController: _scrollController,
+      );
+      if (!mounted) return;
+      if (tourShown) {
+        _swipeHint.reset();
+      }
+      _scheduleSwipeHintCheck();
+    } finally {
+      ProfileTourGate.release();
     }
-    _scheduleSwipeHintCheck();
   }
 
   Future<void> _initializeUserData() async {
@@ -613,7 +621,22 @@ class ProfileState extends State<Profile> with WidgetsBindingObserver {
     final muted = theme.muted;
     final border = theme.border;
 
-    return Scaffold(
+    return ValueListenableBuilder<bool>(
+      valueListenable: ProfileTourGate.blocking,
+      builder: (context, blocking, child) {
+        if (!blocking) return child!;
+        return Stack(
+          children: [
+            child!,
+            const Positioned.fill(
+              child: AbsorbPointer(
+                child: ColoredBox(color: Colors.transparent),
+              ),
+            ),
+          ],
+        );
+      },
+      child: Scaffold(
       backgroundColor: bg,
       body: _profileHubBackdrop(
         context: context,
@@ -994,6 +1017,7 @@ class ProfileState extends State<Profile> with WidgetsBindingObserver {
       ),
       bottomNavigationBar:
           widget.showBottomNav ? const CustomBottomNav(selectedIndex: 4) : null,
+    ),
     );
   }
 }

@@ -369,6 +369,7 @@ class DeliveryService {
     String? distanceText,
     bool? orderUrgent,
     double? emergencyOrderFee,
+    double? deliveryFee,
 
     /// When true, tells the API to drop any leftover xpress/urgent fee from a
     /// prior checkout session (non-urgent orders only).
@@ -469,12 +470,23 @@ class DeliveryService {
 
       attachBillingCoordinates(requestBody, lat: lat, lng: lng);
 
-      // Urgent flag only when selected. Fee amount comes from
-      // `/calculate-delivery-fee` xpress_fee and is charged via ExpressPay.
+      // Attach fee amounts so the server session matches ExpressPay payable.
+      // `/expresspayment` mints the portal token from session cart, not from
+      // the posted `amount` alone.
+      if (deliveryOption == 'delivery' &&
+          deliveryFee != null &&
+          deliveryFee > 0) {
+        requestBody['delivery_fee'] = deliveryFee;
+        requestBody['shipping_fee'] = deliveryFee;
+      }
       if (orderUrgent == true ||
           (emergencyOrderFee != null && emergencyOrderFee > 0)) {
         requestBody['order_urgent'] = true;
         requestBody['is_urgent'] = true;
+        if (emergencyOrderFee != null && emergencyOrderFee > 0) {
+          requestBody['emergency_order_fee'] = emergencyOrderFee;
+          requestBody['xpress_fee'] = emergencyOrderFee;
+        }
       } else if (clearStaleUrgentFee && !expressPayFlow) {
         requestBody['order_urgent'] = false;
         requestBody['is_urgent'] = false;

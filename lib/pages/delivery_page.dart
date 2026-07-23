@@ -2854,11 +2854,9 @@ class DeliveryPageState extends State<DeliveryPage> {
                   ),
                   const SizedBox(height: 1),
                   Text(
-                    !isOn
-                        ? 'Delivered sooner — extra fee applies.'
-                        : _apiXpressFee != null
-                            ? 'Prioritized for faster delivery · +GHS ${_apiXpressFee!.toStringAsFixed(2)}'
-                            : 'Prioritized for faster delivery — fee adds when address is set.',
+                    isOn
+                        ? 'Prioritized for faster delivery.'
+                        : 'Delivered sooner — extra fee applies.',
                     style: TextStyle(
                       fontSize: 10,
                       height: 1.25,
